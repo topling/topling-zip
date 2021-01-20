@@ -19,8 +19,8 @@ TERARK_DLL_EXPORT int system_vfork(const char*);
 
 TERARK_DLL_EXPORT
 void vfork_cmd(fstring cmd, fstring stdinData,
-                function<void(std::string&& stdoutData, const std::exception*)>,
-                fstring tmpFilePrefix = "");
+               function<void(std::string&& stdoutData, const std::exception*)>,
+               fstring tmpFilePrefix = "");
 
 TERARK_DLL_EXPORT
 std::future<std::string>
@@ -78,5 +78,16 @@ public:
     int xclose() noexcept;
     int err_code() const noexcept { return m_err; }
 };
+
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd,
+               function<void(ProcPipeStream&)> write,
+               function<void(std::string&& stdoutData, const std::exception*)>,
+               fstring tmpFilePrefix = "");
+
+TERARK_DLL_EXPORT
+std::future<std::string>
+vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
+          fstring tmpFilePrefix = "");
 
 } // namespace terark
