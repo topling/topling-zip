@@ -226,6 +226,34 @@ DataIO_IsDump_TypeTrue2(PortableNoVarInt, var_int64_t)
 	BOOST_STATIC_ASSERT(sizeof(dio_t) == sizeof(stream))
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+template<class T>
+class ExplicitSerDePointerProxy {
+  T** pp;
+private:
+  template<class DataIO>
+  friend void DataIO_loadObject(DataIO& dio, ExplicitSerDePointerProxy x) {
+    std::unique_ptr<T> p(new T());
+    dio >> *p;
+    *x.pp = p.release();
+  }
+  template<class DataIO>
+  friend void DataIO_saveObject(DataIO& dio, ExplicitSerDePointerProxy x) {
+    dio << **x.pp;
+  }
+  explicit ExplicitSerDePointerProxy(T*& pr) : pp(&pr) {}
+};
+template<class T>
+pass_by_value<ExplicitSerDePointerProxy<T> > ExplicitSerDePointer(T*& pr) {
+  return pass_by_value<ExplicitSerDePointerProxy<T> >(
+                       ExplicitSerDePointerProxy<T>(pr));
+}
+template<class T>
+pass_by_value<ExplicitSerDePointerProxy<T> >
+ExplicitSerDePointer(T* const& pr) {
+  return pass_by_value<ExplicitSerDePointerProxy<T> >(
+                       ExplicitSerDePointerProxy<T>(pr));
+}
+
 } // namespace terark
 
 #endif // __terark_io_DataIO_h__
