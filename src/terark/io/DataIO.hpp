@@ -254,6 +254,40 @@ ExplicitSerDePointer(T* const& pr) {
                        ExplicitSerDePointerProxy<T>(pr));
 }
 
+template<class T>
+class ExplicitSerDeReusePointerProxy {
+  T** pp;
+private:
+  template<class DataIO>
+  friend void DataIO_loadObject(DataIO& dio, ExplicitSerDeReusePointerProxy x) {
+    if (*x.pp) {
+      dio >> *x.pp;
+    }
+    else {
+      std::unique_ptr<T> p(new T());
+      dio >> *p;
+      *x.pp = p.release();
+    }
+  }
+  template<class DataIO>
+  friend void DataIO_saveObject(DataIO& dio, ExplicitSerDeReusePointerProxy x) {
+    dio << **x.pp;
+  }
+  explicit ExplicitSerDeReusePointerProxy(T*& pr) : pp(&pr) {}
+};
+template<class T>
+pass_by_value<ExplicitSerDePointerProxy<T> > ExplicitSerDeReusePointer(T*& pr) {
+  return pass_by_value<ExplicitSerDeReusePointerProxy<T> >(
+                       ExplicitSerDeReusePointerProxy<T>(pr));
+}
+template<class T>
+pass_by_value<ExplicitSerDeReusePointerProxy<T> >
+ExplicitSerDeReusePointer(T* const& pr) {
+  return pass_by_value<ExplicitSerDeReusePointerProxy<T> >(
+                       ExplicitSerDeReusePointerProxy<T>(pr));
+}
+
+
 } // namespace terark
 
 #endif // __terark_io_DataIO_h__
