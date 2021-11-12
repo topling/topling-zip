@@ -1,5 +1,4 @@
-#ifndef __terark_gold_hash_idx_hpp__
-#define __terark_gold_hash_idx_hpp__
+#pragma once
 
 #include "hash_common.hpp"
 
@@ -439,6 +438,3 @@ template<class HashEqual, class Node, class HashTp>
 const size_t gold_hash_idx2<HashEqual, Node, HashTp>::delmark;
 
 } // namespace terark
-
-#endif // __terark_gold_hash_idx_hpp__
-

@@ -1,9 +1,6 @@
-#ifndef __terark_config_h__
-#define __terark_config_h__
+#pragma once
 
 #if defined(_MSC_VER)
-
-# pragma once
 
 #ifndef _CRT_SECURE_NO_WARNINGS
 # define _CRT_SECURE_NO_WARNINGS
@@ -44,6 +41,7 @@
 #endif /* _MSC_VER */
 
 #if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 7001
+#  pragma GCC diagnostic ignored "-Walloc-size-larger-than="
 #  define no_break_fallthrough __attribute__ ((fallthrough))
 #endif
 
@@ -153,7 +151,3 @@
     }
 
 extern bool g_Terark_hasValgrind;
-
-#endif // __terark_config_h__
-
-

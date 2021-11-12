@@ -1,5 +1,4 @@
-#ifndef __terark_util_autofree_hpp__
-#define __terark_util_autofree_hpp__
+#pragma once
 
 #include <boost/noncopyable.hpp>
 #include <boost/static_assert.hpp>
@@ -10,24 +9,7 @@
 #include <memory>
 #include <utility>
 #include <algorithm>
-
-#if defined(__GNUC__) && __GNUC__ >= 4 && !defined(__GXX_EXPERIMENTAL_CXX0X__) && !defined(_LIBCPP_VERSION)
-	#include <ext/memory> // for uninitialized_copy_n
-	#include <ext/algorithm> // for copy_n
-	#define STDEXT_copy_n               __gnu_cxx::copy_n
-	#define STDEXT_uninitialized_copy_n __gnu_cxx::uninitialized_copy_n
-#else
-	#define STDEXT_copy_n               std::copy_n
-	#define STDEXT_uninitialized_copy_n std::uninitialized_copy_n
-#endif
-
-#if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L || \
-	defined(_MSC_VER) && _MSC_VER >= 1700
-	#include <initializer_list>
-	#ifndef HSM_HAS_MOVE
-		#define HSM_HAS_MOVE
-	#endif
-#endif
+#include <initializer_list>
 
 #ifndef __HAS_RVALUE_REFERENCE
   #if (__GNUC__ > 4 || __GNUC__ == 4 && __GNUC_MINOR__ >= 3) || \
@@ -87,7 +69,7 @@ namespace terark {
 			}
 			else {
 				AutoFree tmp(n);
-				STDEXT_uninitialized_copy_n(src, n, tmp.p);
+				std::uninitialized_copy_n(src, n, tmp.p);
 				p = tmp.release();
 			}
 		}
@@ -106,7 +88,7 @@ namespace terark {
 			}
 			else {
 				AutoFree tmp(cap);
-				STDEXT_uninitialized_copy_n(src, n, tmp.p);
+				std::uninitialized_copy_n(src, n, tmp.p);
 				p = tmp.release();
 			}
 		}
@@ -174,7 +156,3 @@ namespace std {
 	template<class T>
 	void swap(terark::AutoFree<T>& x, terark::AutoFree<T>& y) { x.swap(y); }
 }
-
-#endif
-
-

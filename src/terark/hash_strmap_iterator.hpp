@@ -10,8 +10,11 @@ public:
 		typedef mapped_type   second_type;
 		fstring      first;
 		mapped_type& second;
-		operator std::pair<const fstring, mapped_type>() {
+		operator std::pair<const fstring, mapped_type>() const {
 		  return std::pair<const fstring, mapped_type>(first, second);
+		}
+		operator std::pair<std::string, mapped_type>() const {
+		  return std::pair<std::string, mapped_type>(first.str(), second);
 		}
 		value_type(fstring key, mapped_type& val) : first(key), second(val) {}
 	};

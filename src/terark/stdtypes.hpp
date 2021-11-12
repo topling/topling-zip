@@ -1,9 +1,6 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_stdtypes_h__
-#define __terark_stdtypes_h__
-
+#pragma once
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
 # pragma warning(disable: 4819)
 # pragma warning(disable: 4290)
 # pragma warning(disable: 4267) // conversion from 'size_t' to 'uint', possible loss of data
@@ -16,29 +13,7 @@
 #include <boost/predef/other/endian.h>
 #include <boost/current_function.hpp>
 #include <limits.h>
-
-#if defined(_MSC_VER)
-	#if _MSC_VER >= 1800
-		#include <stdint.h>
-	#else
-		#include <boost/cstdint.hpp>
-		using boost::int8_t;
-		using boost::int16_t;
-		using boost::int32_t;
-
-		using boost::uint8_t;
-		using boost::uint16_t;
-		using boost::uint32_t;
-
-	  #if !defined(BOOST_NO_INT64_T)
-		using boost::int64_t;
-		using boost::uint64_t;
-	  #endif
-	#endif
-#else // assume c99/gcc compatible
-	#include <stdint.h>
-#endif
-
+#include <stdint.h>
 #include <string.h> // for memcpy
 
 namespace terark {
@@ -58,13 +33,8 @@ typedef long long llong;
 typedef size_t bm_uint_t;
 static const size_t WordBits = sizeof(bm_uint_t) * 8;
 
-#if !defined(BOOST_NO_INT64_T)
 typedef uint64_t stream_position_t;
 typedef int64_t  stream_offset_t;
-#else
-typedef uint32_t stream_position_t;
-typedef int32_t  stream_offset_t;
-#endif
 
 typedef uint32_t ip_addr_t;
 
@@ -135,26 +105,10 @@ struct StaticUintBits<0> { enum { value = 0 }; };
 template<class IntX, class IntY>
 inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 
-#define TERARK_HAS_BSET(set, subset) (((set) & (subset)) == (subset))
-
-/*
- * iter = s.end();
- * ibeg = s.begin();
- * if (iter != ibeg) do { --iter;
- *     //
- *     // do something with iter
- *     //
- * } while (iter != ibeg);else;
- * //
- * // this 'else' is intend for use REVERSE_FOR_EACH
- * // within an if-else-while sub sentence
- *
- * // this is faster than using reverse_iterator
- *
- */
-//#define REVERSE_FOR_EACH_BEGIN(iter, ibeg)  if (iter != ibeg) do { --iter
-//#define REVERSE_FOR_EACH_END(iter, ibeg)    } while (iter != ibeg); else
-
+template<class IntX, class IntY>
+inline bool bitset_has_subset(IntX set, IntX subset) {
+	return ((set) & (subset)) == (subset);
+}
 
 /////////////////////////////////////////////////////////////
 //
@@ -171,9 +125,7 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 	ThisClassName(ThisClassName&&) = delete; \
 	ThisClassName& operator=(ThisClassName&&) = delete;
 
-
-#define CURRENT_SRC_CODE_POSTION  \
-	__FILE__ ":" BOOST_STRINGIZE(__LINE__) ", in function: " BOOST_CURRENT_FUNCTION
+/////////////////////////////////////////////////////////////
 
 #define TERARK_DIE(fmt, ...) \
 	do { \
@@ -227,6 +179,11 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #define TERARK_ASSERT_EQ(x,y) TERARK_ASSERT_F(x == y, "%lld %lld", (long long)(x), (long long)(y))
 #define TERARK_ASSERT_NE(x,y) TERARK_ASSERT_F(x != y, "%lld %lld", (long long)(x), (long long)(y))
 
+// _BT: between [ Lower, Upper )
+// _BE: between [ Lower, Upper ] -- include Upper : can Equal to Upper
+#define TERARK_ASSERT_BT(x,L,U) TERARK_ASSERT_F(x >= L && x <  U, "%lld %lld %lld )", (long long)(x), (long long)(L), (long long)(U))
+#define TERARK_ASSERT_BE(x,L,U) TERARK_ASSERT_F(x >= L && x <= U, "%lld %lld %lld ]", (long long)(x), (long long)(L), (long long)(U))
+
 // _EZ: Equal To Zero
 #define TERARK_ASSERT_EZ(x) TERARK_ASSERT_F(x == 0, "%lld", (long long)(x))
 
@@ -240,6 +197,11 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #define TERARK_VERIFY_GE(x,y) TERARK_VERIFY_F(x >= y, "%lld %lld", (long long)(x), (long long)(y))
 #define TERARK_VERIFY_EQ(x,y) TERARK_VERIFY_F(x == y, "%lld %lld", (long long)(x), (long long)(y))
 #define TERARK_VERIFY_NE(x,y) TERARK_VERIFY_F(x != y, "%lld %lld", (long long)(x), (long long)(y))
+
+// _BT: between [ Lower, Upper )
+// _BE: between [ Lower, Upper ] -- include Upper : can Equal to Upper
+#define TERARK_VERIFY_BT(x,L,U) TERARK_VERIFY_F(x >= L && x <  U, "%lld %lld %lld )", (long long)(x), (long long)(L), (long long)(U))
+#define TERARK_VERIFY_BE(x,L,U) TERARK_VERIFY_F(x >= L && x <= U, "%lld %lld %lld ]", (long long)(x), (long long)(L), (long long)(U))
 
 // _EZ: Equal To Zero
 #define TERARK_VERIFY_EZ(x) TERARK_VERIFY_F(x == 0, "%lld", (long long)(x))
@@ -285,4 +247,19 @@ inline void unaligned_save(void* p, size_t i, T val) {
    	memcpy((char*)(p) + sizeof(T) * i, &val, sizeof(T));
 }
 
-#endif // __terark_stdtypes_h__
+template<class SrcType>
+class DestStaticCastProxy {
+    SrcType value;
+public:
+    explicit DestStaticCastProxy(const SrcType& x) : value(x) {}
+    template<class DestType>
+    operator DestType() const { return static_cast<DestType>(value); }
+};
+
+template<class SrcType>
+DestStaticCastProxy<SrcType> dest_scast(const SrcType& x) {
+    return DestStaticCastProxy<SrcType>(x);
+}
+
+template<class T> T* dest_ccast(const T* x) { return const_cast<T*>(x); }
+template<class T> T& dest_ccast(const T& x) { return const_cast<T&>(x); }

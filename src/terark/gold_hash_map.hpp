@@ -1,5 +1,4 @@
-#ifndef __terark_gold_hash_tab__
-#define __terark_gold_hash_tab__
+#pragma once
 
 #ifdef _MSC_VER
 	#if _MSC_VER < 1600
@@ -29,27 +28,12 @@
 #include <boost/type_traits/has_trivial_constructor.hpp>
 #include <boost/type_traits/has_trivial_destructor.hpp>
 
-namespace terark {
-
-#if 1
-template<class T>
-struct terark_identity {
-	typedef T value_type;
-	const T& operator()(const T& x) const { return x; }
-};
-#else
-	#define terark_identity std::identity
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
-template<class Key, class Object, size_t Offset>
-struct ExtractKeyByOffset {
-	const Key& operator()(const Object& x) const {
-		return *reinterpret_cast<const Key *>(
-				reinterpret_cast<const char*>(&x) + Offset);
-	}
-	BOOST_STATIC_ASSERT(Offset >= 0);
-	BOOST_STATIC_ASSERT(Offset <= sizeof(Object)-sizeof(Key));
-};
+namespace terark {
 
 template< class Key
 		, class Elem = Key
@@ -60,11 +44,11 @@ template< class Key
 		>
 class gold_hash_tab : dummy_bucket<typename NodeLayout::link_t>, HashEqual, KeyExtractor
 {
+#define MyKeyExtractor static_cast<const KeyExtractor&>(*this)
 protected:
 	typedef typename NodeLayout::link_t LinkTp;
 	typedef typename NodeLayout::copy_strategy CopyStrategy;
 
-//	BOOST_STATIC_ASSERT(sizeof(LinkTp) <= sizeof(Elem));
 	using dummy_bucket<LinkTp>::tail;
 	using dummy_bucket<LinkTp>::delmark;
 	static const intptr_t hash_cache_disabled = 8; // good if compiler aggressive optimize
@@ -74,6 +58,8 @@ protected:
 	};
 
 public:
+	typedef typename ParamPassType<Key>::type         key_param_pass_t;
+
 	typedef typename NodeLayout::      iterator       fast_iterator;
 	typedef typename NodeLayout::const_iterator const_fast_iterator;
 	typedef std::reverse_iterator<      fast_iterator>       fast_reverse_iterator;
@@ -115,6 +101,7 @@ public:
 	typedef Elem& reference;
 
 	typedef const Key key_type;
+	typedef LinkTp link_t;
 
 protected:
 	NodeLayout m_nl;
@@ -133,6 +120,7 @@ protected:
 
 private:
 	void init() {
+		BOOST_STATIC_ASSERT(sizeof(LinkTp) <= sizeof(Elem));
 		new(&m_nl)NodeLayout();
 		nElem = 0;
 		maxElem = 0;
@@ -144,7 +132,7 @@ private:
 
 		bucket = const_cast<LinkTp*>(&tail); // false start
 		nBucket = 1;
-		freelist_head = delmark; // don't use freelist
+		freelist_head = tail; // empty freelist
 		freelist_size = 0;
         freelist_freq = 0;
 
@@ -175,14 +163,14 @@ private:
 		if (intptr_t(pHash) == hash_cache_disabled) {
 			if (0 == freelist_size)
 				for (size_t j = 0, n = nElem; j < n; ++j) {
-					size_t i = HashEqual::hash(getKeyExtractor()(nl.data(j))) % nb;
+					size_t i = HashEqual::hash(MyKeyExtractor(nl.data(j))) % nb;
 					nl.link(j) = pb[i];
 					pb[i] = LinkTp(j);
 				}
 			else
 				for (size_t j = 0, n = nElem; j < n; ++j) {
 					if (delmark != nl.link(j)) {
-						size_t i = HashEqual::hash(getKeyExtractor()(nl.data(j))) % nb;
+						size_t i = HashEqual::hash(MyKeyExtractor(nl.data(j))) % nb;
 						nl.link(j) = pb[i];
 						pb[i] = LinkTp(j);
 					}
@@ -192,7 +180,7 @@ private:
 			HashTp* ph = pHash;
 			if (0 == freelist_size)
 				for (size_t j = 0, n = nElem; j < n; ++j) {
-					HashTp h = HashTp(HashEqual::hash(getKeyExtractor()(nl.data(j))));
+					HashTp h = HashTp(HashEqual::hash(MyKeyExtractor(nl.data(j))));
 					size_t i = h % nb;
 					ph[j] = h;
 					nl.link(j) = pb[i];
@@ -201,7 +189,7 @@ private:
 			else
 				for (size_t j = 0, n = nElem; j < n; ++j) {
 					if (delmark != nl.link(j)) {
-						HashTp h = HashTp(HashEqual::hash(getKeyExtractor()(nl.data(j))));
+						HashTp h = HashTp(HashEqual::hash(MyKeyExtractor(nl.data(j))));
 						size_t i = h % nb;
 						ph[j] = h;
 						nl.link(j) = pb[i];
@@ -263,7 +251,16 @@ public:
 						 , KeyExtractor keyExtr = KeyExtractor())
 	  : HashEqual(he), KeyExtractor(keyExtr) {
 		init();
-		rehash(cap);
+		reserve(cap);
+	}
+	gold_hash_tab(std::initializer_list<Elem> list
+				, HashEqual he = HashEqual()
+				, KeyExtractor keyExtr = KeyExtractor())
+	  : HashEqual(he), KeyExtractor(keyExtr) {
+		init();
+		reserve(list.size());
+		for (auto& e : list)
+			this->insert_i(e);
 	}
 	/// ensured not calling HashEqual and KeyExtractor
 	gold_hash_tab(const gold_hash_tab& y)
@@ -326,6 +323,33 @@ public:
 		}
 		return *this;
 	}
+	gold_hash_tab(gold_hash_tab&& y) noexcept
+	  : HashEqual(std::move(y)), KeyExtractor(std::move(y)) {
+		pHash   =  y.pHash;
+		m_nl    =  y.m_nl;
+		nElem   =  y.nElem;
+		maxElem =  y.maxElem;
+		maxload =  y.maxload;
+
+		nBucket =  y.nBucket;
+		bucket  =  y.bucket;
+
+		freelist_head =  y.freelist_head;
+		freelist_size =  y.freelist_size;
+		freelist_freq =  y.freelist_freq;
+
+		load_factor =  y.load_factor;
+		is_sorted   =  y.is_sorted;
+
+		y.init(); // reset y as empty
+	}
+	gold_hash_tab& operator=(gold_hash_tab&& y) noexcept {
+		if (this != &y) {
+			this->~gold_hash_tab();
+			new(this)gold_hash_tab(std::move(y));
+		}
+		return *this;
+	}
 	~gold_hash_tab() { destroy(); }
 
 	void swap(gold_hash_tab& y) {
@@ -377,17 +401,18 @@ public:
 				}
 				if (0 == freelist_size) {
 					for (size_t i = 0, n = nElem; i < n; ++i)
-						ph[i] = HashEqual::hash(getKeyExtractor()(m_nl.data(i)));
+						ph[i] = HashEqual::hash(MyKeyExtractor(m_nl.data(i)));
 				}
 				else {
 					for (size_t i = 0, n = nElem; i < n; ++i)
 						if (delmark != m_nl.link(i))
-							ph[i] = HashEqual::hash(getKeyExtractor()(m_nl.data(i)));
+							ph[i] = HashEqual::hash(MyKeyExtractor(m_nl.data(i)));
 				}
 				pHash = ph;
 			}
 		}
-		assert(NULL != pHash || 0 == maxElem);
+		TERARK_VERIFY_F(nullptr != pHash || 0 == maxElem,
+						"%p : %zd", pHash, size_t(maxElem));
 	}
 
 	void disable_hash_cache() {
@@ -398,29 +423,28 @@ public:
 		pHash = (HashTp*)(hash_cache_disabled);
 	}
 
-	void rehash(size_t newBucketSize) {
+	size_t rehash(size_t newBucketSize) {
 		newBucketSize = __hsm_stl_next_prime(newBucketSize);
+		TERARK_VERIFY_GE(newBucketSize, 5);
 		if (newBucketSize != nBucket) {
 			// shrink or enlarge
 			// "tail" has multi impl in diff dll/so
 			// so we should not if (bucket != &tail)
 			if (nBucket != 1) {
-				assert(NULL != bucket);
+				TERARK_VERIFY(nullptr != bucket);
 				free(bucket);
 			}
 			else {
-				assert(tail == *bucket);
+				TERARK_VERIFY_EQ(tail, *bucket);
 			}
 			bucket = (LinkTp*)malloc(sizeof(LinkTp) * newBucketSize);
-			if (NULL == bucket) { // how to handle?
-				assert(0); // immediately fail on debug mode
-				destroy();
-				throw std::runtime_error("rehash failed, unrecoverable");
-			}
+			TERARK_VERIFY_F(nullptr != bucket, "malloc(%zd) = NULL",
+							sizeof(LinkTp) * newBucketSize);
 			nBucket = newBucketSize;
 			relink();
 			maxload = LinkTp(newBucketSize * load_factor);
 		}
+		return newBucketSize;
 	}
 //	void resize(size_t n) { rehash(n); }
 
@@ -430,9 +454,9 @@ public:
 	}
 
 	void reserve_nodes(size_t cap) {
-	//	assert(cap >= maxElem); // could be shrink
-		assert(cap >= nElem);
-		assert(cap <= delmark);
+	//	TERARK_VERIFY_GE(cap, maxElem); // could be shrink
+		TERARK_VERIFY_GE(cap, nElem);
+		TERARK_VERIFY_LE(cap, delmark);
 		if (cap != (size_t)maxElem && cap != nElem) {
 			if (intptr_t(pHash) != hash_cache_disabled) {
 				HashTp* ph = (HashTp*)realloc(pHash, sizeof(HashTp) * cap);
@@ -458,14 +482,14 @@ public:
 	double get_load_factor() const { return load_factor; }
 
 	inline HashTp hash_i(size_t i) const {
-		assert(i < nElem);
+		TERARK_ASSERT_LT(i, nElem);
 		if (intptr_t(pHash) == hash_cache_disabled)
-			return HashTp(HashEqual::hash(getKeyExtractor()(m_nl.data(i))));
+			return HashTp(HashEqual::hash(MyKeyExtractor(m_nl.data(i))));
 		else
 			return pHash[i];
 	}
     inline HashTp hash_v(const Elem& e) const {
-        return HashTp(HashEqual::hash(getKeyExtractor()(e)));
+        return HashTp(HashEqual::hash(MyKeyExtractor(e)));
     }
 	bool   empty() const { return nElem == freelist_size; }
 	size_t  size() const { return nElem -  freelist_size; }
@@ -480,20 +504,21 @@ public:
 		return i;
 	}
 	size_t  end_i() const { return nElem; }
-	size_t rbeg_i() const { return freelist_size == nElem ? 0 : nElem; }
+	size_t rbeg_i() const { return nElem; }
 	size_t rend_i() const { return 0; }
 	size_t next_i(size_t idx) const {
 		size_t n = nElem;
-	   	assert(idx < n);
+		TERARK_ASSERT_LT(idx, n);
 		do ++idx; while (idx < n && delmark == m_nl.link(idx));
 		return idx;
 	}
 	size_t prev_i(size_t idx) const {
-		assert(idx > 0);
-		assert(idx <= nElem);
+		TERARK_ASSERT_GT(idx, 0);
+		TERARK_ASSERT_LE(idx, nElem);
 		do --idx; while (idx > 0 && delmark == m_nl.link(idx));
 		return idx;
 	}
+	size_t max_size() const { return size_t(-1); }
 	size_t capacity() const { return maxElem; }
 	size_t delcnt() const { return freelist_size; }
 
@@ -534,6 +559,10 @@ public:
 		std::pair<size_t, bool> ib = insert_i(obj);
 		return std::pair<iterator, bool>(get_iter(ib.first), ib.second);
 	}
+	std::pair<iterator, bool> insert(const Elem& obj) {
+		std::pair<size_t, bool> ib = insert_i(obj);
+		return std::pair<iterator, bool>(get_iter(ib.first), ib.second);
+	}
 
 	template<class Arg1>
 	std::pair<iterator, bool> emplace(const Arg1& a1) {
@@ -545,17 +574,15 @@ public:
 		std::pair<size_t, bool> ib = insert_i(value_type(a1, a2));
 		return std::pair<iterator, bool>(get_iter(ib.first), ib.second);
 	}
-#if defined(HSM_HAS_MOVE)
 	template<class... _Valty>
 	std::pair<iterator, bool> emplace(_Valty&&... _Val) {
 		std::pair<size_t, bool> ib =
 			insert_i(value_type(std::forward<_Valty>(_Val)...));
 		return std::pair<iterator, bool>(get_iter(ib.first), ib.second);
 	}
-#endif
 
-	      iterator find(const Key& key)       { return get_iter(find_i(key)); }
-	const_iterator find(const Key& key) const { return get_iter(find_i(key)); }
+	      iterator find(key_param_pass_t key)       { return get_iter(find_i(key)); }
+	const_iterator find(key_param_pass_t key) const { return get_iter(find_i(key)); }
 
 	// keep memory
 	void erase_all() {
@@ -573,7 +600,7 @@ public:
 			}
 		}
 		if (freelist_head < delmark) {
-			assert(freelist_head < nElem);
+			TERARK_VERIFY_LT(freelist_head, nElem);
 			freelist_head = tail;
 			freelist_size = 0;
 			freelist_freq = 0;
@@ -585,17 +612,21 @@ public:
 	}
 
 #ifndef TERARK_GOLD_HASH_MAP_ITERATOR_USE_FAST
-	void erase(iterator iter) {
-		assert(iter.get_owner() == this);
+	iterator erase(iterator iter) {
+		TERARK_ASSERT_EQ(iter.get_owner(), this);
+		TERARK_ASSERT_LT(iter.get_index(), nElem);
 		assert(!m_nl.is_null());
-		assert(iter.get_index() < nElem);
+		size_t idx = iter.get_index();
 		erase_i(iter.get_index());
+		size_t End = end_i();
+		while (idx < End && is_deleted(idx)) {}
+		return iterator(this, idx);
 	}
 #endif
 	void erase(fast_iterator iter) {
 		assert(!m_nl.is_null());
-		assert(iter >= m_nl.begin());
-		assert(iter <  m_nl.begin() + nElem);
+		TERARK_ASSERT_GE(iter - m_nl.begin(), 0);
+		TERARK_ASSERT_LT(iter - m_nl.begin(), nElem);
 		erase_i(iter - m_nl.begin());
 	}
 private:
@@ -677,19 +708,15 @@ public:
 	//@{
 	//@brief erase_if
 	/// will invalidate saved id/index/iterator
-	/// can be called even if freelist_is_using
+	/// if id needs to be keeped, call keepid_erase_if
 	template<class Predictor>
 	size_t erase_if(Predictor pred) {
-		if (freelist_is_using())
-			return keepid_erase_if(pred);
-		else {
-			size_t nErased = erase_if_impl(pred, CopyStrategy());
-			if (nElem * 2 <= maxElem)
-				shrink_to_fit();
-			else
-				relink();
-			return nErased;
-		}
+		size_t nErased = erase_if_impl(pred, CopyStrategy());
+		if (nElem * 2 <= maxElem)
+			shrink_to_fit();
+		else
+			relink();
+		return nErased;
 	}
 	template<class Predictor>
 	size_t shrink_after_erase_if(Predictor pred) {
@@ -708,27 +735,25 @@ public:
 	template<class Predictor>
 	size_t keepid_erase_if(Predictor pred) {
 		// should be much slower than erase_if
-		assert(freelist_is_using());
 		size_t  n = nElem;
 		size_t  erased = 0;
 		NodeLayout nl = m_nl;
-		if (freelist_is_empty()) {
-			assert(0 == freelist_size);
+		if (0 == freelist_size) {
+			TERARK_VERIFY_EQ(freelist_head, tail);
 			for (size_t i = 0; i != n; ++i)
 				if (pred(nl.data(i)))
-					erase_to_freelist(i), ++erased;
+					erase_i(i), ++erased;
 		}
 		else {
-			assert(0 != freelist_size);
+			TERARK_VERIFY_LT(freelist_head, n);
 			for (size_t i = 0; i != n; ++i)
 				if (delmark != nl.link(i) && pred(nl.data(i)))
-					erase_to_freelist(i), ++erased;
+					erase_i(i), ++erased;
 		}
 		return erased;
 	}
 	// if return non-zero, all permanent id/index are invalidated
 	size_t revoke_deleted() {
-		assert(freelist_is_using()); // must be using/enabled
 		if (freelist_size) {
 			size_t erased = revoke_deleted_no_relink();
 			relink();
@@ -737,45 +762,73 @@ public:
 			return 0;
 	}
 	bool is_deleted(size_t idx) const {
-		assert(idx < nElem);
-		assert(freelist_is_using());
+		TERARK_ASSERT_LT(idx, nElem);
 		return delmark == m_nl.link(idx);
 	}
-	//@{
-	/// default is disabled
-	void enable_freelist() {
-		if (delmark  == freelist_head) {
-			assert(0 == freelist_size);
-			freelist_head = tail;
-		}
-	}
-	/// @note this function may take O(n) time
-	void disable_freelist() {
-		if (delmark != freelist_head) {
-			revoke_deleted();
-			freelist_head = delmark;
-		}
-	}
-	bool freelist_is_empty() const { return freelist_head >= delmark; }
-	bool freelist_is_using() const { return freelist_head != delmark; }
-	//@}
+	bool freelist_is_empty() const { return 0 == freelist_size; }
 
 	template<class CompatibleObject>
+	struct InplaceNewElem {
+		void operator()(void* mem) const { new(mem) Elem(*pObj); }
+		const CompatibleObject* pObj;
+	};
+	template<class CompatibleObject>
 	std::pair<size_t, bool> insert_i(const CompatibleObject& obj) {
-		const Key& key = getKeyExtractor()(obj);
+		key_param_pass_t key = MyKeyExtractor(obj);
+		return lazy_insert_elem_i(key, InplaceNewElem<CompatibleObject>{&obj});
+	}
+	std::pair<size_t, bool> insert_i(const Elem& obj) {
+		key_param_pass_t key = MyKeyExtractor(obj);
+		return lazy_insert_elem_i(key, InplaceNewElem<Elem>{&obj});
+	}
+	template<class ConsElem>
+	std::pair<size_t, bool>
+	lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem) {
 		const HashTp h = HashTp(HashEqual::hash(key));
 		size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
-			HSM_SANITY(p < nElem);
-			if (HashEqual::equal(key, getKeyExtractor()(m_nl.data(p))))
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
 				return std::make_pair(p, false);
 		}
 		if (terark_unlikely(nElem - freelist_size >= maxload)) {
-			rehash(nBucket + 1); // will auto find next prime bucket size
+			// rehash will auto find next prime bucket size
+			i = h % rehash(nBucket + 1);
+		}
+		size_t slot = risk_slot_alloc(); // here, no risk
+		cons_elem(&m_nl.data(slot)); // must success
+		m_nl.link(slot) = bucket[i]; // newer at head
+		bucket[i] = LinkTp(slot); // new head of i'th bucket
+		if (intptr_t(pHash) != hash_cache_disabled)
+			pHash[slot] = h;
+		is_sorted = false;
+		return std::make_pair(slot, true);
+	}
+	template<class ConsElem, class PreInsert>
+	std::pair<size_t, bool>
+	lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem,
+					   PreInsert pre_insert) {
+		const HashTp h = HashTp(HashEqual::hash(key));
+		const size_t old_nBucket = nBucket;
+		size_t i = size_t(h % old_nBucket);
+		// this func is a copy-paste except old_nBucket and pre_insert
+		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
+				return std::make_pair(p, false);
+		}
+		if (!pre_insert(this)) {
+			return std::make_pair(nElem, true);
+		}
+		if (terark_unlikely(nElem - freelist_size >= maxload)) {
+			// rehash will auto find next prime bucket size
+			i = h % rehash(nBucket + 1);
+		}
+		else if (terark_unlikely(nBucket != old_nBucket)) {
 			i = h % nBucket;
 		}
 		size_t slot = risk_slot_alloc(); // here, no risk
-		new(&m_nl.data(slot))Elem(obj);
+		cons_elem(&m_nl.data(slot)); // must success
 		m_nl.link(slot) = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
 		if (intptr_t(pHash) != hash_cache_disabled)
@@ -789,20 +842,21 @@ public:
 	///
 	LinkTp risk_slot_alloc() {
 		LinkTp slot;
-		if (freelist_is_empty()) {
-			assert(0 == freelist_size);
+		if (0 == freelist_size) {
+			TERARK_ASSERT_EQ(freelist_head, tail);
 			slot = nElem;
 			if (terark_unlikely(nElem == maxElem))
 				reserve_nodes(0 == nElem ? 1 : 2*nElem);
-			assert(nElem < maxElem);
+			TERARK_ASSERT_LT(nElem, maxElem);
 			nElem++;
 		} else {
-			assert(freelist_head < nElem);
-			assert(freelist_size > 0);
+			TERARK_ASSERT_LT(freelist_head, nElem);
+			TERARK_ASSERT_EQ(m_nl.link(freelist_head), delmark);
 			slot = freelist_head;
-			assert(delmark == m_nl.link(slot));
 			freelist_size--;
 			freelist_head = reinterpret_cast<LinkTp&>(m_nl.data(slot));
+			TERARK_ASSERT_F(freelist_head < nElem || freelist_head == tail,
+							"%zd %zd", size_t(freelist_head), size_t(nElem));
 		}
 		m_nl.link(slot) = tail; // for debug check&verify
 		return slot;
@@ -813,35 +867,24 @@ public:
 	///                 it is not reached through 'bucket'
 	/// effect: destory the Elem on slot then free the slot
 	void risk_slot_free(size_t slot) {
-		assert(slot < nElem);
-		assert(delmark != m_nl.link(slot));
-		if (terark_unlikely(nElem-1 == slot)) {
-			m_nl.data(slot).~Elem();
-			--nElem;
-		}
-		else if (freelist_is_using()) {
-			fast_slot_free(slot);
-			is_sorted = false;
-		}
-		else {
-			assert(!"When freelist is disabled, nElem-1==slot must be true");
-			throw std::logic_error(BOOST_CURRENT_FUNCTION);
-		}
+		TERARK_ASSERT_LT(slot, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(slot));
+		fast_slot_free(slot);
 	}
 
 	/// @note when calling this function:
 	//    1. this->begin()[slot] must has been newly constructed by the caller
 	//    2. this->begin()[slot] must not existed in the hash index
 	size_t risk_insert_on_slot(size_t slot) {
-		assert(slot < nElem);
-		assert(delmark != m_nl.link(slot));
-		const Key& key = getKeyExtractor()(m_nl.data(slot));
+		TERARK_ASSERT_LT(slot, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(slot));
+		key_param_pass_t key = MyKeyExtractor(m_nl.data(slot));
 		const HashTp h = HashTp(HashEqual::hash(key));
 		size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
-			assert(p != slot); // slot must not be reached
-			HSM_SANITY(p < nElem);
-			if (HashEqual::equal(key, getKeyExtractor()(m_nl.data(p))))
+			TERARK_ASSERT_NE(p, slot); // slot must not be reached
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
 				return p;
 		}
 		if (intptr_t(pHash) != hash_cache_disabled)
@@ -860,7 +903,7 @@ public:
 	void risk_size_inc(LinkTp n) {
 		if (terark_unlikely(nElem + n > maxElem))
 			reserve_nodes(nElem + std::max(nElem, n));
-		assert(nElem + n <= maxElem);
+		TERARK_VERIFY_LE(nElem + n, maxElem);
 		NodeLayout nl = m_nl;
 		for (size_t i = n, j = nElem; i; --i, ++j)
 			nl.link(j) = (LinkTp)tail;
@@ -868,7 +911,7 @@ public:
 	}
 
 	void risk_size_dec(LinkTp n) {
-		assert(nElem >= n);
+		TERARK_VERIFY_GE(nElem, n);
 		nElem -= n;
 	}
 
@@ -876,12 +919,12 @@ public:
 
 	//@}
 
-	size_t find_i(const Key& key) const {
+	size_t find_i(key_param_pass_t key) const {
 		const HashTp h = HashTp(HashEqual::hash(key));
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
-			HSM_SANITY(p < nElem);
-			if (HashEqual::equal(key, getKeyExtractor()(m_nl.data(p))))
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
 				return p;
 		}
 		return nElem; // not found
@@ -892,47 +935,50 @@ public:
 		const HashTp h = HashTp(HashEqual::hash(key));
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
-			HSM_SANITY(p < nElem);
-			if (HashEqual::equal(key, getKeyExtractor()(m_nl.data(p))))
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
 				return p;
 		}
 		return nElem; // not found
 	}
 
 	// return erased element count
-	size_t erase(const Key& key) {
+	size_t erase(key_param_pass_t key) {
 		const HashTp h = HashTp(HashEqual::hash(key));
 		const HashTp i = h % nBucket;
-		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
-			HSM_SANITY(p < nElem);
-			if (HashEqual::equal(key, getKeyExtractor()(m_nl.data(p)))) {
-				erase_i_impl(p, i);
+		LinkTp curv, *curp = &bucket[i];
+		while (tail != (curv = *curp)) {
+			TERARK_ASSERT_LT(curv, nElem);
+			TERARK_ASSERT_F(!is_deleted(curv), "%zd", size_t(curv));
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(curv)))) {
+				*curp = m_nl.link(curv); // delete the curv'th node from collision list
+				fast_slot_free(curv);
 				return 1;
 			}
+			curp = &m_nl.link(curv);
 		}
 		return 0;
 	}
 
-	size_t count(const Key& key) const {
+	size_t count(key_param_pass_t key) const {
 		return find_i(key) == nElem ? 0 : 1;
 	}
 	// return value is same with count(key), but type is different
 	// this function is not stl standard, but more meaningful for app
-	bool exists(const Key& key) const {
+	bool exists(key_param_pass_t key) const {
 		return find_i(key) != nElem;
 	}
 
 private:
 	// if return non-zero, all permanent id/index are invalidated
 	size_t revoke_deleted_no_relink() {
-		assert(freelist_is_using()); // must be using/enabled
-		assert(freelist_size > 0);
+		TERARK_VERIFY_GT(freelist_size, 0);
 		NodeLayout nl = m_nl;
 		size_t i = 0, n = nElem;
 		for (; i < n; ++i)
 			if (delmark == nl.link(i))
 				goto DoErase;
-		assert(0); // would not go here
+		TERARK_DIE("it should not go here");
 	DoErase:
 		HashTp* ph = pHash;
 		if (intptr_t(ph) == hash_cache_disabled) {
@@ -946,7 +992,7 @@ private:
 					CopyStrategy::move_cons(&nl.data(i), nl.data(j)), ++i;
 				}
 		}
-		nElem = i;
+		nElem = LinkTp(i);
 		freelist_head = tail;
 		freelist_size = 0;
 		return n - i; // erased elements count
@@ -961,123 +1007,74 @@ private:
         freelist_freq++; // never decrease
 		freelist_head = LinkTp(slot);
 	}
-	HSM_FORCE_INLINE void
-	erase_to_freelist(const size_t slot) {
-		HashTp const h = hash_i(slot);
-		size_t const i = h % nBucket;
-		HSM_SANITY(tail != bucket[i]);
-		LinkTp* curp = &bucket[i];
-        LinkTp  curr; // delete from collision list ...
-		while (slot != (curr = *curp)) {
-			curp = &m_nl.link(curr);
-			HSM_SANITY(*curp < nElem);
-		}
-		*curp = m_nl.link(slot); // delete the idx'th node from collision list
-		fast_slot_free(slot);
-	}
-	// bucket_idx == hash % nBucket
-	void erase_i_impl(const size_t idx, const HashTp bucket_idx) {
-		size_t  n = nElem;
-		HashTp*ph = pHash;
-		HSM_SANITY(n >= 1);
-	#if defined(_DEBUG) || !defined(NDEBUG)
-		assert(idx < n);
-	#else
-		if (idx >= n) {
-			throw std::invalid_argument(BOOST_CURRENT_FUNCTION);
-		}
-	#endif
-		HSM_SANITY(tail != bucket[bucket_idx]);
+
+public:
+	// unlink from bucket and collision list, but keep the elem valid,
+	// and delmark is not set, users should call risk_slot_free(slot) later.
+	void risk_unlink(size_t idx) {
+		const HashTp h = hash_i(idx);
+		const size_t bucket_idx = h % nBucket;
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_LT(idx, nElem);
+		TERARK_ASSERT_LT(bucket[bucket_idx], nElem);
+		TERARK_ASSERT_F(!is_deleted(idx), "idx = %zd", idx);
 		LinkTp* curp = &bucket[bucket_idx];
         LinkTp  curr;
 		while (idx != (curr = *curp)) {
 			curp = &m_nl.link(curr);
-			HSM_SANITY(*curp < n);
+			TERARK_ASSERT_LT(*curp, nElem);
 		}
 		*curp = m_nl.link(idx); // delete the idx'th node from collision list
-
-		if (terark_unlikely(n-1 == idx)) {
-			m_nl.data(idx).~Elem();
-			--nElem;
-		}
-		else if (freelist_is_using()) {
-			assert(!is_deleted(idx));
-			fast_slot_free(idx);
-			is_sorted = false;
-		}
-		else {
-            // Move last Elem to slot idx
-            //
-            // delete last Elem from it's collision list
-			const HashTp lastHash = hash_i(n-1);
-			const size_t j = lastHash % nBucket;
-			HSM_SANITY(tail != bucket[j]);
-			curp = &bucket[j];
-			while (n-1 != (curr = *curp)) {
-				curp = &m_nl.link(curr);
-				HSM_SANITY(*curp < n);
-			}
-			*curp = m_nl.link(n-1); // delete the last node from link list
-
-            // put last Elem to the slot idx and sync the link
-			CopyStrategy::move_assign(&m_nl.data(idx), m_nl.data(n-1));
-			m_nl.link(idx) = bucket[j];
-			if (intptr_t(ph) != hash_cache_disabled)
-				ph[idx] = lastHash;
-			bucket[j] = LinkTp(idx);
-			is_sorted = false;
-			--nElem;
-		}
 	}
 
-public:
 	void erase_i(const size_t idx) {
-		assert(nElem >= 1);
-		assert(idx < nElem);
-		assert(delmark != m_nl.link(idx));
-		erase_i_impl(idx, hash_i(idx) % nBucket);
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_LT(idx, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(idx));
+		risk_unlink(idx);
+		fast_slot_free(idx);
 	}
 
 	const Key& key(size_t idx) const {
-		assert(nElem >= 1);
-		assert(idx < nElem);
-		assert(delmark != m_nl.link(idx));
-		return getKeyExtractor()(m_nl.data(idx));
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_LT(idx, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(idx));
+		return MyKeyExtractor(m_nl.data(idx));
 	}
 
 	const Key& end_key(size_t idxEnd) const {
-		assert(nElem >= 1);
-		assert(idxEnd >= 1);
-		assert(idxEnd <= nElem);
-		assert(delmark != m_nl.link(nElem - idxEnd));
-		return getKeyExtractor()(m_nl.data(nElem - idxEnd));
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_GE(idxEnd, 1);
+		TERARK_ASSERT_LE(idxEnd, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(nElem - idxEnd));
+		return MyKeyExtractor(m_nl.data(nElem - idxEnd));
 	}
 
 	const Elem& elem_at(size_t idx) const {
-		assert(nElem >= 1);
-		assert(idx < nElem);
-		assert(delmark != m_nl.link(idx));
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_LT(idx, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(idx));
 		return m_nl.data(idx);
 	}
 	Elem& elem_at(size_t idx) {
-		assert(nElem >= 1);
-		assert(idx < nElem);
-		assert(delmark != m_nl.link(idx));
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_LT(idx, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(idx));
 		return m_nl.data(idx);
 	}
 
 	const Elem& end_elem(size_t idxEnd) const {
-		assert(nElem >= 1);
-		assert(idxEnd >= 1);
-		assert(idxEnd <= nElem);
-		assert(delmark != m_nl.link(nElem - idxEnd));
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_GE(idxEnd, 1);
+		TERARK_ASSERT_LE(idxEnd, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(nElem - idxEnd));
 		return m_nl.data(nElem - idxEnd);
 	}
 	Elem& end_elem(size_t idxEnd) {
-		assert(nElem >= 1);
-		assert(idxEnd >= 1);
-		assert(idxEnd <= nElem);
-		assert(delmark != m_nl.link(nElem - idxEnd));
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_GE(idxEnd, 1);
+		TERARK_ASSERT_LE(idxEnd, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(nElem - idxEnd));
 		return m_nl.data(nElem - idxEnd);
 	}
 
@@ -1086,7 +1083,6 @@ public:
 		size_t n = nElem;
 		NodeLayout nl = m_nl;
 		if (freelist_size) {
-			assert(freelist_is_using());
 			for (size_t i = 0; i != n; ++i)
 				if (delmark != nl.link(i))
 					op(nl.data(i));
@@ -1100,7 +1096,6 @@ public:
 		const size_t n = nElem;
 		const NodeLayout nl = m_nl;
 		if (freelist_size) {
-			assert(freelist_is_using());
 			for (size_t i = 0; i != n; ++i)
 				if (delmark != nl.link(i))
 					op(nl.data(i));
@@ -1161,9 +1156,9 @@ protected:
 				dio >> nl.data(i);
 			}
 			if ((size_t*)(hash_cache_disabled) != pHash) {
-				assert(NULL != pHash);
+				TERARK_VERIFY(nullptr != pHash);
 				for (size_t j = 0; j < n; ++j)
-					pHash[j] = HashEqual::hash(getKeyExtractor()(nl.data(i)));
+					pHash[j] = HashEqual::hash(MyKeyExtractor(nl.data(i)));
 			}
 			nElem = LinkTp(size.t);
 			maxElem = nElem;
@@ -1200,7 +1195,7 @@ protected:
 		dio << typename DataIO::my_var_uint64_t(this->size());
 		if (this->freelist_size) {
 			for (size_t i = 0, n = this->end_i(); i < n; ++i)
-				if (this->is_deleted())
+				if (this->is_deleted(i))
 					dio << m_nl.data(i);
 		} else {
 			for (size_t i = 0, n = this->end_i(); i < n; ++i)
@@ -1216,6 +1211,38 @@ protected:
 	friend void DataIO_saveObject(DataIO& dio, const gold_hash_tab& x) {
 		x.dio_save(dio);
 	}
+
+	friend bool operator==(const gold_hash_tab& x, const gold_hash_tab& y) {
+		if (x.size() != y.size()) {
+			return false;
+		}
+		const size_t x_end_i = x.end_i();
+		const size_t y_end_i = y.end_i();
+		for (size_t i = 0; i < x_end_i; ++i) {
+			if (!x.is_deleted(i)) {
+				const Elem& ex = x.m_nl.data(i);
+				const size_t j = y.find_i(x.getKeyExtractor(ex));
+				if (j == y_end_i)
+					return false;
+				if (std::is_same<Key, Elem>::value) {
+					// if Key and Elem is same type, we need not to compare
+					// elem, just do nothing!
+				} else {
+					// here has extra compare with key, because we just need
+					// to compare non-key part of elem.
+					//
+					// use operator== for elem compare
+					if (!(ex == y.m_nl.data(j)))
+						return false;
+				}
+			}
+		}
+		return true;
+	}
+	friend bool operator!=(const gold_hash_tab& x, const gold_hash_tab& y) {
+		return !(x == y);
+	}
+#undef MyKeyExtractor
 };
 
 template<class First>
@@ -1246,46 +1273,100 @@ class gold_hash_map : public
 		>
 	super;
 public:
+	typedef typename super::key_param_pass_t key_param_pass_t;
+#if 0
+	template<class ConsValue>
+	struct ConsHelper {
+		Key first;
+		unsigned char second[sizeof(Value)]; // value memory
+		ConsHelper(key_param_pass_t k, ConsValue cons) : first(k) {
+			cons(second);
+		}
+	};
+#endif
 //	typedef std::pair<const Key, Value> value_type;
 	typedef Value mapped_type;
 	using super::insert;
 	using super::insert_i;
 	std::pair<size_t, bool>
-	insert_i(const Key& key, const Value& val = Value()) {
+	insert_i(key_param_pass_t key, const Value& val) {
 		return this->insert_i(std::make_pair(key, val));
 	}
-	Value& operator[](const Key& key) {
-		typedef reference_wrapper<const Key> key_cref;
-		typedef std::pair<key_cref , Value> key_by_ref;
-		typedef std::pair<const Key, Value> key_by_val;
-		std::pair<size_t, bool> ib =
- boost::has_trivial_destructor<Key>::value && sizeof(Key) <= 16 ?
-			this->insert_i(key_by_val(         key , Value()))  :
-			this->insert_i(key_by_ref(key_cref(key), Value()));
+	std::pair<size_t, bool>
+	insert_i(key_param_pass_t key) {
+		return this->lazy_insert_i(key, &default_cons<Value>);
+	}
+	template<class ConsValue>
+	std::pair<size_t, bool>
+	lazy_insert_i(key_param_pass_t key, const ConsValue& cons) {
+		return this->lazy_insert_elem_i(key, [&](std::pair<Key, Value>* kv_mem) {
+		  #if 0
+			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
+		  #else
+			new(&kv_mem->first) Key(key);
+			cons(&kv_mem->second); // if cons fail, key will be leaked
+			// but lazy_insert_elem_i have no basic guarantee on cons fail,
+			// use ConsHelper have no help to exception safe, so we do not
+			// use ConsHelper for simplicity.
+		  #endif
+		});
+	}
+	template<class ConsValue, class PreInsert>
+	std::pair<size_t, bool>
+	lazy_insert_i(key_param_pass_t key, const ConsValue& cons,
+				  PreInsert pre_insert) {
+		return this->lazy_insert_elem_i(key, [&](std::pair<Key, Value>* kv_mem) {
+		  #if 0
+			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
+		  #else
+			new(&kv_mem->first) Key(key);
+			cons(&kv_mem->second); // if cons fail, key will be leaked
+			// but lazy_insert_elem_i have no basic guarantee on cons fail,
+			// use ConsHelper have no help to exception safe, so we do not
+			// use ConsHelper for simplicity.
+		  #endif
+		}, pre_insert); // copy-paste except this line
+	}
+	Value& operator[](key_param_pass_t key) {
+		std::pair<size_t, bool> ib = this->insert_i(key);
 		return this->m_nl.data(ib.first).second;
 	}
+	Value& at(key_param_pass_t key) {
+		size_t idx = this->find_i(key);
+		if (this->end_i() != idx)
+			return this->m_nl.data(idx).second;
+		else
+			throw std::out_of_range(BOOST_CURRENT_FUNCTION);
+	}
+	const Value& at(key_param_pass_t key) const {
+		size_t idx = this->find_i(key);
+		if (this->end_i() != idx)
+			return this->m_nl.data(idx).second;
+		else
+			throw std::out_of_range(BOOST_CURRENT_FUNCTION);
+	}
 	Value& val(size_t idx) {
-		assert(idx < this->nElem);
-		assert(this->delmark != this->m_nl.link(idx));
+		TERARK_ASSERT_LT(idx, this->nElem);
+		TERARK_ASSERT_NE(this->delmark, this->m_nl.link(idx));
 		return this->m_nl.data(idx).second;
 	}
 	const Value& val(size_t idx) const {
-		assert(idx < this->nElem);
-		assert(this->delmark != this->m_nl.link(idx));
+		TERARK_ASSERT_LT(idx, this->nElem);
+		TERARK_ASSERT_NE(this->delmark, this->m_nl.link(idx));
 		return this->m_nl.data(idx).second;
 	}
 	const Value& end_val(size_t idxEnd) const {
-		assert(this->nElem >= 1);
-		assert(idxEnd >= 1);
-		assert(idxEnd <= this->nElem);
-		assert(this->delmark != this->m_nl.link(this->nElem - idxEnd));
+		TERARK_ASSERT_GE(this->nElem, 1);
+		TERARK_ASSERT_GE(idxEnd, 1);
+		TERARK_ASSERT_LE(idxEnd, this->nElem);
+		TERARK_ASSERT_NE(this->delmark, this->m_nl.link(this->nElem - idxEnd));
 		return this->m_nl.data(this->nElem - idxEnd).second;
 	}
 	Value& end_val(size_t idxEnd) {
-		assert(this->nElem >= 1);
-		assert(idxEnd >= 1);
-		assert(idxEnd <= this->nElem);
-		assert(this->delmark != this->m_nl.link(this->nElem - idxEnd));
+		TERARK_ASSERT_GE(this->nElem, 1);
+		TERARK_ASSERT_GE(idxEnd, 1);
+		TERARK_ASSERT_LE(idxEnd, this->nElem);
+		TERARK_ASSERT_NE(this->delmark, this->m_nl.link(this->nElem - idxEnd));
 		return this->m_nl.data(this->nElem - idxEnd).second;
 	}
 
@@ -1298,6 +1379,28 @@ public:
 	friend void DataIO_saveObject(DataIO& dio, const gold_hash_map& x) {
 		x.dio_save(dio);
 	}
+	friend bool operator==(const gold_hash_map& x, const gold_hash_map& y) {
+		if (x.size() != y.size()) {
+			return false;
+		}
+		const size_t x_end_i = x.end_i();
+		const size_t y_end_i = y.end_i();
+		for (size_t i = 0; i < x_end_i; ++i) {
+			if (!x.is_deleted(i)) {
+				const std::pair<Key, Value>& xkv = x.m_nl.data(i);
+				const size_t j = y.find_i(xkv.first);
+				if (j == y_end_i)
+					return false;
+				// use operator== for value compare
+				if (!(xkv.second == y.m_nl.data(j).second))
+					return false;
+			}
+		}
+		return true;
+	}
+	friend bool operator!=(const gold_hash_map& x, const gold_hash_map& y) {
+	    return !(x == y);
+    }
 };
 
 template< class Key
@@ -1383,5 +1486,6 @@ swap(terark::gold_hash_set<Key, HashFunc, KeyEqual, NodeLayout, HashTp>& x,
 
 } // namespace std
 
-#endif // __terark_gold_hash_tab__
-
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic pop
+#endif

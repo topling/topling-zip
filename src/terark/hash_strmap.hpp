@@ -1,5 +1,4 @@
-#ifndef __terark_fast_hash_strmap2__
-#define __terark_fast_hash_strmap2__
+#pragma once
 
 #include <string>
 
@@ -320,8 +319,8 @@ private:
 	}
 
 	void relink_impl(bool bFillHash) {
-	//	assert(0 == nDeleted);
-    //  assert(0 == freepool);
+	//	TERARK_ASSERT_EQ(0, nDeleted);
+    //  TERARK_ASSERT_EQ(0, freepool);
 		LinkTp* pb = bucket;
 		Node*   pn = pNodes;
 		size_t  nb = nBucket;
@@ -438,6 +437,7 @@ public:
 
 	typedef const fstring key_type;
 	typedef Value mapped_type;
+	typedef LinkTp link_t;
 
 	static const bool is_value_empty = boost::is_empty<Value>::value;
 	typedef boost::mpl::bool_< // CPU cache line is often 64
@@ -454,7 +454,23 @@ public:
 	explicit hash_strmap(size_t cap, HashFunc hashfn = HashFunc(), KeyEqual equalfn = KeyEqual())
 	  : HashFunc(hashfn), KeyEqual(equalfn) {
 		init();
-		rehash(cap);
+		reserve(cap);
+	}
+	hash_strmap(std::initializer_list<fstring> list,
+				HashFunc hashfn = HashFunc(), KeyEqual equalfn = KeyEqual())
+	  : HashFunc(hashfn), KeyEqual(equalfn) {
+		init();
+		reserve(list.size());
+		for (fstring key : list)
+			this->insert_i(key);
+	}
+	hash_strmap(std::initializer_list<std::pair<fstring, Value> > list,
+				HashFunc hashfn = HashFunc(), KeyEqual equalfn = KeyEqual())
+	  : HashFunc(hashfn), KeyEqual(equalfn) {
+		init();
+		reserve(list.size());
+		for (const auto& kv : list)
+			this->insert_i(kv.first, kv.second);
 	}
 	hash_strmap(const hash_strmap& y)
 	  : HashFunc(y), KeyEqual(y) {
@@ -583,7 +599,7 @@ public:
 					++j;
 				}
 			}
-			assert(j == nNodes);
+			TERARK_VERIFY_EQ(j, nNodes);
 			pNodes[j].offset = SAVE_OFFSET(loffset);
 			pNodes[j].link = tail;
 			lenpool = loffset;
@@ -595,7 +611,7 @@ public:
 					nth_value(j-1).~Value(), --j;
 			}
 			if (ValuePlace::is_value_out && !is_value_empty) {
-				assert(NULL != values);
+				TERARK_VERIFY(NULL != values);
 				free(values);
 			}
 			free(bucket);
@@ -617,6 +633,42 @@ public:
 		}
 		return *this;
 	}
+
+	hash_strmap(hash_strmap&& y)
+	  : HashFunc(std::move(y)), KeyEqual(std::move(y)) {
+		pNodes   =  y.pNodes;
+		nNodes   =  y.nNodes;
+		maxNodes =  y.maxNodes;
+		maxload  =  y.maxload;
+		nDeleted =  y.nDeleted;
+		pHash    =  y.pHash;
+
+		nBucket  =  y.nBucket;
+		bucket   =  y.bucket;
+
+		strpool  =  y.strpool;
+		lenpool  =  y.lenpool;
+		maxpool  =  y.maxpool;
+		freepool =  y.freepool;
+
+        values   =  y.values;
+        fastleng =  y.fastleng;
+        fastlist =  y.fastlist;
+        hugelist =  y.hugelist;
+
+		load_factor =  y.load_factor;
+		sort_flag =  y.sort_flag;
+
+		y.init(); // reset y as empty
+	}
+	hash_strmap& operator=(hash_strmap&& y) {
+		if (this != &y) {
+			this->~hash_strmap();
+			new(this)hash_strmap(std::move(y));
+		}
+		return *this;
+	}
+
 	~hash_strmap() { destroy(); }
 
 	void swap(hash_strmap& y) {
@@ -648,6 +700,8 @@ public:
 
 	fstring whole_strpool() const { return fstring(strpool, lenpool); }
 
+	size_t capacity() const { return maxNodes; }
+
 	void clear() {
 		destroy();
 		init();
@@ -656,7 +710,7 @@ public:
 	// erase all key-values, but keep memory, don't free
 	void erase_all() {
 		if (nDeleted && fastlist) {
-			assert(freelist_disabled != fastleng);
+			TERARK_VERIFY_NE(freelist_disabled, fastleng);
 			std::fill_n(fastlist, fastleng, FreeList());
 			hugelist = FreeList();
 		}
@@ -671,7 +725,7 @@ public:
 			}
 		}
 		if (nNodes) {
-			assert(const_cast<LinkTp*>(&tail) != bucket);
+			TERARK_VERIFY_NE(const_cast<LinkTp*>(&tail), bucket);
 			std::fill_n(bucket, nBucket, (LinkTp)tail);
 		}
 		nNodes = 0;
@@ -700,7 +754,7 @@ public:
 	// very risky, you must know what you are doing
 	void risk_steal_key_val_and_clear(char** pool, Value** vals) {
 		BOOST_STATIC_ASSERT(ValuePlace::is_value_out); // must be ValueOut
-		assert(pNodes);
+		TERARK_VERIFY(NULL != pNodes);
 		::free(pNodes);
 		if (bucket && bucket != &tail)
 			::free(bucket);
@@ -740,40 +794,33 @@ public:
 		rehash(nNodes/load_factor);
 	}
 
-	void rehash(size_t newBucketSize) {
+	size_t rehash(size_t newBucketSize) {
+		TERARK_VERIFY(NULL != bucket);
 		newBucketSize = __hsm_stl_next_prime(newBucketSize);
+		TERARK_VERIFY_GE(newBucketSize, 5);
 		if (newBucketSize != nBucket) {
 			// shrink or enlarge
-      if (nBucket != 1) {
-        assert(NULL != bucket);
-        free(bucket);
-      }
-      else {
-        assert(tail == *bucket);
-      }
-
+			if (nBucket != 1) {
+				free(bucket);
+			} else {
+				TERARK_VERIFY_EQ(tail, *bucket);
+			}
 			bucket = (LinkTp*)malloc(sizeof(LinkTp) * newBucketSize);
 			if (NULL == bucket) { // how to handle?
-				assert(0); // immediately fail on debug mode
-				clear();
-				throw std::runtime_error("rehash failed, unrecoverable");
-			//	throw std::runtime_error("rehash failed");
+				TERARK_DIE("malloc(%zd) fail", sizeof(LinkTp) * newBucketSize);
 			}
 			nBucket = newBucketSize;
 			relink();
 			using namespace std;
 			maxload = LinkTp(min<double>(newBucketSize*load_factor, maxlink));
 		}
+		return newBucketSize;
 	}
 //	void resize(size_t n) { rehash(n); }
 
 	// with rehash
 	void reserve(size_t cap) {
-		assert(cap >= nNodes);
-		if (cap < nNodes)
-			throw std::runtime_error(
-		"hash_strmap::reserve(cap), cap is less than nNodes"
-				);
+		TERARK_VERIFY_GE(cap, nNodes);
 		if (cap > maxlink)
 			cap = maxlink;
 		reserve_nodes(cap);
@@ -782,15 +829,8 @@ public:
 
 	// with rehash
 	void reserve(size_t cap, size_t poolcap) {
-		assert(cap >= nNodes);
-		if (cap < nNodes)
-			throw std::runtime_error(
-		"hash_strmap::reserve(cap,poolcap), cap is less than nNodes"
-			);
-		if (poolcap < lenpool)
-			throw std::runtime_error(
-		"hash_strmap::reserve(cap,poolcap), poolcap is less than lenpool"
-			);
+		TERARK_VERIFY_GE(cap, nNodes);
+		TERARK_VERIFY_GE(poolcap, lenpool);
 // commented, because strpool realloc is cheap, Value realloc may expense,
 // reserve more Value space may get benefit
 //		if (poolcap < IF_SP_ALIGN(LOAD_OFFSET(1), 2) * cap)
@@ -806,11 +846,7 @@ public:
 
 	// just enlarge/shrink strpool
 	void reserve_strpool(size_t poolcap) {
-		assert(poolcap >= lenpool);
-		if (poolcap < lenpool)
-			throw std::runtime_error(
-		"hash_strmap::reserve_strpool(poolcap), poolcap is less than lenpool"
-			);
+		TERARK_VERIFY_GE(poolcap, lenpool);
 		char* ps = (char*)realloc(strpool, poolcap);
 		if (NULL == ps)
 			throw std::bad_alloc();
@@ -820,11 +856,7 @@ public:
 
 	// without rehash
 	void reserve_nodes(size_t cap) {
-		assert(cap >= nNodes);
-		if (cap < nNodes)
-			throw std::runtime_error(
-		"hash_strmap::reserve_nodes(cap), cap is less than nNodes"
-			);
+		TERARK_VERIFY_GE(cap, nNodes);
 		if (freelist_disabled == fastleng)
 			revoke_deleted();
 		if (cap > maxlink)
@@ -853,7 +885,7 @@ public:
 	double get_load_factor() const { return load_factor; }
 
 	HashTp hash_value(size_t i) const {
-		assert(i < nNodes);
+		TERARK_ASSERT_LT(i, nNodes);
 		if (intptr_t(pHash) == hash_cache_disabled)
 			return hash(key(i));
 		else
@@ -888,7 +920,7 @@ public:
 				pHash = ph;
 			}
 		}
-		assert(NULL != pHash || 0 == maxNodes);
+		TERARK_VERIFY(NULL != pHash || 0 == maxNodes);
 	}
 
 	void disable_hash_cache() {
@@ -923,7 +955,7 @@ public:
 	}
 
 	Value& operator[](const fstring key) {
-		std::pair<size_t, bool> ib = insert_i(key, Value());
+		std::pair<size_t, bool> ib = insert_i(key);
 		return nth_value(ib.first, ValuePlace());
 	}
 #if 1
@@ -940,25 +972,25 @@ public:
 	}
 #endif
 	const Value& val(size_t idx) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		return nth_value(idx, ValuePlace());
 	}
 	Value& val(size_t idx) {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		return nth_value(idx, ValuePlace());
 	}
 
 	const Value& end_val(size_t idxEnd) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idxEnd <= nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LE(idxEnd, nNodes);
 		size_t idx = nNodes - idxEnd;
 		return nth_value(idx, ValuePlace());
 	}
 	Value& end_val(size_t idxEnd) {
-		HSM_SANITY(nNodes >= 1);
-		assert(idxEnd <= nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LE(idxEnd, nNodes);
 		size_t idx = nNodes - idxEnd;
 		return nth_value(idx, ValuePlace());
 	}
@@ -984,6 +1016,12 @@ public:
 		std::pair<size_t, bool> ib = insert_i(kv);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
+	std::pair<iterator, bool>
+	insert(const fstring& k) {
+		std::pair<size_t, bool> ib = insert_i(k);
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+
 	      iterator find(fstring key)       { return       iterator(this, find_i(key)); }
 	const_iterator find(fstring key) const { return const_iterator(this, find_i(key)); }
 	      iterator find(const char* key, size_t len)       { return find(fstring(key, len)); }
@@ -991,36 +1029,39 @@ public:
 
 	// return erased element count
 	size_t erase(const fstring key) {
-		assert(key.n >= 0);
+		TERARK_ASSERT_GE(key.n, 0);
 		HashTp h = hash(key);
 		size_t i = size_t(h % nBucket);
-		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
-			HSM_SANITY(p < nNodes);
+		LinkTp p, *p_ptr = &bucket[i];
+		while ((p = *p_ptr) != tail) {
 			const Node* y = &pNodes[p];
-			HSM_SANITY(y[0].offset < y[1].offset);
-			HSM_SANITY(y[1].offset <= SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LT(p, nNodes);
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
 			size_t ylen = yend - ybeg - extralen(yend);
 			if (equal(key, fstring(strpool + ybeg, ylen))) {
-				erase_i_impl(p, h);
+				*p_ptr = pNodes[p].link; // ulink_impl(p, h);
+				risk_slot_free(p);
 				return 1;
 			}
+			p_ptr = &pNodes[p].link;
 		}
 		return 0;
 	}
 
 	void erase(iterator iter) {
-		assert(iter.get_owner() == this);
-		assert(iter.get_index() < nNodes);
+		TERARK_ASSERT_EQ(iter.get_owner(), this);
+		TERARK_ASSERT_LT(iter.get_index(), nNodes);
 		erase_i(iter.get_index());
 	}
 
 private:
 	template<class Predictor>
 	size_t erase_if_kv_impl(Predictor pred) {
-		assert(intptr_t(pHash) == hash_cache_disabled || NULL != pHash);
+		TERARK_VERIFY_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
 		HashTp*ph = pHash;
 		Value* pv = values;
 		Node*  pn = pNodes;
@@ -1030,8 +1071,8 @@ private:
 		size_t  loffset;
 		if (0 == nDeleted) {
 			for (; i < n; ++i) {
-				HSM_SANITY(pn[i+0].offset < pn[i+1].offset);
-				HSM_SANITY(pn[i+1].offset <= SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LT(pn[i+0].offset, pn[i+1].offset);
+				TERARK_ASSERT_LE(pn[i+1].offset, SAVE_OFFSET(maxpool));
 				const size_t  mybeg = LOAD_OFFSET(pn[i+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[i+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1046,8 +1087,8 @@ private:
 			nth_value(pn, pv, i).~Value();
 			loffset = LOAD_OFFSET(pn[i].offset); // begin of first deleted
 			for (size_t j = i+1; j < n; ++j) {
-				HSM_SANITY(pn[j+0].offset < pn[j+1].offset);
-				HSM_SANITY(pn[j+1].offset <= SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LT(pn[j+0].offset, pn[j+1].offset);
+				TERARK_ASSERT_LE(pn[j+1].offset, SAVE_OFFSET(maxpool));
 				const size_t  mybeg = LOAD_OFFSET(pn[j+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[j+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1069,8 +1110,8 @@ private:
 		}
 		else { // 0 != nDeleted
 			for (; i < n; ++i) {
-				HSM_SANITY(pn[i+0].offset < pn[i+1].offset);
-				HSM_SANITY(pn[i+1].offset <= SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LT(pn[i+0].offset, pn[i+1].offset);
+				TERARK_ASSERT_LE(pn[i+1].offset, SAVE_OFFSET(maxpool));
 				const size_t  mybeg = LOAD_OFFSET(pn[i+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[i+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1085,8 +1126,8 @@ private:
 			nth_value(pn, pv, i).~Value();
 			loffset = LOAD_OFFSET(pn[i].offset); // begin of first deleted
 			for (size_t j = i+1; j < n; ++j) {
-				HSM_SANITY(pn[j+0].offset < pn[j+1].offset);
-				HSM_SANITY(pn[j+1].offset <= SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LT(pn[j+0].offset, pn[j+1].offset);
+				TERARK_ASSERT_LE(pn[j+1].offset, SAVE_OFFSET(maxpool));
 				const size_t  mybeg = LOAD_OFFSET(pn[j+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[j+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1168,8 +1209,8 @@ public:
 
 	template<class Predictor>
 	size_t keepid_erase_if_kv(Predictor pred) {
-		assert(freelist_disabled != fastleng);
-		assert(intptr_t(pHash) == hash_cache_disabled || NULL != pHash);
+		TERARK_VERIFY_NE(freelist_disabled, fastleng);
+		TERARK_VERIFY_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
 		const HashTp* ph = pHash;
 		const char*   ps = strpool;
 		const LinkTp   n = nNodes;
@@ -1178,8 +1219,8 @@ public:
 		Node*  pn = pNodes;
 		LinkTp nErased = 0;
 		for (LinkTp i = 0; i < n; ++i) {
-			HSM_SANITY(pn[i+0].offset < pn[i+1].offset);
-			HSM_SANITY(pn[i+1].offset <= SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LT(pn[i+0].offset, pn[i+1].offset);
+			TERARK_ASSERT_LE(pn[i+1].offset, SAVE_OFFSET(maxpool));
 			const size_t  mybeg = LOAD_OFFSET(pn[i+0].offset);
 			const size_t  myend = LOAD_OFFSET(pn[i+1].offset);
 			const size_t  mylen = myend - mybeg;
@@ -1189,11 +1230,11 @@ public:
 			if (delmark != pn[i].link && pred(mykey, myval)) {
 				HashTp hh = intptr_t(ph) == hash_cache_disabled ? hash(mykey) : ph[i];
 				size_t ib = size_t(hh % nb);
-				HSM_SANITY(tail != bucket[ib]);
+				TERARK_ASSERT_NE(tail, bucket[ib]);
 				LinkTp* p = &bucket[ib];
 				while (i != *p) {
 					p = &pn[*p].link;
-					HSM_SANITY(*p < n);
+					TERARK_ASSERT_LT(*p, n);
 				}
 				*p = pNodes[i].link; // delete the node from link list
 				pn[i].link = delmark; // set deletion mark
@@ -1213,8 +1254,8 @@ public:
 
 private:
 	void revoke_deleted_no_relink() throw() {
-        assert(freelist_disabled == fastleng);
-		assert(nDeleted > 0);
+        TERARK_VERIFY_EQ(freelist_disabled, fastleng);
+		TERARK_VERIFY_GT(nDeleted, 0);
 		ptrdiff_t n = nNodes;
 		char*  ps = strpool;
 		Node*  pn = pNodes;
@@ -1233,7 +1274,7 @@ private:
 				size_t beg2 = pn[idx2+0].offset;
 				size_t end2 = pn[idx2+1].offset;
 				size_t len2 = end2 - beg2; // count by align_type
-				HSM_SANITY(len2 > 0);
+				TERARK_ASSERT_GT(len2, 0);
 				align_type* dst = (align_type*)(ps + loffset);
 				align_type* src = (align_type*)(ps + LOAD_OFFSET(beg2));
 				while (len2--) *dst++ = *src++;
@@ -1252,8 +1293,8 @@ private:
 				++idx1;
 			}
 		}
-		assert(loffset + freepool == lenpool);
-		assert(nNodes  - nDeleted == (LinkTp)idx1);
+		TERARK_VERIFY_EQ(loffset + freepool, lenpool);
+		TERARK_VERIFY_EQ(nNodes  - nDeleted, (LinkTp)idx1);
 		lenpool = loffset;
 		pn[idx1].offset = SAVE_OFFSET(loffset);
 		pn[idx1].link = tail; // guard for next_i
@@ -1265,10 +1306,7 @@ private:
 
 public:
 	void revoke_deleted() {
-        assert(freelist_disabled == fastleng);
-		if (freelist_disabled != fastleng) {
-			throw std::logic_error("hash_strmap::revoke_deleted: freelist is enabled");
-		}
+        TERARK_VERIFY_EQ(freelist_disabled, fastleng);
 		if (nDeleted) {
 			revoke_deleted_no_relink();
 			relink();
@@ -1276,7 +1314,7 @@ public:
 	}
 
 	size_t next_i(size_t idx) const {
-		assert(idx < nNodes);
+		TERARK_ASSERT_LT(idx, nNodes);
 		Node* pn = pNodes;
 	#if 0
 		// don't use pn[nNodes].link guard
@@ -1288,7 +1326,7 @@ public:
 		do ++idx;
 		while (pn[idx].link == delmark);
 	#endif
-		assert(idx <= nNodes);
+		TERARK_ASSERT_LE(idx, nNodes);
 		return idx;
 	}
 
@@ -1307,8 +1345,8 @@ public:
 	</code>
 	*/
 	size_t prev_i(size_t idx) const {
-		assert(idx >  0); // not the begin
-		assert(idx <= nNodes);
+		TERARK_ASSERT_GT(idx, 0); // not the begin
+		TERARK_ASSERT_LE(idx, nNodes);
 		Node* pn = pNodes;
 	#if defined(_DEBUG) || !defined(NDEBUG)
 		size_t n = nNodes;
@@ -1317,8 +1355,8 @@ public:
 
 		// if these 2 assert fail,
 		//    it should caused by iterate over begin when pNodes[0] is deleted
-		assert(idx < nNodes);
-		assert(pn[idx].link != delmark);
+		TERARK_ASSERT_LT(idx, nNodes);
+		TERARK_ASSERT_NE(pn[idx].link, delmark);
 	#else
 		// no extra guard is need for prev_i
 		// if pn[0] was deleted, a valid caller should not make idx less than 0
@@ -1330,42 +1368,100 @@ public:
 	}
 
 	std::pair<size_t, bool>
-	insert_i(const fstring key, const Value& val = Value()) {
-		assert(key.n >= 0);
+	insert_i(const fstring key, const Value& val) {
+		return lazy_insert_i(key, CopyConsFunc(val));
+	}
+	std::pair<size_t, bool>
+	insert_i(const fstring key) {
+		return lazy_insert_i(key, &default_cons<Value>);
+	}
+
+	template<class ConsValue>
+	std::pair<size_t, bool>
+	lazy_insert_i(const fstring key, ConsValue cons_value) {
+		TERARK_ASSERT_GE(key.n, 0);
 		size_t n = nNodes; // compiler is easier to track local var
 		HashTp h = hash(key);
 		size_t i = size_t(h % nBucket);
 		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
-			HSM_SANITY(p < n);
+			TERARK_ASSERT_LT(p, n);
 			const Node* y = &pNodes[p];
-			HSM_SANITY(y[0].offset < y[1].offset);
-			HSM_SANITY(y[1].offset <= SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
 			size_t ylen = yend - ybeg - extralen(yend);
-		   	if (equal(key, fstring(strpool + ybeg, ylen)))
+			if (equal(key, fstring(strpool + ybeg, ylen)))
 				return std::make_pair(p, false);
 		}
 		if (terark_unlikely(n >= maxload)) {
-			rehash(nBucket + 1);
-			i = h % nBucket;
+			i = h % rehash(nBucket + 1);
 		}
-		HSM_SANITY(n <= maxNodes);
+		TERARK_ASSERT_LE(n, maxNodes);
 		size_t real_len = fstring_func::align_to(key.n+1);
         size_t slot = alloc_slot(real_len);
         size_t xbeg = LOAD_OFFSET(pNodes[slot+0].offset);
         size_t xend = LOAD_OFFSET(pNodes[slot+1].offset);
-        assert(xend - xbeg == real_len);
-        assert(slot < nNodes);
+        TERARK_ASSERT_EQ(xend - xbeg, real_len);
+        TERARK_ASSERT_LT(slot, nNodes);
 		((align_type*)(strpool + xend))[-1] = 0; // pad 0
 		strpool[xend-1] = (char)(real_len - key.n - 1); // extra-1
 		memcpy(strpool + xbeg, key.p, key.n);
-		new(&nth_value(slot))Value(val);
+		cons_value(&nth_value(slot)); // must success
 		pNodes[slot].link = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
 		if (intptr_t(pHash) != hash_cache_disabled) {
-			assert(NULL != pHash);
+			TERARK_ASSERT_NE(NULL, pHash);
+			pHash[slot] = h;
+		}
+		sort_flag = en_unsorted;
+		return std::make_pair(slot, true);
+	}
+	template<class ConsValue, class PreInsert>
+	std::pair<size_t, bool>
+	lazy_insert_i(fstring key, ConsValue cons_value, PreInsert pre_insert) {
+		TERARK_ASSERT_GE(key.n, 0);
+		const HashTp h = hash(key);
+		const size_t old_nBucket = nBucket;
+		size_t i = size_t(h % old_nBucket);
+		// this func is a copy-paste except old_nBucket and pre_insert
+		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
+			TERARK_ASSERT_LT(p, nNodes);
+			const Node* y = &pNodes[p];
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+		// doesn't need to compare cached hash value, it almost always true
+			size_t ybeg = LOAD_OFFSET(y[0].offset);
+			size_t yend = LOAD_OFFSET(y[1].offset);
+			size_t ylen = yend - ybeg - extralen(yend);
+			if (equal(key, fstring(strpool + ybeg, ylen)))
+				return std::make_pair(p, false);
+		}
+		if (!pre_insert(this)) {
+			return std::make_pair(nNodes, true);
+		}
+		if (terark_unlikely(nNodes >= maxload)) {
+			i = h % rehash(nBucket + 1);
+		}
+		else if (terark_unlikely(nBucket != old_nBucket)) {
+			i = h % nBucket;
+		}
+		TERARK_ASSERT_LE(nNodes, maxNodes);
+		size_t real_len = fstring_func::align_to(key.n+1);
+		size_t slot = alloc_slot(real_len);
+		size_t xbeg = LOAD_OFFSET(pNodes[slot+0].offset);
+		size_t xend = LOAD_OFFSET(pNodes[slot+1].offset);
+		TERARK_ASSERT_EQ(xend - xbeg, real_len);
+		TERARK_ASSERT_LT(slot, nNodes);
+		((align_type*)(strpool + xend))[-1] = 0; // pad 0
+		strpool[xend-1] = (char)(real_len - key.n - 1); // extra-1
+		memcpy(strpool + xbeg, key.p, key.n);
+		cons_value(&nth_value(slot)); // must success
+		pNodes[slot].link = bucket[i]; // newer at head
+		bucket[i] = LinkTp(slot); // new head of i'th bucket
+		if (intptr_t(pHash) != hash_cache_disabled) {
+			TERARK_ASSERT_NE(NULL, pHash);
 			pHash[slot] = h;
 		}
 		sort_flag = en_unsorted;
@@ -1374,15 +1470,15 @@ public:
 
 	size_t find_i(const char* key, size_t len) const { return find_i(fstring(key, len)); }
 	size_t find_i(const fstring key) const {
-		assert(key.n >= 0);
+		TERARK_ASSERT_GE(key.n, 0);
 		size_t n = nNodes; // compiler is easier to track local var
 		HashTp h = hash(key);
 		size_t i = size_t(h % nBucket);
 		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
-			HSM_SANITY(p < n);
+			TERARK_ASSERT_LT(p, n);
 			const Node* y = &pNodes[p];
-			HSM_SANITY(y[0].offset < y[1].offset);
-			HSM_SANITY(y[1].offset <= SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1394,13 +1490,13 @@ public:
 	}
 
 	size_t count(const fstring key) const {
-		assert(key.n >= 0);
+		TERARK_ASSERT_GE(key.n, 0);
 		return find_i(key) == nNodes ? 0 : 1;
 	}
 	// return value is same with count(key), but type is different
 	// this function is not stl standard, but more meaningful for app
 	bool exists(const fstring key) const {
-		assert(key.n >= 0);
+		TERARK_ASSERT_GE(key.n, 0);
 		return find_i(key) != nNodes;
 	}
 
@@ -1420,7 +1516,7 @@ private:
     }
 
     LinkTp alloc_slot(size_t real_len) {
-		assert(real_len % SP_ALIGN == 0);
+		TERARK_ASSERT_AL(real_len, SP_ALIGN);
         if (freelist_disabled != fastleng) {
             ptrdiff_t fastIdx = SAVE_OFFSET(real_len - 1);
             if (fastIdx < fastleng) {
@@ -1429,12 +1525,12 @@ private:
 					size_t mybeg = LOAD_OFFSET(pNodes[slot+0].offset);
                 #if defined(_DEBUG) || !defined(NDEBUG)
 				    size_t myend = LOAD_OFFSET(pNodes[slot+1].offset);
-                    assert(myend - mybeg == real_len);
+                    TERARK_ASSERT_EQ(myend - mybeg, real_len);
                 #endif
 					fastlist[fastIdx].llen--;
 					fastlist[fastIdx].head = ((FreeLink&)strpool[mybeg]).next;
-                    assert(freepool >= real_len);
-                    assert(nDeleted >= 1);
+                    TERARK_ASSERT_GE(freepool, real_len);
+                    TERARK_ASSERT_GE(nDeleted, 1);
                     freepool -= real_len;
                     nDeleted--;
 					return slot;
@@ -1449,8 +1545,8 @@ private:
                     if (myend - mybeg == real_len) {
                         *curp = *next;
                         hugelist.llen--;
-                        assert(freepool >= real_len);
-                        assert(nDeleted >= 1);
+                        TERARK_ASSERT_GE(freepool, real_len);
+                        TERARK_ASSERT_GE(nDeleted, 1);
                         freepool -= real_len;
                         nDeleted--;
                         return curr;
@@ -1461,16 +1557,12 @@ private:
         }
         // make new slot
 		if (terark_unlikely(nNodes == maxNodes)) {
-			if (terark_unlikely(maxlink == nNodes)) {
-				throw std::runtime_error("nNodes reaches maxlink");
-			}
-			reserve_nodes(0 == nNodes ? 1 : 2*nNodes);
+			TERARK_VERIFY_LT(nNodes, maxlink);
+			reserve_nodes(0 == nNodes ? 1 : (nNodes + 1) * 103 / 64);
 		}
 		if (terark_unlikely(lenpool + real_len > maxpool)) {
 			using namespace std; // for std::max
-			if (lenpool + real_len > maxoffset) {
-				throw std::runtime_error("strpool is exceeding maxoffset");
-			}
+			TERARK_VERIFY_LE(lenpool + real_len, maxoffset);
 			if (freelist_disabled == fastleng && freepool >= max(maxpool/4, real_len))
 				revoke_deleted();
 			else { // if lenpool is random, expansion scale is about 1.6
@@ -1494,15 +1586,27 @@ private:
         return nNodes++;
     }
 
-	void erase_i_impl(const LinkTp idx, const HashTp h) {
+	void ulink_impl(const LinkTp idx, const HashTp h) {
 		size_t const i = size_t(h % nBucket);
-		HSM_SANITY(tail != bucket[i]);
+		TERARK_ASSERT_NE(tail, bucket[i]);
 		LinkTp* p = &bucket[i];
 		while (idx != *p) {
 			p = &pNodes[*p].link;
-			HSM_SANITY(*p < nNodes);
+			TERARK_ASSERT_LT(*p, nNodes);
 		}
 		*p = pNodes[idx].link; // delete the node from link list
+	}
+
+public:
+	/// precond: # Elem on slot is constructed
+	///          # Elem on slot is not in the table:
+	///                 it is not reached through 'bucket'
+	/// effect: destory the Elem on slot then free the slot
+	void risk_slot_free(size_t idx) {
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
+		TERARK_ASSERT_NE(pNodes[idx].link, delmark); // must has not deleted
+		TERARK_ASSERT_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
 		pNodes[idx].link = delmark; // set deletion mark
 		nth_value(idx).~Value(); // destroy
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
@@ -1511,7 +1615,7 @@ private:
 		if (nNodes-1 == idx) {
 			nNodes--;
 			pNodes[idx].link = tail; // guard for next_i
-			assert(lenpool >= mylen);
+			TERARK_ASSERT_GE(lenpool, mylen);
 			lenpool = mybeg;
 			return;
 		}
@@ -1527,19 +1631,29 @@ private:
             put_to_freelist(idx);
 	}
 
+	// unlink from bucket and collision list, but keep the elem valid,
+	// and delmark is not set, users should call risk_slot_free(slot) later.
+	void risk_unlink(const size_t slot) {
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(slot, nNodes);
+		TERARK_ASSERT_NE(pNodes[slot].link, delmark); // must has not deleted
+		TERARK_ASSERT_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
+		HashTp h = intptr_t(pHash) == hash_cache_disabled ? hash(key(slot)) : pHash[slot];
+		ulink_impl(LinkTp(slot), h);
+	}
+
 public:
 	void erase_i(const size_t idx) {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
-		assert(pNodes[idx].link != delmark); // must has not deleted
-		assert(intptr_t(pHash) == hash_cache_disabled || NULL != pHash);
-		HashTp h = intptr_t(pHash) == hash_cache_disabled ? hash(key(idx)) : pHash[idx];
-		erase_i_impl(LinkTp(idx), h);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
+		TERARK_ASSERT_NE(pNodes[idx].link, delmark); // must has not deleted
+		risk_unlink(idx);
+		risk_slot_free(idx);
 	}
 
     void enable_freelist(ptrdiff_t maxKeyLen = 1024) {
-		assert(maxKeyLen > 0);
-        assert(maxKeyLen < 32*1024);
+		TERARK_VERIFY_GT(maxKeyLen, 0);
+        TERARK_VERIFY_LT(maxKeyLen, 32*1024);
         ptrdiff_t newlistLen = SAVE_OFFSET(maxKeyLen + SP_ALIGN - 1);
         FreeList* newlist = fastlist;
         const Node* pn = pNodes;
@@ -1550,7 +1664,7 @@ public:
                 LinkTp* pcurr = &newlist[i].head;
                 LinkTp  ihead =  newlist[i].head;
                 if (tail != ihead) {
-                    assert(newlist[i].llen > 0);
+                    TERARK_ASSERT_GT(newlist[i].llen, 0);
                     do {
                         size_t mybeg = LOAD_OFFSET(pn[*pcurr].offset);
                         pcurr = &((FreeLink&)ps[mybeg]).next;
@@ -1602,9 +1716,9 @@ public:
     }
 
     void disable_freelist() {
-		assert((NULL != fastlist && freelist_disabled != fastleng) ||
-			   (NULL == fastlist && freelist_disabled == fastleng)
-			  );
+		TERARK_VERIFY_F((NULL != fastlist && freelist_disabled != fastleng) ||
+					    (NULL == fastlist && freelist_disabled == fastleng),
+					    "fastlist = %p, fastleng = %zd", fastlist, fastleng);
 		if (fastlist) {
 			free(fastlist);
 			fastlist = NULL;
@@ -1614,67 +1728,67 @@ public:
     }
 
 	bool is_deleted(size_t idx) const {
-		assert(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		return pNodes[idx].link == delmark;
 	}
 
 	const char* key_c_str(size_t idx) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
-		HSM_SANITY(mybeg < lenpool);
+		TERARK_ASSERT_LT(mybeg, lenpool);
 		return strpool + mybeg;
 	}
 	size_t key_len(size_t idx) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
 		size_t myend = LOAD_OFFSET(pNodes[idx+1].offset);
 		size_t extra = extralen(myend);
 		size_t mylen = myend - mybeg - extra;
-		HSM_SANITY(mybeg < myend);
-		HSM_SANITY(myend <= lenpool);
+		TERARK_ASSERT_LT(mybeg, myend);
+		TERARK_ASSERT_LE(myend, lenpool);
 		return mylen;
 	}
 	size_t key_offset(size_t idx) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
-		HSM_SANITY(mybeg < lenpool);
+		TERARK_ASSERT_LT(mybeg, lenpool);
 		return mybeg;
 	}
 	size_t key_offset_raw(size_t idx) const {
 	#if !defined(NDEBUG)
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
-		HSM_SANITY(mybeg < lenpool);
+		TERARK_ASSERT_LT(mybeg, lenpool);
 	#endif
 		return pNodes[idx+0].offset;
 	}
 	fstring key(size_t idx) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idx < nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
 		size_t myend = LOAD_OFFSET(pNodes[idx+1].offset);
 		size_t extra = extralen(myend);
 		size_t mylen = myend - mybeg - extra;
-		HSM_SANITY(mybeg < myend);
-		HSM_SANITY(myend <= lenpool);
+		TERARK_ASSERT_LT(mybeg, myend);
+		TERARK_ASSERT_LE(myend, lenpool);
 		return fstring(strpool + mybeg, mylen);
 	}
 
 	fstring end_key(size_t idxEnd) const {
-		HSM_SANITY(nNodes >= 1);
-		assert(idxEnd <= nNodes);
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LE(idxEnd, nNodes);
 		size_t idx = nNodes - idxEnd;
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
 		size_t myend = LOAD_OFFSET(pNodes[idx+1].offset);
 		size_t extra = extralen(myend);
 		size_t mylen = myend - mybeg - extra;
-		HSM_SANITY(mybeg < myend);
-		HSM_SANITY(myend <= lenpool);
+		TERARK_ASSERT_LT(mybeg, myend);
+		TERARK_ASSERT_LE(myend, lenpool);
 		return fstring(strpool + mybeg, mylen);
 	}
 
@@ -1691,22 +1805,22 @@ private:
 					const size_t myend = LOAD_OFFSET(pn[i+1].offset);
 					const size_t extra = extralen(ps, myend);
 					const size_t mylen = myend - mybeg - extra;
-					HSM_SANITY(mybeg < myend);
-					HSM_SANITY(myend <= lenpool);
+					TERARK_ASSERT_LT(mybeg, myend);
+					TERARK_ASSERT_LE(myend, lenpool);
 					KeyValue kv(fstring(ps + mybeg, mylen)
 							, nth_value(i, ValuePlace()));
 					f(kv);
 				}
 			}
 		}
-	   	else { // need not to check deletion mark
+		else { // need not to check deletion mark
 			for (size_t i = 0, n = nNodes; i < n; ++i) {
 				const size_t mybeg = LOAD_OFFSET(pn[i+0].offset);
 				const size_t myend = LOAD_OFFSET(pn[i+1].offset);
 				const size_t extra = extralen(ps, myend);
 				const size_t mylen = myend - mybeg - extra;
-				HSM_SANITY(mybeg < myend);
-				HSM_SANITY(myend <= lenpool);
+				TERARK_ASSERT_LT(mybeg, myend);
+				TERARK_ASSERT_LE(myend, lenpool);
 				KeyValue kv(fstring(ps + mybeg, mylen)
 						, nth_value(i, ValuePlace()));
 				f(kv);
@@ -1714,6 +1828,7 @@ private:
 		}
 	}
 public:
+	///@param f Func(kv)
 	template<class Func>
 	void for_each(Func f) const {
 		for_each_impl<typename const_iterator::value_type, Func>(f);
@@ -1721,6 +1836,64 @@ public:
 	template<class Func>
 	void for_each(Func f) {
 		for_each_impl<typename iterator::value_type, Func>(f);
+	}
+	template<class Func>
+	void for_each_key(Func f) const {
+		Node* pn = pNodes;
+		char* ps = strpool;
+		if (nDeleted) {
+			for (size_t i = 0, n = nNodes; i < n; ++i) {
+				// need check deletion mark
+				if (pn[i].link != delmark) {
+					const size_t mybeg = LOAD_OFFSET(pn[i+0].offset);
+					const size_t myend = LOAD_OFFSET(pn[i+1].offset);
+					const size_t extra = extralen(ps, myend);
+					const size_t mylen = myend - mybeg - extra;
+					TERARK_ASSERT_LT(mybeg, myend);
+					TERARK_ASSERT_LE(myend, lenpool);
+					f(fstring(ps + mybeg, mylen));
+				}
+			}
+		}
+		else { // need not to check deletion mark
+			for (size_t i = 0, n = nNodes; i < n; ++i) {
+				const size_t mybeg = LOAD_OFFSET(pn[i+0].offset);
+				const size_t myend = LOAD_OFFSET(pn[i+1].offset);
+				const size_t extra = extralen(ps, myend);
+				const size_t mylen = myend - mybeg - extra;
+				TERARK_ASSERT_LT(mybeg, myend);
+				TERARK_ASSERT_LE(myend, lenpool);
+				f(fstring(ps + mybeg, mylen));
+			}
+		}
+	}
+	///@param f Func(const& val)
+	template<class Func>
+	void for_each_val(Func f) const {
+		if (nDeleted) {
+			Node* pn = pNodes;
+			for (size_t i = 0, n = nNodes; i < n; ++i)
+				if (pn[i].link != delmark)
+					f((const Value&)nth_value(i, ValuePlace()));
+		}
+		else { // need not to check deletion mark
+			for (size_t i = 0, n = nNodes; i < n; ++i)
+				f((const Value&)nth_value(i, ValuePlace()));
+		}
+	}
+	///@param f Func(non-const& val)
+	template<class Func>
+	void for_each_val(Func f) {
+		if (nDeleted) {
+			Node* pn = pNodes;
+			for (size_t i = 0, n = nNodes; i < n; ++i)
+				if (pn[i].link != delmark)
+					f(nth_value(i, ValuePlace()));
+		}
+		else { // need not to check deletion mark
+			for (size_t i = 0, n = nNodes; i < n; ++i)
+				f(nth_value(i, ValuePlace()));
+		}
 	}
 
 // Sorting and Binary search support:
@@ -1756,9 +1929,9 @@ private:
 			const size_t myend = LOAD_OFFSET(pn[i+1].offset);
 			const size_t extra = extralen(ps, myend);
 			const size_t mylen = myend - mybeg - extra;
-			HSM_SANITY(extra <= SP_ALIGN);
-			HSM_SANITY(mybeg <  myend);
-			HSM_SANITY(myend <= lenpool);
+			TERARK_ASSERT_LE(extra, SP_ALIGN);
+			TERARK_ASSERT_LT(mybeg, myend);
+			TERARK_ASSERT_LE(myend, lenpool);
 			pn[i].link = LinkTp(mylen); // 'link' save the strlen
 		}
 	}
@@ -1775,9 +1948,9 @@ private:
 			const size_t myend = LOAD_OFFSET(pn[i+1].offset);
 			const size_t extra = extralen(ps, myend);
 			const size_t mylen = myend - mybeg - extra;
-			HSM_SANITY(extra <= SP_ALIGN);
-			HSM_SANITY(mybeg <  myend);
-			HSM_SANITY(myend <= lenpool);
+			TERARK_ASSERT_LE(extra, SP_ALIGN);
+			TERARK_ASSERT_LT(mybeg, myend);
+			TERARK_ASSERT_LE(myend, lenpool);
 			index[i].offset = SAVE_OFFSET(mybeg);
 			index[i].length = pn[i].link = LinkTp(mylen);
 			index[i].idx = LinkTp(i);
@@ -1812,7 +1985,7 @@ private:
                     tmphash = ph[next];
 				CopyStrategy::move_cons((Value*)tmpvalue, nth_value(next));
 				do {
-					assert(next < n);
+					TERARK_ASSERT_LT(next, n);
 					curr = next;
 					next = index[next];
 					pn[curr].offset = pn[next].offset;
@@ -1878,7 +2051,7 @@ private:
 			pn[i].offset = SAVE_OFFSET(loffset);
 			loffset += len;
 		}
-		assert(loffset == lenpool);
+		TERARK_VERIFY_EQ(loffset, lenpool);
 		free(strpool);
 		strpool = s2;
 		maxpool = lenpool;
@@ -1912,9 +2085,9 @@ private:
 			const size_t myend = LOAD_OFFSET(pn[i+1].offset);
 			const size_t extra = extralen(ps, myend);
 			const size_t mylen = myend - mybeg - extra;
-			HSM_SANITY(extra <= SP_ALIGN);
-			HSM_SANITY(mybeg <  myend);
-			HSM_SANITY(myend <= lenpool);
+			TERARK_ASSERT_LE(extra, SP_ALIGN);
+			TERARK_ASSERT_LT(mybeg, myend);
+			TERARK_ASSERT_LE(myend, lenpool);
 			index[i].offset = SAVE_OFFSET(mybeg);
 			index[i].length = pn[i].link = LinkTp(mylen);
 			if (mylen >= sizeof(index[i].prefix))
@@ -1936,7 +2109,7 @@ private:
 		return index;
 	}
 	void sort_by_key_prefix_o(sort_by_index_no, bool DoRearrange) {
-		assert(DoRearrange); TERARK_UNUSED_VAR(DoRearrange);
+		TERARK_VERIFY_EQ(DoRearrange, true);
 		NodeWithPrefix* pnp;
 		Node* pn;
 		if (boost::is_same<CopyStrategy, FastCopy>::value) {
@@ -1957,9 +2130,9 @@ private:
 			const size_t myend = LOAD_OFFSET(pn[i+1].offset);
 			const size_t extra = extralen(ps, myend);
 			const size_t mylen = myend - mybeg - extra;
-			HSM_SANITY(extra <= SP_ALIGN);
-			HSM_SANITY(mybeg <  myend);
-			HSM_SANITY(myend <= lenpool);
+			TERARK_ASSERT_LE(extra, SP_ALIGN);
+			TERARK_ASSERT_LT(mybeg, myend);
+			TERARK_ASSERT_LE(myend, lenpool);
 			// TODO: &pnp[0].value may overlap with &pn[0].value, now just support FastCopy
 			CopyStrategy::move_cons_backward(&pnp[i].value, pn[i].value);
 			if (mylen >= sizeof(pnp[i].prefix))
@@ -2034,14 +2207,14 @@ public:
 
 	///@note returned pointer should be freed by the caller
 	LinkTp* get_sorted_index_fast() const {
-		assert(0 == nDeleted);
+		TERARK_VERIFY_EZ(nDeleted);
 		KeyIndexWithPrefix* idx0;
 	   	LinkTp* idx1;
 		const bool DoRearrange = false;
 		idx0 = sort_by_key_prefix_o(sort_by_index_yes(), DoRearrange);
 		idx1 = copy_idx_to_LinkTp_array(idx0);
 		idx1 = (LinkTp*)realloc(idx1, sizeof(LinkTp) * nNodes); // shrink
-		assert(NULL != idx1);
+		TERARK_VERIFY(NULL != idx1);
 		return idx1;
 	}
 
@@ -2064,7 +2237,7 @@ public:
 
 	template<class KeyCompare>
 	size_t lower_bound(const fstring key, const KeyCompare& comp) const {
-		assert(en_sort_by_key == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_key, sort_flag);
 		const Node* pn = &pNodes[0];
 		const char* ps = strpool;
 		size_t lo = 0, hi = nNodes;
@@ -2084,7 +2257,7 @@ public:
 
 	template<class KeyCompare>
 	size_t upper_bound(const fstring key, const KeyCompare& comp) const {
-		assert(en_sort_by_key == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_key, sort_flag);
 		const Node* pn = &pNodes[0];
 		const char* ps = strpool;
 		size_t lo = 0, hi = nNodes;
@@ -2107,7 +2280,7 @@ public:
 	template<class KeyPrefixCompare3>
 	std::pair<size_t, size_t>
 	equal_range3(const fstring key, const KeyPrefixCompare3& comp3) const {
-		assert(en_sort_by_key == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_key, sort_flag);
 		const Node* pn = &pNodes[0];
 		const char* ps = strpool;
 		size_t lo = 0, hi = nNodes;
@@ -2293,32 +2466,32 @@ public:
 	}
 	template<class KeyOfValue, class Compare>
 	size_t lower_bound_by_value(const KeyOfValue& kov, Compare comp) const {
-		assert(en_sort_by_val == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_val, sort_flag);
 		return lower_bound_by_value_impl(kov, comp, ValuePlace());
 	}
 	template<class KeyOfValue, class Compare>
 	size_t upper_bound_by_value(const KeyOfValue& kov, Compare comp) const {
-		assert(en_sort_by_val == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_val, sort_flag);
 		return upper_bound_by_value_impl(kov, comp, ValuePlace());
 	}
 	template<class KeyOfValue, class Compare>
 	std::pair<size_t, size_t>
 	equal_range_by_value(const KeyOfValue& kov, Compare comp) const {
-		assert(en_sort_by_val == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_val, sort_flag);
 		return equal_range_by_value_impl(kov, comp, ValuePlace());
 	}
 
 	size_t lower_bound_by_value(const Value& val) const {
-		assert(en_sort_by_val == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_val, sort_flag);
 		return lower_bound_by_value_impl(val, std::less<Value>(), ValuePlace());
 	}
 	size_t upper_bound_by_value(const Value& val) const {
-		assert(en_sort_by_val == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_val, sort_flag);
 		return upper_bound_by_value_impl(val, std::less<Value>(), ValuePlace());
 	}
 	std::pair<size_t, size_t>
 	equal_range_by_value(const Value& val) const {
-		assert(en_sort_by_val == sort_flag);
+		TERARK_VERIFY_EQ(en_sort_by_val, sort_flag);
 		return equal_range_by_value_impl(val, std::less<Value>(), ValuePlace());
 	}
 
@@ -2635,6 +2808,36 @@ public:
 	friend void DataIO_saveObject(DataIO& dio, const hash_strmap& self) {
 		self.dio_save(dio);
 	}
+
+	template<class ValueTpl>
+	static inline bool IsValueEqual(const ValueTpl& x, const ValueTpl& y) {
+		return x == y;
+	}
+	static inline bool IsValueEqual(const ValueOut& x, const ValueOut& y) {
+		return true;
+	}
+	friend bool operator==(const hash_strmap& x, const hash_strmap& y) {
+		if (x.size() != y.size()) {
+			return false;
+		}
+		const size_t x_end_i = x.end_i();
+		const size_t y_end_i = y.end_i();
+		for (size_t i = 0; i < x_end_i; ++i) {
+			if (!x.is_deleted(i)) {
+				const fstring key = x.key(i);
+				const size_t j = y.find_i(key);
+				if (j == y_end_i)
+					return false;
+				if (!IsValueEqual(x.val(i), y.val(j))) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	friend bool operator!=(const hash_strmap& x, const hash_strmap& y) {
+		return !(x == y);
+	}
 };
 
 template< class Value
@@ -2734,6 +2937,3 @@ swap(terark::fast_hash_strmap<Key, Value, HashFunc, KeyEqual, ValuePlace, CopySt
 #endif
 
 } // namespace std
-
-#endif // __terark_fast_hash_strmap2__
-

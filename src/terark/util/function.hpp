@@ -6,10 +6,33 @@
 #else
 	#include <functional>
 #endif
+#include <type_traits>
 
 #include <terark/config.hpp>
 #include <terark/preproc.hpp>
+#include <terark/stdtypes.hpp>
+#include <boost/mpl/bool.hpp>
+#include <boost/mpl/if.hpp>
 #include <boost/noncopyable.hpp>
+#include <boost/static_assert.hpp>
+#include <boost/type_traits.hpp>
+#include <boost/utility.hpp>
+
+#if defined(TERARK_HAS_WEAK_SYMBOL) && 0
+  #define TERARK_VALVEC_HAS_WEAK_SYMBOL 1
+#endif
+
+#if TERARK_VALVEC_HAS_WEAK_SYMBOL
+extern "C" {
+    // jemalloc specific
+    size_t TERARK_WEAK_SYMBOL xallocx(void*, size_t, size_t, int flags);
+  #if defined(__GLIBC__) && defined(__THROW)
+    size_t TERARK_WEAK_SYMBOL malloc_usable_size(void*) __THROW;
+  #else
+    size_t TERARK_WEAK_SYMBOL malloc_usable_size(void*);
+  #endif
+};
+#endif
 
 namespace terark {
 
@@ -28,6 +51,162 @@ namespace terark {
 	using std::reference_wrapper;
 	using std::remove_reference;
 #endif
+
+    enum class MemType {
+        Malloc,
+        Mmap,
+        User,
+    };
+    // defined in util/mmap.cpp
+    TERARK_DLL_EXPORT void mmap_close(void* base, size_t size);
+
+    template<class T>
+    struct ParamPassType {
+        static const bool is_pass_by_value =
+// some fundamental types are larger than sizeof(void*) such as long double
+        boost::is_fundamental<T>::value || (
+                sizeof(T) <= sizeof(void*)
+            && (sizeof(T) & (sizeof(T)-1 )) == 0 // power of 2
+            && boost::has_trivial_copy<T>::value
+            && boost::has_trivial_copy_constructor<T>::value
+            && boost::has_trivial_destructor<T>::value
+        );
+        typedef typename boost::mpl::if_c<is_pass_by_value,
+            const T, const T&>::type type;
+    };
+
+#if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L || \
+	 defined(_MSC_VER) && _MSC_VER >= 1700) && 0
+	template <typename T>
+	class is_iterator_impl {
+	  static char test(...);
+	  template <typename U,
+		typename=typename std::iterator_traits<U>::difference_type,
+		typename=typename std::iterator_traits<U>::pointer,
+		typename=typename std::iterator_traits<U>::reference,
+		typename=typename std::iterator_traits<U>::value_type,
+		typename=typename std::iterator_traits<U>::iterator_category
+	  > static long test(U*);
+	public:
+	  static const bool value = sizeof(test((T*)(NULL))) == sizeof(long);
+	};
+#else
+	template <typename T>
+	class is_iterator_impl {
+		static T makeT();
+		static char test(...); // Common case
+		template<class R> static typename R::iterator_category* test(R);
+		template<class R> static void* test(R*); // Pointer
+	public:
+		static const bool value = sizeof(test(makeT())) == sizeof(void*);
+	};
+#endif
+	template <typename T>
+	struct is_iterator :
+		public boost::mpl::bool_<is_iterator_impl<T>::value> {};
+
+#if defined(_MSC_VER) || defined(_LIBCPP_VERSION)
+	template<class T>
+	void STDEXT_destroy_range_aux(T*, T*, boost::mpl::true_) {}
+	template<class T>
+	void STDEXT_destroy_range_aux(T* p, T* q, boost::mpl::false_) {
+		for (; p < q; ++p) p->~T();
+	}
+	template<class T>
+	void STDEXT_destroy_range(T* p, T* q) {
+		STDEXT_destroy_range_aux(p, q, boost::has_trivial_destructor<T>());
+	}
+#else
+	#define STDEXT_destroy_range std::_Destroy
+#endif
+
+template<class ForwardIt, class Size>
+ForwardIt
+always_uninitialized_default_construct_n_aux(ForwardIt first, Size n,
+                                             std::false_type /*nothrow*/) {
+    using T = typename std::iterator_traits<ForwardIt>::value_type;
+    ForwardIt current = first;
+    try {
+        for (; n > 0 ; (void) ++current, --n) {
+            ::new (static_cast<void*>(std::addressof(*current))) T ();
+			// ------------------------------- init primitives  ---^^
+			// std::uninitialized_default_construct_n will not init primitives
+        }
+        return current;
+    }  catch (...) {
+        STDEXT_destroy_range(first, current);
+        throw;
+    }
+}
+
+template<class ForwardIt, class Size>
+ForwardIt
+always_uninitialized_default_construct_n_aux(ForwardIt first, Size n,
+                                             std::true_type /*nothrow*/) {
+    using T = typename std::iterator_traits<ForwardIt>::value_type;
+    ForwardIt current = first;
+    for (; n > 0 ; (void) ++current, --n) {
+        ::new (static_cast<void*>(std::addressof(*current))) T ();
+        // ------------------------------- init primitives  ---^^
+        // std::uninitialized_default_construct_n will not init primitives
+    }
+    return current;
+}
+
+template<class ForwardIt, class Size>
+ForwardIt
+always_uninitialized_default_construct_n(ForwardIt first, Size n) {
+    using T = typename std::iterator_traits<ForwardIt>::value_type;
+    return always_uninitialized_default_construct_n_aux(
+            first, n, std::is_nothrow_default_constructible<T>());
+}
+
+template<class T>
+inline bool is_object_overlap(const T* x, const T* y) {
+	assert(NULL != x);
+	assert(NULL != y);
+	if (x+1 <= y || y+1 <= x)
+		return false;
+	else
+		return true;
+}
+
+inline size_t larger_capacity(size_t oldcap) {
+    // use ull for 32 bit platform
+    typedef unsigned long long ull;
+    return size_t(ull(oldcap) * 103 / 64); // 103/64 = 1.609375 <~ 1.618
+}
+
+#if 1
+template<class T>
+struct terark_identity {
+	typedef T value_type;
+    //typedef typename ParamPassType<T>::type param_pass_t; // DONT use!
+	const T& operator()(const T& x) const { return x; }
+};
+#else
+	#define terark_identity std::identity
+#endif
+
+template<class Object, class Field>
+class DynaOffsetGetField {
+    int m_offset;
+public:
+    typedef typename ParamPassType<Field>::type param_pass_t;
+	param_pass_t operator()(const Object& x) const {
+		return *reinterpret_cast<const Field*>(
+				reinterpret_cast<const char *>(&x) + m_offset);
+	}
+    explicit DynaOffsetGetField(int offset) : m_offset(offset) {}
+};
+#define TERARK_DynaOffsetGetField_Type(Object, field) \
+    DynaOffsetGetField<Object, decltype(((Object*)nullptr)->field)>
+
+#define TERARK_DynaOffsetGetField(Object, field) \
+    DynaOffsetGetField<Object, decltype(((Object*)nullptr)->field)> \
+           (int(offsetof(Object, field)))
+
+/////////////////////////////////////////////////////////////////////////////
 
 	template<class FuncProto>
 	class tfunc : public function<FuncProto> {
@@ -379,7 +558,8 @@ CombinableExtractor(Extractor1&& ex1) {
 
 #define TERARK_EQUAL_MAP(c,f) if (!(x f == y f)) return false;
 #define TERARK_EQUAL_IMP(...) [](const auto& x, const auto& y) { \
-  TERARK_PP_MAP(TERARK_EQUAL_MAP, ~, __VA_ARGS__); \
+  TERARK_PP_APPLY(TERARK_PP_JOIN, \
+                  TERARK_PP_MAP(TERARK_EQUAL_MAP, ~, __VA_ARGS__)); \
   return true; }
 
 ///@param __VA_ARGS__ can not be empty
@@ -393,3 +573,61 @@ CombinableExtractor(Extractor1&& ex1) {
 } // namespace terark
 
 using terark::cmp;
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+inline typename std::enable_if<std::is_fundamental<T>::value, T>::type
+SmartDataForPrintf(T x) { return x; }
+
+template<class Seq>
+inline auto SmartDataForPrintf(const Seq& s) -> decltype(s.data()) {
+	 return s.data();
+}
+template<class StdException>
+inline auto SmartDataForPrintf(const StdException& e) -> decltype(e.what()) {
+	 return e.what();
+}
+template<class T>
+inline const T* SmartDataForPrintf(const T* x) { return x; }
+
+#define TERARK_PP_SmartForPrintf(...) \
+    TERARK_PP_MAP(TERARK_PP_APPLY, SmartDataForPrintf, __VA_ARGS__)
+
+/// suffix _S means Smart format
+#define TERARK_DIE_S(fmt, ...) \
+  do { \
+    fprintf(stderr, "%s:%d: %s: die: " fmt " !\n", \
+            __FILE__, __LINE__, \
+            TERARK_PP_SmartForPrintf(BOOST_CURRENT_FUNCTION, ##__VA_ARGS__)); \
+    abort(); } while (0)
+
+/// VERIFY indicate runtime assert in release build
+#define TERARK_VERIFY_S(expr, fmt, ...) \
+  do { if (terark_unlikely(!(expr))) { \
+    fprintf(stderr, "%s:%d: %s: verify(%s) failed: " fmt " !\n", \
+            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, \
+            TERARK_PP_SmartForPrintf(#expr, ##__VA_ARGS__)); \
+    abort(); }} while (0)
+
+#if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
+#define TERARK_ASSERT_S TERARK_VERIFY_S
+#else
+#define TERARK_ASSERT_S(...)
+#endif
+
+/// _S_: String
+#define TERARK_ASSERT_S_LT(x,y) TERARK_ASSERT_S(x <  y, "%s -:- %s", x, y)
+#define TERARK_ASSERT_S_GT(x,y) TERARK_ASSERT_S(x >  y, "%s -:- %s", x, y)
+#define TERARK_ASSERT_S_LE(x,y) TERARK_ASSERT_S(x <= y, "%s -:- %s", x, y)
+#define TERARK_ASSERT_S_GE(x,y) TERARK_ASSERT_S(x >= y, "%s -:- %s", x, y)
+#define TERARK_ASSERT_S_EQ(x,y) TERARK_ASSERT_S(x == y, "%s -:- %s", x, y)
+#define TERARK_ASSERT_S_NE(x,y) TERARK_ASSERT_S(x != y, "%s -:- %s", x, y)
+
+#define TERARK_VERIFY_S_LT(x,y) TERARK_VERIFY_S(x <  y, "%s -:- %s", x, y)
+#define TERARK_VERIFY_S_GT(x,y) TERARK_VERIFY_S(x >  y, "%s -:- %s", x, y)
+#define TERARK_VERIFY_S_LE(x,y) TERARK_VERIFY_S(x <= y, "%s -:- %s", x, y)
+#define TERARK_VERIFY_S_GE(x,y) TERARK_VERIFY_S(x >= y, "%s -:- %s", x, y)
+#define TERARK_VERIFY_S_EQ(x,y) TERARK_VERIFY_S(x == y, "%s -:- %s", x, y)
+#define TERARK_VERIFY_S_NE(x,y) TERARK_VERIFY_S(x != y, "%s -:- %s", x, y)

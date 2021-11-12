@@ -1,5 +1,4 @@
-#ifndef __terark_util_autoclose_hpp__
-#define __terark_util_autoclose_hpp__
+#pragma once
 
 #include <stdio.h>
 #include <boost/noncopyable.hpp>
@@ -56,6 +55,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_util_autoclose_hpp__
-
