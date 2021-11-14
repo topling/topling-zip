@@ -1,5 +1,4 @@
-#ifndef __terark_util_crc_hpp__
-#define __terark_util_crc_hpp__
+#pragma once
 
 #include <terark/util/checksum_exception.hpp>
 
@@ -26,6 +25,3 @@ public:
 };
 
 } // terark
-
-#endif // __terark_util_crc_hpp__
-

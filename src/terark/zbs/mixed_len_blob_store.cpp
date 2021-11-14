@@ -13,8 +13,8 @@
 
 namespace terark {
 
-REGISTER_BlobStore(MixedLenBlobStore, "MixedLenBlobStore");
-REGISTER_BlobStore(MixedLenBlobStore64, "MixedLenBlobStore64");
+REGISTER_BlobStore(MixedLenBlobStore);
+REGISTER_BlobStore(MixedLenBlobStore64);
 
 static const uint64_t g_dmbsnark_seed = 0x6e654c646578694dull; // echo MixedLen | od -t x8
 
@@ -151,19 +151,22 @@ void MixedLenBlobStoreTpl<rank_select_t>::set_func_ptr() {
                       (&MixedLenBlobStoreTpl::getFixLenRecordAppend);
             m_fspread_record_append = static_cast<fspread_record_append_func_t>
                       (&MixedLenBlobStoreTpl::fspread_FixLenRecordAppend);
+            m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getFixLenRecordSize);
 		}
 		else {
             m_get_record_append = static_cast<get_record_append_func_t>
                       (&MixedLenBlobStoreTpl::getVarLenRecordAppend);
             m_fspread_record_append = static_cast<fspread_record_append_func_t>
                       (&MixedLenBlobStoreTpl::fspread_VarLenRecordAppend);
+            m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getVarLenRecordSize);
 		}
 	}
 	else {
         m_get_record_append = static_cast<get_record_append_func_t>
                   (&MixedLenBlobStoreTpl::get_record_append_has_fixed_rs);
         m_fspread_record_append = static_cast<fspread_record_append_func_t>
-                    (&MixedLenBlobStoreTpl::fspread_record_append_has_fixed_rs);
+                  (&MixedLenBlobStoreTpl::fspread_record_append_has_fixed_rs);
+        m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getMixLenRecordSize);
 	}
     // binary compatible:
     m_get_record_append_CacheOffsets =
@@ -335,6 +338,32 @@ const {
 }
 
 template<class rank_select_t>
+size_t MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordSize(size_t fixLenRecID, CacheOffsets*) const {
+    return m_fixedLen;
+}
+template<class rank_select_t>
+size_t MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordSize(size_t varLenRecID, CacheOffsets*) const {
+	TERARK_ASSERT_LT(varLenRecID + 1, m_varLenOffsets.size());
+	size_t offset0 = m_varLenOffsets[varLenRecID + 0];
+	size_t offset1 = m_varLenOffsets[varLenRecID + 1];
+	TERARK_ASSERT_LE(offset1, m_varLenValues.size());
+	TERARK_ASSERT_LE(offset0, offset1);
+	return offset1 - offset0;
+}
+template<class rank_select_t>
+size_t MixedLenBlobStoreTpl<rank_select_t>::getMixLenRecordSize(size_t recID, CacheOffsets*) const {
+	TERARK_ASSERT_EQ(m_isFixedLen.size(), m_numRecords);
+	TERARK_ASSERT_LT(recID, m_numRecords);
+	if (m_isFixedLen[recID]) {
+	    return m_fixedLen;
+	}
+	else {
+		size_t varLenRecID = m_isFixedLen.rank0(recID);
+		return getVarLenRecordSize(varLenRecID, nullptr);
+	}
+}
+
+template<class rank_select_t>
 void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
 	auto mmapBase = (const FileHeader*)dataMem.p;
 	m_mmapBase = mmapBase;
@@ -384,32 +413,32 @@ void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dict
 }
 
 template<class rank_select_t>
-void MixedLenBlobStoreTpl<rank_select_t>::get_meta_blocks(valvec<fstring>* blocks) const {
+void MixedLenBlobStoreTpl<rank_select_t>::get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
     if (m_isFixedLen.size()) {
-        blocks->emplace_back((byte_t*)m_isFixedLen.data(), m_isFixedLen.mem_size());
+        blocks->push_back({"isFixedLen", {(char*)m_isFixedLen.data(), (ptrdiff_t)m_isFixedLen.mem_size()}});
     }
     if (m_varLenOffsets.size()) {
-        blocks->emplace_back(m_varLenOffsets.data(), m_varLenOffsets.mem_size());
+        blocks->push_back({"varLenOffsets", {m_varLenOffsets.data(), (ptrdiff_t)m_varLenOffsets.mem_size()}});
     }
 }
 
 template<class rank_select_t>
-void MixedLenBlobStoreTpl<rank_select_t>::get_data_blocks(valvec<fstring>* blocks) const {
+void MixedLenBlobStoreTpl<rank_select_t>::get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
     if (!m_fixedLenValues.empty()) {
-        blocks->emplace_back(m_fixedLenValues);
+        blocks->push_back({"fixedLenValues", m_fixedLenValues});
     }
     if (!m_varLenValues.empty()) {
-        blocks->emplace_back(m_varLenValues);
+        blocks->push_back({"varLenValues", m_varLenValues});
     }
 }
 
 template<class rank_select_t>
-void MixedLenBlobStoreTpl<rank_select_t>::detach_meta_blocks(const valvec<fstring>& blocks) {
+void MixedLenBlobStoreTpl<rank_select_t>::detach_meta_blocks(const valvec<Block>& blocks) {
     assert(!m_isDetachMeta);
     if (m_isFixedLen.size()) {
-        auto fixed_len_mem = blocks.front();
+        auto fixed_len_mem = blocks.front().data;
         assert(fixed_len_mem.size() == m_isFixedLen.mem_size());
         if (m_isUserMem) {
             m_isFixedLen.risk_release_ownership();
@@ -419,7 +448,7 @@ void MixedLenBlobStoreTpl<rank_select_t>::detach_meta_blocks(const valvec<fstrin
         m_isFixedLen.risk_mmap_from((byte_t*)fixed_len_mem.data(), fixed_len_mem.size());
     }
     if (m_varLenOffsets.size()) {
-        auto var_len_offsets_mem = blocks.back();
+        auto var_len_offsets_mem = blocks.back().data;
         assert(var_len_offsets_mem.size() == m_varLenOffsets.mem_size());
         if (m_isUserMem) {
             m_varLenOffsets.risk_release_ownership();

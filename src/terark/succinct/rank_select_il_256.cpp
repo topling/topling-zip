@@ -14,7 +14,7 @@ inline rank_select_il::Line::Line(bool val) {
         memset(words, 0, sizeof(words));
 }
 
-void rank_select_il::push_back_slow_path(bool val) {
+void rank_select_il::push_back_slow_path(bool val) noexcept {
     rank_select_check_overflow(m_size, >= , rank_select_il_256);
     m_lines.emplace_back(false);
     this->set(m_size++, val);
@@ -64,7 +64,6 @@ rank_select_il::rank_select_il(const rank_select_il& y) = default;
 rank_select_il&
 rank_select_il::operator=(const rank_select_il& y) = default;
 
-#if defined(HSM_HAS_MOVE)
 rank_select_il::rank_select_il(rank_select_il&& y) noexcept {
     memcpy(this, &y, sizeof(*this));
     y.risk_release_ownership();
@@ -76,7 +75,6 @@ rank_select_il::operator=(rank_select_il&& y) noexcept {
     y.risk_release_ownership();
     return *this;
 }
-#endif
 
 rank_select_il::~rank_select_il() {
     this->clear();

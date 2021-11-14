@@ -1,3 +1,7 @@
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
+
 #include "blob_store_file_header.hpp"
 #include "dict_zip_blob_store.hpp"
 #include "suffix_array_dict.hpp"
@@ -18,6 +22,7 @@
 #include "sufarr_inducedsort.h"
 #include <terark/thread/pipeline.hpp>
 #include <terark/thread/fiber_aio.hpp>
+#include <terark/util/autofree.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/profiling.hpp>
 #include <terark/util/sortable_strvec.hpp>
@@ -46,7 +51,7 @@
 
 namespace terark {
 
-REGISTER_BlobStore(DictZipBlobStore, "DictZipBlobStore");
+REGISTER_BlobStore(DictZipBlobStore);
 
 static profiling g_pf;
 static std::atomic<uint64_t> g_dataThroughBytes(0);
@@ -87,7 +92,12 @@ DzEncodingMeta GetBackRef_EncodingMeta(size_t distance, size_t len) {
 	assert(distance >= 1);
 	assert(distance <= 1ul<<24);
 	assert(len >= 2);
-	assert(len <= 1ul<<24);
+	//assert(len < 1ul<<24);
+#if !defined(NDEBUG)
+	if (len >= 1ul<<24) {
+		fprintf(stderr, "WARN: DictZipBlobStore: too long match = %zd\n", len);
+	}
+#endif
 	if (1 == len) {
 		return { DzType::Literal, 2 };
 	}
@@ -605,6 +615,9 @@ TERARK_DLL_EXPORT void DictZipBlobStore_setZipThreads(int zipThreads) {
 	else {
 		g_zipThreads() = zipThreads;
 	}
+}
+TERARK_DLL_EXPORT int DictZipBlobStore_getZipThreads() {
+  return g_zipThreads();
 }
 
 TERARK_DLL_EXPORT void DictZipBlobStore_setPipelineLogLevel(int level) {
@@ -1687,6 +1700,18 @@ WriteDict(fstring filename, size_t offset, fstring data, bool compress) {
 static
 AbstractBlobStore::MemoryCloseType
 ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
+    auto MmapColdizeBytes = [](const void* addr, size_t len) {
+        size_t low = terark::align_up(size_t(addr), 4096);
+        size_t hig = terark::align_down(size_t(addr) + len, 4096);
+        if (low < hig) {
+            size_t size = hig - low;
+#ifdef MADV_DONTNEED
+            madvise((void*)low, size, MADV_DONTNEED);
+#elif defined(_MSC_VER) // defined(_WIN32) || defined(_WIN64)
+            VirtualUnlock((void*)low, size);
+#endif
+        }
+    };
     auto mmapBase = (const DictZipBlobStore::FileHeader*)mem.data();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         if (!dict.memory.empty()) {
@@ -1721,7 +1746,7 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
         dictMmap.base = nullptr;
         return AbstractBlobStore::MemoryCloseType::MmapClose;
     }
-    fstring dictMem = mmapBase->getEmbeddedDict();
+    const fstring dictMem = mmapBase->getEmbeddedDict();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kRaw) {
         assert(dictMem.size() == mmapBase->globalDictSize);
         dict = AbstractBlobStore::Dictionary(dictMem);
@@ -1745,21 +1770,11 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
             , ZSTD_getErrorName(size));
     }
     TERARK_VERIFY_EQ(size, raw_size);
+    MmapColdizeBytes(dictMem.data(), dictMem.size());
     dict = AbstractBlobStore::Dictionary(output_dict);
     output_dict.risk_release_ownership();
     return AbstractBlobStore::MemoryCloseType::Clear;
 }
-
-struct InplaceUpdateBuffer {
-    byte_t* m_begin;
-    byte_t* m_end;
-    byte_t* m_pos;
-    struct RingBuffer {
-        valvec<byte_t> m_buffer;
-        size_t begin;
-        size_t end;
-    } m_buffer;
-};
 
 void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobStore> &store, terark::ullong &t2, terark::ullong &t3)
 {
@@ -2483,30 +2498,30 @@ AbstractBlobStore::Dictionary DictZipBlobStore::get_dict() const {
     return Dictionary(m_strDict, mmapBase->dictXXHash);
 }
 
-void DictZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
+void DictZipBlobStore::get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_strDict.data(), m_strDict.size());
-    blocks->emplace_back(m_offsets.data(), m_offsets.mem_size());
+    blocks->push_back({"gdict", {m_strDict.data(), (ptrdiff_t)m_strDict.size()}});
+    blocks->push_back({"offsets", {m_offsets.data(), (ptrdiff_t)m_offsets.mem_size()}});
     if (m_huffman_decoder) {
         // add decoder if no compress table
-        blocks->emplace_back(
+        blocks->push_back({"huffman", {
                 reinterpret_cast<const char*>(m_huffman_decoder),
-                sizeof(Huffman::decoder_o1));
+                sizeof(Huffman::decoder_o1)}});
     }
 }
 
-void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
+void DictZipBlobStore::get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_ptrList);
+    blocks->push_back({"zipped", m_ptrList});
 }
 
-void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+void DictZipBlobStore::detach_meta_blocks(const valvec<Block>& blocks) {
     TERARK_VERIFY(!m_isDetachMeta);
     TERARK_VERIFY_GE(blocks.size(), 2);
     fstring dict_mem,offset_mem;
-    dict_mem = blocks.front();
+    dict_mem = blocks.front().data;
     if (blocks.size()==2) {
-        offset_mem = blocks.back();
+        offset_mem = blocks.back().data;
     }
     else {
         TERARK_VERIFY_EQ(blocks.size(), 3);
@@ -2515,9 +2530,9 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
         if(!mmapBase || !mmapBase->entropyTableNoCompress) {
             delete m_huffman_decoder;
         }
-        offset_mem = blocks[1];
+        offset_mem = blocks[1].data;
         m_huffman_decoder =
-            reinterpret_cast<const Huffman::decoder_o1*>(blocks.back().data());
+            reinterpret_cast<const Huffman::decoder_o1*>(blocks.back().data.data());
     }
     TERARK_VERIFY_EQ(dict_mem.size(), m_strDict.size());
     TERARK_VERIFY_EQ(offset_mem.size(), m_offsets.mem_size());
@@ -2697,6 +2712,8 @@ UpdateOutputPtrAfterGrowCapacity(valvec<byte_t>* buf, size_t len, byte_t*& outpu
 
 TERARK_IF_DEBUG(static thread_local size_t tg_dicLen = 0,);
 
+#define UnzipOutBuf valvec<byte_t>
+
 #define DoUnzipFuncName DoUnzipSwitchAutoGrow
 #define UnzipUseThreading  0
 #define UnzipReserveBuffer 0
@@ -2737,6 +2754,83 @@ TERARK_IF_DEBUG(static thread_local size_t tg_dicLen = 0,);
 #define UnzipReserveBuffer 1
 #define UnzipDelayGlobalMatch 1
 #include "dict_zip_blob_store_unzip_func.hpp"
+
+struct DzCountingUnzipOutBuf {
+    size_t  len = 0;
+    size_t  size() const noexcept { return len; }
+    byte_t* data() const noexcept { return nullptr; }
+    byte_t* end()  const noexcept { return nullptr; }
+    byte_t* grow_no_init(size_t inc) noexcept { len += inc; return nullptr; }
+    size_t  capacity() noexcept { return SIZE_MAX; }
+    void ensure_capacity(size_t cap) noexcept { }
+};
+#define memset(...)
+#undef small_memcpy
+#define small_memcpy(...)
+#define CopyForward(...)
+#undef UnzipOutBuf
+#define UnzipOutBuf DzCountingUnzipOutBuf
+#define DoUnzipFuncName CalcUnzipLenSwitchAutoGrow
+#define UnzipUseThreading  0
+#define UnzipReserveBuffer 0
+#define UnzipDelayGlobalMatch 0
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wunused-variable"
+  #include "dict_zip_blob_store_unzip_func.hpp"
+  #pragma GCC diagnostic pop
+#else
+  #include "dict_zip_blob_store_unzip_func.hpp"
+#endif
+#undef memset
+#undef small_memcpy
+#undef CopyForward
+#undef UnzipOutBuf
+
+size_t DictZipBlobStore::get_record_size(size_t recId) const {
+    assert(recId + 1 < m_offsets.size());
+    if (terark_unlikely(Options::kNoEntropy != m_entropyAlgo)) {
+        // fallback
+        valvec<byte_t> rec = get_record(recId);
+        return rec.size();
+    }
+	size_t BegEnd[2];
+	offsetGet2(recId, BegEnd, offsetsIsSortedUintVec());
+	assert(BegEnd[0] <= BegEnd[1]);
+	assert(BegEnd[1] <= m_ptrList.size());
+	assert(m_ptrList.data() == (const byte_t*)((FileHeader*)m_mmapBase + 1));
+	size_t offset = sizeof(FileHeader) + BegEnd[0];
+	size_t zipLen = BegEnd[1] - BegEnd[0];
+	if (zipLen == 0) {
+		return 0;  // empty
+	}
+	const byte* pos = m_ptrList.data() + offset;
+	if (m_checksumLevel == 2) {
+		if (zipLen <= 4) {
+			THROW_STD(logic_error
+				, "CRC check failed: recId = %zd, zlen = %zd"
+				, recId, zipLen);
+		}
+        zipLen -= 4; // exclude trailing crc32
+		uint32_t crc2 = Crc32c_update(0, pos, zipLen);
+		uint32_t crc1 = unaligned_load<uint32_t>(pos + zipLen);
+		if (crc2 != crc1) {
+			THROW_STD(logic_error, "CRC check failed: recId = %zd", recId);
+		}
+	}
+    DzCountingUnzipOutBuf buf;
+    const byte_t* dic = nullptr;
+    const byte_t* end = pos + zipLen;
+    //const int  gOffsetBytes = m_gOffsetBits <= 24 ? 3 : 4;
+    //m_unzip(pos, end, recData, dic, m_gOffsetBits, m_reserveOutputMultiplier);
+    if (m_gOffsetBits <= 24) {
+        CalcUnzipLenSwitchAutoGrow<3>(pos, end, &buf, dic, m_gOffsetBits, 0);
+    } else {
+        CalcUnzipLenSwitchAutoGrow<4>(pos, end, &buf, dic, m_gOffsetBits, 0);
+    }
+    return buf.len;
+}
 
 static int const DefaultUnzipImp = 1; // DoUnzipSwitchPreserve
 static int init_get_UnzipImp() {
@@ -2951,6 +3045,15 @@ const {
     }
 }
 
+template<bool ZipOffset>
+size_t
+DictZipBlobStore::get_zipped_size_tpl(size_t recId, CacheOffsets* co) const {
+	TERARK_ASSERT_LT(recId + 1, m_offsets.size());
+	size_t BegEnd[2];
+	offsetGet2(recId, BegEnd, ZipOffset);
+	return BegEnd[1] - BegEnd[0];
+}
+
 void DictZipBlobStore::set_func_ptr() {
   if (terark_unlikely(nullptr == m_mmapBase)) {
     THROW_STD(invalid_argument, "m_mmapBase must not null");
@@ -2992,6 +3095,11 @@ ZipOffset                                                         \
   const int  UnzipPolicy = std::min(g_DictZipUnzipImp&7,5);//tolerate bad value
   const int  gOffsetBytes = m_gOffsetBits <= 24 ? 3 : 4;
   const int  EI = m_entropyInterleaved;
+  if (ZipOffset) {
+      m_get_zipped_size = dest_scast(&DictZipBlobStore::get_zipped_size_tpl<true>);
+  } else {
+      m_get_zipped_size = dest_scast(&DictZipBlobStore::get_zipped_size_tpl<false>);
+  }
 
 // UnzipID is a perfect hash function to compute a unique id for switch-case
 #define      UnzipID(UnzipPolicy, gOffsetBytes) UnzipPolicy*2 + gOffsetBytes-3
@@ -3089,14 +3197,13 @@ void DictZipBlobStore::reorder_zip_data(ZReorderMap& newToOld,
         function<void(const void* data, size_t size)> writeAppend,
         fstring tmpFile)
 const {
-
-	assert(nullptr != m_mmapBase);
+	TERARK_VERIFY(nullptr != m_mmapBase);
 	TERARK_IF_DEBUG(febitvec rbits(m_numRecords),;);
 	const bool isOffsetsZipped = offsetsIsSortedUintVec();
     const bool hasEntropy = m_entropyAlgo != Options::kNoEntropy;
-	size_t recNum = m_numRecords;
+	const size_t recNum = m_numRecords;
+	const size_t maxOffsetEnt = isOffsetsZipped ? m_zOffsets[recNum] : m_offsets[recNum];
 	size_t offset = 0;
-	size_t maxOffsetEnt = isOffsetsZipped ? m_zOffsets[recNum] : m_offsets[recNum];
     MmapWholeFile mmapOffset;
     UintVecMin0 newOffsets;
     SortedUintVec newZipOffsets;
@@ -3107,7 +3214,8 @@ const {
     if (isOffsetsZipped) {
         auto zipOffsetBuilder = std::unique_ptr<SortedUintVec::Builder>(
             SortedUintVec::createBuilder(m_zOffsets.block_units(), tmpFile.c_str()));
-        for(assert(newToOld.size() == recNum); !newToOld.eof(); ++newToOld) {
+        TERARK_VERIFY_EQ(newToOld.size(), recNum);
+        for (; !newToOld.eof(); ++newToOld) {
             size_t newId = newToOld.index();
             size_t oldId = *newToOld;
             assert(oldId < recNum);
@@ -3120,7 +3228,7 @@ const {
                 newEntropyBitmap.set(newId, m_entropyBitmap[oldId]);
             }
         }
-        assert(offset == maxOffsetEnt);
+        TERARK_VERIFY_EQ(offset, maxOffsetEnt);
         zipOffsetBuilder->push_back(maxOffsetEnt);
         zipOffsetBuilder->finish(nullptr);
         zipOffsetBuilder.reset();
@@ -3134,12 +3242,13 @@ const {
         static const size_t offset_flush_size = 128;
         UintVecMin0 tmpOffsets(offset_flush_size, maxOffsetEnt);
         size_t flush_count = 0;
-        assert(align_up(maxOffsetEnt, 16) == m_ptrList.size());
-        assert(tmpOffsets.uintbits() == m_offsets.uintbits());
-        for (assert(newToOld.size() == recNum); !newToOld.eof(); ++newToOld) {
+        TERARK_VERIFY_EQ(align_up(maxOffsetEnt, 16), m_ptrList.size());
+        TERARK_VERIFY_EQ(tmpOffsets.uintbits(), m_offsets.uintbits());
+        TERARK_VERIFY_EQ(newToOld.size(), recNum);
+        for (; !newToOld.eof(); ++newToOld) {
             size_t newId = newToOld.index() - flush_count;
             size_t oldId = *newToOld;
-            assert(oldId < recNum);
+            TERARK_ASSERT_LT(oldId, recNum);
             if (newId == offset_flush_size) {
                 size_t byte_count = tmpOffsets.uintbits() * offset_flush_size / 8;
                 m_writer_offset.ensureWrite(tmpOffsets.data(), byte_count);
@@ -3150,13 +3259,13 @@ const {
             offsetGet2(oldId, BegEnd, isOffsetsZipped);
             tmpOffsets.set_wire(newId, offset);
             size_t zippedLen = BegEnd[1] - BegEnd[0];
-            assert(BegEnd[0] <= BegEnd[1]);
+            TERARK_ASSERT_LE(BegEnd[0], BegEnd[1]);
             offset += zippedLen;
             if (hasEntropy) {
                 newEntropyBitmap.set(newToOld.index(), m_entropyBitmap[oldId]);
             }
         }
-        assert(offset == maxOffsetEnt);
+        TERARK_VERIFY_EQ(offset, maxOffsetEnt);
         tmpOffsets.resize(recNum - flush_count + 1);
         tmpOffsets.set_wire(recNum - flush_count, maxOffsetEnt);
         tmpOffsets.shrink_to_fit();
@@ -3197,17 +3306,29 @@ const {
         writeAppend(&h, sizeof(h));
     }
     XXHash64 xxhash64(g_dzbsnark_seed);
+    const byte_t* gatherPtr = nullptr;
+    size_t gatherLen = 0;
     for (newToOld.rewind(); !newToOld.eof(); ++newToOld) {
         size_t oldId = *newToOld;
 		size_t BegEnd[2];
 		offsetGet2(oldId, BegEnd, isOffsetsZipped);
 		size_t zippedLen = BegEnd[1] - BegEnd[0];
-		assert(BegEnd[0] <= BegEnd[1]);
+		TERARK_ASSERT_LE(BegEnd[0], BegEnd[1]);
 		const byte* beg = m_ptrList.data() + BegEnd[0];
 		xxhash64.update(beg, zippedLen);
-		writeAppend(beg, zippedLen);
-		assert(rbits.is0(oldId));
+		if (gatherPtr + gatherLen == beg) {
+			gatherLen += zippedLen;
+		} else {
+			if (gatherLen)
+				writeAppend(gatherPtr, gatherLen);
+			gatherPtr = beg;
+			gatherLen = zippedLen;
+		}
+		TERARK_ASSERT_F(rbits.is0(oldId), "oldId = %zd", oldId);
 		TERARK_IF_DEBUG(rbits.set1(oldId), ;);
+	}
+	if (gatherLen) {
+		writeAppend(gatherPtr, gatherLen);
 	}
     static const byte zeros[16] = { 0 };
 	if (offset % 16 != 0) {
@@ -3216,12 +3337,12 @@ const {
 	}
     if (isOffsetsZipped) {
         writeAppend(newZipOffsets.data(), newZipOffsets.mem_size());
-        assert(newZipOffsets.mem_size() % 16 == 0);
+        TERARK_VERIFY_AL(newZipOffsets.mem_size(), 16);
         newZipOffsets.risk_release_ownership();
     }
     else {
         writeAppend(newOffsets.data(), newOffsets.mem_size());
-        assert(newOffsets.mem_size() % 16 == 0);
+        TERARK_VERIFY_AL(newOffsets.mem_size(), 16);
         newOffsets.risk_release_ownership();
     }
     MmapWholeFile().swap(mmapOffset);
@@ -3230,7 +3351,7 @@ const {
 	if (hasEntropy) {
         auto entropyMem = m_offsets.data() + m_offsets.mem_size() + newEntropyBitmap.mem_size();
         auto entropyLen = ((const FileHeader*)m_mmapBase)->entropyTableSize;
-		assert(entropyLen > 0);
+		TERARK_VERIFY(entropyLen > 0);
         writeAppend(newEntropyBitmap.data(), newEntropyBitmap.mem_size());
         writeAppend(entropyMem, align_up(entropyLen, 16));
 	}

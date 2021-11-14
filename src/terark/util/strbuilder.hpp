@@ -1,4 +1,4 @@
-// strbuilder.hpp
+#pragma once
 
 #include <stdio.h>
 #include <string>
@@ -52,4 +52,3 @@ namespace terark {
 #endif
 
 } // namespace terark
-

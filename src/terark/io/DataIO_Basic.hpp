@@ -1,10 +1,5 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef __terark_io_DataIO_Basic_h__
-#define __terark_io_DataIO_Basic_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <utility>
 
@@ -223,9 +218,12 @@ struct DataIO_is_realdump
 	}
 };
 
+template<class T>
+struct ObjectDefaultCons {
+	T t;
+	ObjectDefaultCons() : t() {}
+};
+
 } // namespace terark
 
 //#include <boost/type_traits/detail/bool_trait_undef.hpp>
-
-#endif // __terark_io_DataIO_Basic_h__
-

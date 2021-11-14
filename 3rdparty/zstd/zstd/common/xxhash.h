@@ -1,35 +1,15 @@
 /*
-   xxHash - Extremely Fast Hash algorithm
-   Header File
-   Copyright (C) 2012-2016, Yann Collet.
-
-   BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-
-       * Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-       * Redistributions in binary form must reproduce the above
-   copyright notice, this list of conditions and the following disclaimer
-   in the documentation and/or other materials provided with the
-   distribution.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-   You can contact the author at :
-   - xxHash source repository : https://github.com/Cyan4973/xxHash
+ * xxHash - Extremely Fast Hash algorithm
+ * Header File
+ * Copyright (c) 2012-2020, Yann Collet, Facebook, Inc.
+ *
+ * You can contact the author at :
+ * - xxHash source repository : https://github.com/Cyan4973/xxHash
+ * 
+ * This source code is licensed under both the BSD-style license (found in the
+ * LICENSE file in the root directory of this source tree) and the GPLv2 (found
+ * in the COPYING file in the root directory of this source tree).
+ * You may select, at your option, one of the above-listed licenses.
 */
 
 /* Notice extracted from xxHash homepage :
@@ -64,16 +44,12 @@ XXH64       13.8 GB/s            1.9 GB/s
 XXH32        6.8 GB/s            6.0 GB/s
 */
 
-#ifndef XXHASH_H_5627135585666179
-#define XXHASH_H_5627135585666179 1
-
 #if defined (__cplusplus)
 extern "C" {
 #endif
 
-#ifndef XXH_NAMESPACE
-#  define XXH_NAMESPACE ZSTD_  /* Zstandard specific */
-#endif
+#ifndef XXHASH_H_5627135585666179
+#define XXHASH_H_5627135585666179 1
 
 
 /* ****************************
@@ -242,6 +218,11 @@ XXH_PUBLIC_API void XXH64_copyState(XXH64_state_t* restrict dst_state, const XXH
 /* **************************
 *  Canonical representation
 ****************************/
+/* Default result type for XXH functions are primitive unsigned 32 and 64 bits.
+*  The canonical representation uses human-readable write convention, aka big-endian (large digits first).
+*  These functions allow transformation of hash result into and from its canonical format.
+*  This way, hash values can be written into a file / memory, and remain comparable on different systems and programs.
+*/
 typedef struct { unsigned char digest[4]; } XXH32_canonical_t;
 typedef struct { unsigned char digest[8]; } XXH64_canonical_t;
 
@@ -251,14 +232,9 @@ XXH_PUBLIC_API void XXH64_canonicalFromHash(XXH64_canonical_t* dst, XXH64_hash_t
 XXH_PUBLIC_API XXH32_hash_t XXH32_hashFromCanonical(const XXH32_canonical_t* src);
 XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(const XXH64_canonical_t* src);
 
-/* Default result type for XXH functions are primitive unsigned 32 and 64 bits.
-*  The canonical representation uses human-readable write convention, aka big-endian (large digits first).
-*  These functions allow transformation of hash result into and from its canonical format.
-*  This way, hash values can be written into a file / memory, and remain comparable on different systems and programs.
-*/
+#endif /* XXHASH_H_5627135585666179 */
 
 
-#ifdef XXH_STATIC_LINKING_ONLY
 
 /* ================================================================================================
    This section contains definitions which are not guaranteed to remain stable.
@@ -266,6 +242,8 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(const XXH64_canonical_t* src
    They shall only be used with static linking.
    Never use these definitions in association with dynamic linking !
 =================================================================================================== */
+#if defined(XXH_STATIC_LINKING_ONLY) && !defined(XXH_STATIC_H_3543687687345)
+#define XXH_STATIC_H_3543687687345
 
 /* These definitions are only meant to allow allocation of XXH state
    statically, on stack, or in a struct for example.
@@ -299,11 +277,9 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(const XXH64_canonical_t* src
 #    include "xxhash.c"   /* include xxhash functions as `static`, for inlining */
 #  endif
 
-#endif /* XXH_STATIC_LINKING_ONLY */
+#endif /* XXH_STATIC_LINKING_ONLY && XXH_STATIC_H_3543687687345 */
 
 
 #if defined (__cplusplus)
 }
 #endif
-
-#endif /* XXHASH_H_5627135585666179 */

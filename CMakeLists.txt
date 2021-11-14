@@ -13,7 +13,7 @@ MESSAGE("[terark-zip] WITH_TESTS : ${WITH_TESTS}")
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 #----------- Extra Compiler Flags
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=haswell -DHAVE_SSE42 -DHAVE_PCLMUL -fPIC")
@@ -25,7 +25,7 @@ ENDIF()
 
 INCLUDE(ExternalProject)
 ExternalProject_Add(boost-project
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boost-include
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE 1
     BUILD_COMMAND bash bootstrap.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/boost --with-libraries=fiber,context,system,filesystem,thread
@@ -34,32 +34,32 @@ ExternalProject_Add(boost-project
 ADD_LIBRARY(boost-fiber STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-fiber boost-project)
 SET_TARGET_PROPERTIES(boost-fiber PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_fiber.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_fiber.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 ADD_LIBRARY(boost-context STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-context boost-project)
 SET_TARGET_PROPERTIES(boost-context PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_context.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_context.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 ADD_LIBRARY(boost-system STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-system boost-project)
 SET_TARGET_PROPERTIES(boost-system PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_system.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_system.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 ADD_LIBRARY(boost-filesystem STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-filesystem boost-project)
 SET_TARGET_PROPERTIES(boost-filesystem PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_filesystem.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_filesystem.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 ADD_LIBRARY(boost-thread STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-thread boost-project)
 SET_TARGET_PROPERTIES(boost-thread PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_thread.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_thread.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 # CORE LIB
 FILE(GLOB CORE_SRC src/terark/*.cpp
@@ -112,7 +112,7 @@ TARGET_LINK_LIBRARIES(terark-zip-${BUILD_SUFFIX} boost-fiber boost-filesystem bo
 TARGET_INCLUDE_DIRECTORIES(terark-zip-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
                                                               # expose boost headers in case someone need it
-                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include>")
+                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boost-include>")
 
 
 ############## Build gtests ###########
@@ -160,14 +160,14 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/boost
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/boost
         DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib
         DESTINATION ${CMAKE_BINARY_DIR}
         FILES_MATCHING
         PATTERN "libboost_fiber.a"

@@ -79,8 +79,6 @@ rank_select_mixed_il_256& rank_select_mixed_il_256::operator=(const rank_select_
     return *this;
 }
 
-#if defined(HSM_HAS_MOVE)
-
 rank_select_mixed_il_256::rank_select_mixed_il_256(rank_select_mixed_il_256&& y) noexcept {
     memcpy(this, &y, sizeof(*this));
     y.risk_release_ownership();
@@ -94,20 +92,18 @@ rank_select_mixed_il_256& rank_select_mixed_il_256::operator=(rank_select_mixed_
     return *this;
 }
 
-#endif
-
 rank_select_mixed_il_256::~rank_select_mixed_il_256() {
     if (m_lines)
         ::free(m_lines);
 }
 
-void rank_select_mixed_il_256::clear() {
+void rank_select_mixed_il_256::clear() noexcept {
     if (m_lines)
         ::free(m_lines);
     risk_release_ownership();
 }
 
-void rank_select_mixed_il_256::risk_release_ownership() {
+void rank_select_mixed_il_256::risk_release_ownership() noexcept {
     nullize_cache();
     m_lines = nullptr;
     m_capacity = 0;
@@ -160,7 +156,7 @@ void rank_select_mixed_il_256::risk_mmap_from(unsigned char* base, size_t length
     }
 }
 
-void rank_select_mixed_il_256::shrink_to_fit() {
+void rank_select_mixed_il_256::shrink_to_fit() noexcept {
     assert(NULL == m_sel0_cache[0]);
     assert(NULL == m_sel0_cache[1]);
     assert(NULL == m_sel1_cache[0]);
@@ -172,13 +168,12 @@ void rank_select_mixed_il_256::shrink_to_fit() {
     size_t size = std::max(m_size[0], m_size[1]);
     size_t new_bytes = ((size + LineBits - 1) & ~(LineBits - 1)) / LineBits * sizeof(RankCacheMixed);
     auto new_lines = (RankCacheMixed*)realloc(m_lines, new_bytes);
-    if (NULL == new_lines)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != new_lines, "new_bytes = %zd", new_bytes);
     m_lines = new_lines;
     m_capacity = new_bytes;
 }
 
-void rank_select_mixed_il_256::swap(rank_select_mixed_il_256& y) {
+void rank_select_mixed_il_256::swap(rank_select_mixed_il_256& y) noexcept {
     std::swap(m_lines, y.m_lines);
     std::swap(m_size, y.m_size);
     std::swap(m_flags, y.m_flags);
@@ -189,22 +184,13 @@ void rank_select_mixed_il_256::swap(rank_select_mixed_il_256& y) {
     std::swap(m_max_rank1, y.m_max_rank1);
 }
 
-const void* rank_select_mixed_il_256::data() const {
-    return m_lines;
-}
-
-size_t rank_select_mixed_il_256::mem_size() const {
-    return m_capacity;
-}
-
-void rank_select_mixed_il_256::grow() {
+void rank_select_mixed_il_256::grow() noexcept {
     assert(std::max(m_size[0], m_size[1]) == m_capacity / sizeof(RankCacheMixed) * LineBits);
     assert((m_flags & (1 << 1)) == 0);
     assert((m_flags & (1 << 4)) == 0);
     size_t newcapBytes = 2 * std::max(m_capacity, sizeof(RankCacheMixed));
     auto new_lines = (RankCacheMixed*)realloc(m_lines, newcapBytes);
-    if (NULL == new_lines)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != new_lines, "newcapBytes = %zd", newcapBytes);
     if (g_Terark_hasValgrind)
         memset((byte_t*)new_lines + m_capacity, 0, newcapBytes - m_capacity);
     m_lines = new_lines;
@@ -229,7 +215,7 @@ void rank_select_mixed_il_256::reserve(size_t newcapBits) {
     reserve_bytes(newcapBits / LineBits * sizeof(RankCacheMixed));
 }
 
-void rank_select_mixed_il_256::nullize_cache() {
+void rank_select_mixed_il_256::nullize_cache() noexcept {
     m_flags = 0;
     m_sel0_cache[0] = NULL;
     m_sel1_cache[0] = NULL;
@@ -242,7 +228,7 @@ void rank_select_mixed_il_256::nullize_cache() {
 }
 
 template<size_t dimensions>
-void rank_select_mixed_il_256::bits_range_set0_dx(size_t i, size_t k) {
+void rank_select_mixed_il_256::bits_range_set0_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
@@ -266,11 +252,11 @@ void rank_select_mixed_il_256::bits_range_set0_dx(size_t i, size_t k) {
     }
 }
 
-template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set0_dx<0>(size_t i, size_t k);
-template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set0_dx<1>(size_t i, size_t k);
+template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set0_dx<0>(size_t i, size_t k) noexcept;
+template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set0_dx<1>(size_t i, size_t k) noexcept;
 
 template<size_t dimensions>
-void rank_select_mixed_il_256::bits_range_set1_dx(size_t i, size_t k) {
+void rank_select_mixed_il_256::bits_range_set1_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
@@ -294,8 +280,8 @@ void rank_select_mixed_il_256::bits_range_set1_dx(size_t i, size_t k) {
     }
 }
 
-template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set1_dx<0>(size_t i, size_t k);
-template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set1_dx<1>(size_t i, size_t k);
+template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set1_dx<0>(size_t i, size_t k) noexcept;
+template void TERARK_DLL_EXPORT rank_select_mixed_il_256::bits_range_set1_dx<1>(size_t i, size_t k) noexcept;
 
 template<size_t dimensions>
 void rank_select_mixed_il_256::build_cache_dx(bool speed_select0, bool speed_select1) {
@@ -393,7 +379,7 @@ template void TERARK_DLL_EXPORT rank_select_mixed_il_256::build_cache_dx<0>(bool
 template void TERARK_DLL_EXPORT rank_select_mixed_il_256::build_cache_dx<1>(bool speed_select0, bool speed_select1);
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::one_seq_len_dx(size_t bitpos) const {
+size_t rank_select_mixed_il_256::one_seq_len_dx(size_t bitpos) const noexcept {
     assert(bitpos < m_size[dimensions]);
     size_t j = bitpos / LineBits, k, sum;
     if (bitpos % WordBits != 0) {
@@ -426,11 +412,11 @@ size_t rank_select_mixed_il_256::one_seq_len_dx(size_t bitpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_len_dx<0>(size_t bitpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_len_dx<1>(size_t bitpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_len_dx<0>(size_t bitpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_len_dx<1>(size_t bitpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::zero_seq_len_dx(size_t bitpos) const {
+size_t rank_select_mixed_il_256::zero_seq_len_dx(size_t bitpos) const noexcept {
     assert(bitpos < m_size[dimensions]);
     size_t j = bitpos / LineBits, k, sum;
     if (bitpos % WordBits != 0) {
@@ -461,11 +447,11 @@ size_t rank_select_mixed_il_256::zero_seq_len_dx(size_t bitpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_len_dx<0>(size_t bitpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_len_dx<1>(size_t bitpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_len_dx<0>(size_t bitpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_len_dx<1>(size_t bitpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::one_seq_revlen_dx(size_t endpos) const {
+size_t rank_select_mixed_il_256::one_seq_revlen_dx(size_t endpos) const noexcept {
     assert(endpos <= m_size[dimensions]);
     size_t j, k, sum;
     if (endpos % WordBits != 0) {
@@ -501,11 +487,11 @@ size_t rank_select_mixed_il_256::one_seq_revlen_dx(size_t endpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_revlen_dx<0>(size_t endpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_revlen_dx<1>(size_t endpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_revlen_dx<0>(size_t endpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::one_seq_revlen_dx<1>(size_t endpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::zero_seq_revlen_dx(size_t endpos) const {
+size_t rank_select_mixed_il_256::zero_seq_revlen_dx(size_t endpos) const noexcept {
     assert(endpos <= m_size[dimensions]);
     size_t j, k, sum;
     if (endpos % WordBits != 0) {
@@ -538,11 +524,11 @@ size_t rank_select_mixed_il_256::zero_seq_revlen_dx(size_t endpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_revlen_dx<0>(size_t endpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_revlen_dx<1>(size_t ebdpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_revlen_dx<0>(size_t endpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_revlen_dx<1>(size_t ebdpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const {
+size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     GUARD_MAX_RANK(0[dimensions], Rank0);
     size_t lo, hi;
@@ -585,11 +571,11 @@ size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const {
     }
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<0>(size_t Rank0) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<1>(size_t Rank0) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<0>(size_t Rank0) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<1>(size_t Rank0) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const {
+size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     GUARD_MAX_RANK(1[dimensions], Rank1);
     size_t lo, hi;
@@ -626,14 +612,14 @@ size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const {
         return index + 64*2 + UintSelect1(
                  xx.bit64[2], Rank1 - (hit + xx.rlev[2]));
     }
-       else {
+    else {
         return index + 64*3 + UintSelect1(
                  xx.bit64[3], Rank1 - (hit + xx.rlev[3]));
     }
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select1_dx<0>(size_t Rank1) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select1_dx<1>(size_t Rank1) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select1_dx<0>(size_t Rank1) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select1_dx<1>(size_t Rank1) const noexcept;
 
 template class TERARK_DLL_EXPORT rank_select_mixed_dimensions<rank_select_mixed_il_256, 0>;
 template class TERARK_DLL_EXPORT rank_select_mixed_dimensions<rank_select_mixed_il_256, 1>;

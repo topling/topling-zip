@@ -1,5 +1,4 @@
-#ifndef __terark_node_layout_hpp__
-#define __terark_node_layout_hpp__
+#pragma once
 
 //#include <stddef.h> // part of C99, not available in all compiler
 //#include <stdint.h>
@@ -21,17 +20,8 @@
 #include <boost/mpl/bool.hpp>
 #include <boost/mpl/if.hpp>
 #include <boost/type_traits.hpp>
-#if BOOST_VERSION > 103801
-	#include <boost/swap.hpp>
-#endif
-
-#if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L || \
-	defined(_MSC_VER) && _MSC_VER >= 1700
-	#include <initializer_list>
-	#ifndef HSM_HAS_MOVE
-		#define HSM_HAS_MOVE
-	#endif
-#endif
+#include <boost/swap.hpp>
+#include <initializer_list>
 
 #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__clang__)
 	#define HSM_FORCE_INLINE __attribute__((always_inline))
@@ -41,9 +31,9 @@
 	#define HSM_FORCE_INLINE inline
 #endif
 
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic push
-  //#pragma GCC diagnostic ignored "-Wno-class-memaccess" // which version support?
+  #pragma GCC diagnostic ignored "-Wclass-memaccess" // which version support?
 #endif
 
 namespace terark {
@@ -75,7 +65,6 @@ struct SafeCopy {
 	static void move_cons_forward(T* dst, T& src) {
 		move_cons_backward(dst, src);
 	}
-#ifdef HSM_HAS_MOVE
 	template<class T>
 	static void move_cons(T* dst_raw, T& src) {
 		new(dst_raw)T(std::move(src));
@@ -84,35 +73,6 @@ struct SafeCopy {
 	static void move_assign(T* dst, T& src) {
 		*dst = std::move(src);
 	}
-#else
-	typedef boost::mpl::true_  has_nothrow_cons_yes;
-	typedef boost::mpl::false_ has_nothrow_cons_no;
-	template<class T>
-	static void move_cons_aux(T* dst_raw, T& src, has_nothrow_cons_yes) {
-		// assume nothrow cons is fast enough, such as stl containers
-		new(dst_raw)T();
-		std::swap(*dst_raw, src);
-		src.~T();
-	}
-	template<class T>
-	static void move_cons_aux(T* dst_raw, T& src, has_nothrow_cons_no) {
-		new(dst_raw)T(src);
-		src.~T();
-	}
-	template<class T>
-	static void move_cons(T* dst_raw, T& src) {
-		move_cons_aux(dst_raw, src, boost::has_nothrow_constructor<T>());
-	}
-	template<class T>
-	static void move_assign(T* dst, T& src) {
-	#if BOOST_VERSION > 103801
-		boost::swap(*dst, src);
-	#else
-		std::swap(*dst, src);
-	#endif
-		src.~T();
-	}
-#endif
 };
 
 template<int> struct bytes2uint;
@@ -504,12 +464,27 @@ void node_layout_copy_cons(
 	memcpy(x.aLink, ly, sizeof(Link)*size);
 }
 
+template<class T> void default_cons(T* p) { new(p)T(); }
+
+template<class T> class CopyConsFuncType {
+	const T* src;
+public:
+	explicit CopyConsFuncType(const T& s) : src(&s) {}
+	void operator()(void* mem) const { new(mem)T(*src); }
+};
+template<class T> class MoveConsFuncType {
+	T* src;
+public:
+	explicit MoveConsFuncType(T&& s) : src(&s) {}
+	void operator()(void* mem) const { new(mem)T(std::move(*src)); }
+};
+template<class T>
+CopyConsFuncType<T> CopyConsFunc(const T& s) { return CopyConsFuncType<T>(s); }
+template<class T>
+MoveConsFuncType<T> MoveConsFunc(T&& s) { return MoveConsFuncType<T>(s); }
+
 } // namespace terark
 
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
   #pragma GCC diagnostic pop
 #endif
-
-#endif // __terark_node_layout_hpp__
-
-

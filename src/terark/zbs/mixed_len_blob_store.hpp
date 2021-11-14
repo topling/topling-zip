@@ -37,11 +37,15 @@ class TERARK_DLL_EXPORT MixedLenBlobStoreTpl : public AbstractBlobStore {
                                     valvec<byte_t>* recData,
                                     valvec<byte_t>* rdbuf) const;
 
+
+	size_t getFixLenRecordSize(size_t fixLenRecID, CacheOffsets*) const;
+	size_t getVarLenRecordSize(size_t varLenRecID, CacheOffsets*) const;
+	size_t getMixLenRecordSize(size_t recID, CacheOffsets*) const;
 public:
     void init_from_memory(fstring dataMem, Dictionary dict) override;
-    void get_meta_blocks(valvec<fstring>* blocks) const override;
-    void get_data_blocks(valvec<fstring>* blocks) const override;
-    void detach_meta_blocks(const valvec<fstring>& blocks) override;
+    void get_meta_blocks(valvec<Block>* blocks) const override;
+    void get_data_blocks(valvec<Block>* blocks) const override;
+    void detach_meta_blocks(const valvec<Block>& blocks) override;
     void save_mmap(function<void(const void*, size_t)> write) const override;
     using AbstractBlobStore::save_mmap;
     size_t mem_size() const override;

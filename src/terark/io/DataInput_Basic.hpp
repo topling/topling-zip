@@ -176,13 +176,13 @@ MyType& operator>>(std::deque<ValueT, Alloc>& x)
 
 template<class T>
 T load_as() {
-	T x;
-	*this >> x;
-	return x;
+	ObjectDefaultCons<T> x;
+	*this >> x.t;
+	return x.t;
 }
 
 template<class T>
 void skip_obj() {
-	T x;
-	*this >> x;
+	ObjectDefaultCons<T> x;
+	*this >> x.t;
 }

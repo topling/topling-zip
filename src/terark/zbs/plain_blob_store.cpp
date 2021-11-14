@@ -17,7 +17,7 @@
 
 namespace terark {
 
-REGISTER_BlobStore(PlainBlobStore, "PlainBlobStore");
+REGISTER_BlobStore(PlainBlobStore);
 
 static const uint64_t g_dpbsnark_seed = 0x5342426e69616c50ull; // echo PlainBBS | od -t x8
 
@@ -105,20 +105,20 @@ void PlainBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     assert(m_offsets.mem_size() == mmapBase->offsetsBytes);
 }
 
-void PlainBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
+void PlainBlobStore::get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_offsets.data(), m_offsets.mem_size());
+    blocks->push_back({"offsets", {m_offsets.data(), (ptrdiff_t)m_offsets.mem_size()}});
 }
 
-void PlainBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
+void PlainBlobStore::get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_content);
+    blocks->push_back({"data", m_content});
 }
 
-void PlainBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+void PlainBlobStore::detach_meta_blocks(const valvec<Block>& blocks) {
     assert(!m_isDetachMeta);
     assert(blocks.size() == 1);
-    auto offset_mem = blocks.front();
+    auto offset_mem = blocks.front().data;
     assert(offset_mem.size() == m_offsets.mem_size());
     if (m_isUserMem) {
         m_offsets.risk_release_ownership();
@@ -165,6 +165,7 @@ PlainBlobStore::PlainBlobStore() {
     m_get_record_append_CacheOffsets =
         reinterpret_cast<get_record_append_CacheOffsets_func_t>
         (m_get_record_append);
+    m_get_zipped_size = dest_scast(&PlainBlobStore::get_zipped_size_imp);
 }
 
 PlainBlobStore::~PlainBlobStore() {
@@ -271,6 +272,17 @@ const {
         }
     }
     recData->append(pData, len);
+}
+
+size_t
+PlainBlobStore::get_zipped_size_imp(size_t recID, CacheOffsets* co) const {
+    TERARK_ASSERT_LT(recID + 1, m_offsets.size());
+    size_t BegEnd[2];
+    m_offsets.get2(recID, BegEnd);
+    TERARK_ASSERT_LE(BegEnd[0], BegEnd[1]);
+    TERARK_ASSERT_LE(BegEnd[1], m_content.size());
+    size_t len = BegEnd[1] - BegEnd[0];
+    return len;
 }
 
 void PlainBlobStore::reorder_zip_data(ZReorderMap& newToOld,

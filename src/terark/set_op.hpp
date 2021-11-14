@@ -7,12 +7,7 @@
 	@author	leipeng
 	@{
 *********************************************************************/
-#ifndef __terark_set_op_h__
-#define __terark_set_op_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 // #include <boost/preprocessor/iteration/local.hpp>
 // #include <boost/preprocessor/enum.hpp>
@@ -1264,9 +1259,3 @@ any_inserter_iterator<Container>
 any_inserter(Container& c) { return any_inserter_iterator<Container>(c); }
 
 } // namespace terark
-
-#endif // __terark_set_op_h__
-
-// @} end file set_op.hpp
-
-

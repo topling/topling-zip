@@ -1,10 +1,5 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef __terark_refcount_hpp__
-#define __terark_refcount_hpp__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include "../stdtypes.hpp"
 #include <assert.h>
@@ -310,6 +305,3 @@ template<class T, class U> terark_ptr<T> dynamic_pointer_cast(terark_ptr<U> cons
 }
 
 } // name space terark
-
-#endif // __terark_refcount_hpp__
-

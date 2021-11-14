@@ -120,7 +120,6 @@ public:
         // do nothing
     }
 
-#ifdef HSM_HAS_MOVE
     MemPool_ThisType(MemPool_ThisType&& y) noexcept
         : mem(std::move(y))
         , free_list_lock_free(std::move(y.free_list_lock_free)) {
@@ -143,7 +142,6 @@ public:
         ::new(this) MemPool_ThisType(std::move(y));
         return *this;
     }
-#endif
 
     void get_fastbin(valvec<size_t>* fast) const {
         fast->resize_fill(free_list_lock_free.size(), 0);

@@ -1,5 +1,4 @@
-﻿#ifndef __terark_fstring_hpp__
-#define __terark_fstring_hpp__
+﻿#pragma once
 
 #include <assert.h>
 #include <stddef.h>
@@ -18,7 +17,6 @@
 #include "util/throw.hpp"
 #include "bits_rotate.hpp"
 
-//#include <boost/static_assert.hpp>
 #include <boost/utility/enable_if.hpp>
 
 namespace terark {
@@ -689,24 +687,22 @@ struct fstring_func {
 
 TERARK_DLL_EXPORT extern unsigned char gtab_ascii_tolower[256];
 
-TERARK_DLL_EXPORT bool getEnvBool(const char* envName, bool Default = false);
-TERARK_DLL_EXPORT long getEnvLong(const char* envName, long Default = false);
-TERARK_DLL_EXPORT double getEnvDouble(const char* envName, double Default);
+TERARK_DLL_EXPORT bool getEnvBool(const char* envName, bool Default = false) noexcept;
+TERARK_DLL_EXPORT long getEnvLong(const char* envName, long Default = false) noexcept;
+TERARK_DLL_EXPORT double getEnvDouble(const char* envName, double Default) noexcept;
+TERARK_DLL_EXPORT const char* getEnvStr(const char* envName, const char* Default = nullptr);
 
-TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str);
-TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(fstring str);
-TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, const char* Default);
-TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, unsigned long long);
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str) noexcept;
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(fstring str) noexcept;
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, const char* Default) noexcept;
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, unsigned long long) noexcept;
 
 /// default quote = '\0' indicate do not escape quote
 TERARK_DLL_EXPORT void escape_append(fstring, std::string*, char quote = '\0');
 TERARK_DLL_EXPORT std::string escape(fstring, char quote = '\0');
-
 
 } // namespace terark
 
 namespace std {
 	template<> struct hash<terark::fstring> : terark::fstring_func::hash {};
 }
-
-#endif // __terark_fstring_hpp__

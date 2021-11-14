@@ -21,6 +21,13 @@
 
 namespace terark {
 
+LineBuf::LineBuf(FILE* fp, size_t align) : LineBuf() {
+	read_all(fp, align);
+}
+LineBuf::LineBuf(fstring fname, size_t align) : LineBuf() {
+	read_all(fname, align);
+}
+
 LineBuf::LineBuf()
 	: p(NULL), n(0), capacity(0)
 {}
@@ -250,8 +257,7 @@ LineBuf& LineBuf::read_all(fstring fname, size_t align) {
 	FileStream f(fname.c_str(), "r");
 	if (!f) {
 		THROW_STD(invalid_argument,
-			"ERROR: fopen(%.*s, r) = %s",
-			fname.ilen(), fname.data(), strerror(errno));
+			"ERROR: fopen(%s, r) = %s", fname.data(), strerror(errno));
 	}
 	read_all(f, align);
 	return *this;

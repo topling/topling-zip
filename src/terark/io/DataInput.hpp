@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_DataInput_h__
-#define __terark_io_DataInput_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 //#include <string.h>
 //#include <typeinfo>
@@ -486,6 +481,3 @@ unsigned int DataIO_load_check_version(Input& in, unsigned int curr_version, con
 #endif
 
 }
-
-#endif // __terark_io_DataInput_h__
-

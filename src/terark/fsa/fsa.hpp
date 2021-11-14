@@ -1,5 +1,4 @@
-#ifndef __terark_automata_dfa_interface_hpp__
-#define __terark_automata_dfa_interface_hpp__
+#pragma once
 
 #include <stdio.h>
 #include <terark/stdtypes.hpp>
@@ -468,6 +467,3 @@ size_t
 dot_escape(const auchar_t* ibuf, size_t ilen, char* obuf, size_t olen);
 
 } // namespace terark
-
-#endif // __terark_automata_dfa_interface_hpp__
-

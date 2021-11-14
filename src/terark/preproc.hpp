@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __terark_preproc_hpp__
-#define __terark_preproc_hpp__
 
 #define TERARK_PP_EMPTY
 #define TERARK_PP_APPLY(func, ...) func(__VA_ARGS__)
@@ -426,7 +424,3 @@
 ///@returns "1,2,3", "4,5,6", ...
 #define TERARK_PP_STR_FLATTEN(...) \
    TERARK_PP_MAP(TERARK_PP_STR_FLATTEN_ONE, ~, __VA_ARGS__)
-
-
-#endif // __terark_preproc_hpp__
-

@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __terark_io_FileMemIO__
-#define __terark_io_FileMemIO__
 
 #include <stddef.h>
 #include <string>
@@ -180,5 +178,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_io_stream_range_hpp__

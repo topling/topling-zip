@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_MemMapStream_h__
-#define __terark_io_MemMapStream_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 //#include <stdio.h>
 #include <assert.h>
@@ -55,6 +50,7 @@ public:
 
 	bool is_open() const throw();
 	void open(stream_position_t new_file_size, const std::string& fpath, int mode);
+	void dopen(intptr_t fd, stream_position_t new_file_size, const std::string& fpath, int mode);
 	void clone(const MemMapStream& source);
 	void close();
 
@@ -104,7 +100,7 @@ public:
 
 	size_t page_size() const { return m_page_size; }
 	size_t best_block_size() const { return m_best_block_size; }
-	void set_best_block_size(size_t n) { m_best_block_size = n; }
+	void set_best_block_size(size_t n) { m_best_block_size = uint32_t(n); }
 
 	const std::string& fpath() const { return m_fpath; }
 
@@ -130,6 +126,8 @@ protected:
 	unsigned char* m_pos;
 	unsigned char* m_end;
 	unsigned char* m_beg;
+	stream_position_t m_file_pos;
+	stream_position_t m_file_size;
 
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
 	HANDLE m_hFile;
@@ -141,12 +139,10 @@ protected:
 	int  m_mode;
 //	int  m_errno;
 
-	stream_position_t m_file_size;
-	stream_position_t m_file_pos;
-
-	size_t m_best_block_size;
-	size_t m_page_size;
-	size_t m_AllocationGranularity;
+	bool m_is_owner;
+	uint32_t m_best_block_size;
+	uint32_t m_page_size;
+	uint32_t m_AllocationGranularity;
 	std::string m_fpath;
 
 	void init();
@@ -384,6 +380,3 @@ public:
 };
 
 } // namespace terark
-
-#endif
-

@@ -88,7 +88,7 @@ public:
   };
 #define REGISTER_BlobStore(Clazz, ...) \
 	static RegisterBlobStore::RegisterFactory \
-    s_reg##Clazz({__VA_ARGS__}, \
+    s_reg##Clazz({#Clazz, ## __VA_ARGS__}, \
 		[]() -> AbstractBlobStore* { \
 			return new Clazz(); \
 		})

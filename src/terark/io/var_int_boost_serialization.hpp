@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_var_int_for_boost_serialization_h__
-#define __terark_io_var_int_for_boost_serialization_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <assert.h>
 #include <boost/serialization/serialization.hpp>
@@ -107,7 +102,3 @@ BOOST_SERIALIZATION_SPLIT_FREE(terark::var_uint32_t)
 BOOST_SERIALIZATION_SPLIT_FREE(terark::var_int32_t)
 BOOST_SERIALIZATION_SPLIT_FREE(terark::var_uint64_t)
 BOOST_SERIALIZATION_SPLIT_FREE(terark::var_int64_t)
-
-
-#endif // __terark_io_var_int_for_boost_serialization_h__
-

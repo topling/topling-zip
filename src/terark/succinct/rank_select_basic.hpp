@@ -1,8 +1,8 @@
-#ifndef __terark_rank_select_basic_hpp__
-#define __terark_rank_select_basic_hpp__
+#pragma once
 
 #include <terark/bitmap.hpp>
 #include <terark/util/throw.hpp>
+#include <limits>
 
 #ifdef __BMI2__
 #   include "rank_select_inline_bmi2.hpp"
@@ -16,10 +16,10 @@
 #   define rank512(bm64, i) ((bm64 >> (i-1)*9) & 511)
 #endif
 
-#define rank_select_check_overflow(SIZE, OP, TYPE)                                  \
-    do {                                                                            \
-        if ((SIZE) OP size_t(std::numeric_limits<uint32_t>::max()))                 \
-            THROW_STD(length_error, #TYPE" overflow , size = %zd", size_t(SIZE));   \
+#define rank_select_check_overflow(SIZE, OP, TYPE)                   \
+    do {                                                             \
+        if ((SIZE) OP size_t(std::numeric_limits<uint32_t>::max()))  \
+            TERARK_DIE(#TYPE" overflow , size = %zd", size_t(SIZE)); \
     } while (false)
 
 namespace terark {
@@ -34,6 +34,3 @@ struct RankSelectConstants {
 };
 
 } // namespace terark
-
-#endif // __terark_rank_select_basic_hpp__
-

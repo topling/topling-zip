@@ -1,7 +1,7 @@
 //
 // Created by leipeng on 2019-08-22.
 //
-
+#pragma once
 #include <terark/valvec.hpp>
 
 namespace terark {

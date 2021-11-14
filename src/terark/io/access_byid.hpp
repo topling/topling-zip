@@ -1,6 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_id_generator_h__
-#define __terark_io_id_generator_h__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 # pragma once
@@ -187,5 +186,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_io_id_generator_h__

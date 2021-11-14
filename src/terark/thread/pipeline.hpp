@@ -1,9 +1,7 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_pipeline_hpp__
-#define __terark_pipeline_hpp__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
 # pragma warning(push)
 # pragma warning(disable: 4018)
 # pragma warning(disable: 4267)
@@ -264,6 +262,3 @@ public:
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 # pragma warning(pop)
 #endif
-
-#endif // __terark_pipeline_hpp__
-

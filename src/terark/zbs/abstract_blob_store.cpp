@@ -13,34 +13,49 @@
 	#include <Windows.h>
 #else
 	#include <unistd.h> // for usleep
+  extern "C" {
+    extern char **environ;
+  }
 #endif
 
 namespace terark {
 
 static const uint64_t g_dicthash_seed = 0x6873614874636944ull; // echo DictHash | od -t x8
 
+std::string GetAllEnv() {
+  std::string all;
+#if defined(_WIN32) || defined(_WIN64)
+  all = "GetAllEnv() is todo on windows";
+#else
+  char** one = environ;
+  while (*one) {
+    all += *one;
+    all.append("\n");
+    one++;
+  }
+#endif
+  return all;
+}
+
 static hash_strmap<RegisterBlobStore::Factory>& g_getFactroyMap() {
   static hash_strmap<RegisterBlobStore::Factory> map;
   return map;
 }
-RegisterBlobStore::
-  RegisterFactory::RegisterFactory(std::initializer_list<fstring> names, Factory factory) {
+RegisterBlobStore::RegisterFactory::RegisterFactory
+(std::initializer_list<fstring> names, Factory factory)
+{
   auto& map = g_getFactroyMap();
   fstring clazz = *names.begin();
   for (fstring name : names) {
     auto ib = map.insert_i(name, factory);
-    assert(ib.second);
-    if (!ib.second) {
-      THROW_STD(invalid_argument
-        , "duplicate name %s for class: %s"
-        , name.c_str(), clazz.c_str());
-    }
+    TERARK_VERIFY_S(ib.second, "dup name %s for class: %s, envs:\n%s",
+                    name, clazz, GetAllEnv());
   }
 }
 
 
 AbstractBlobStore::Dictionary::Dictionary() {
-    xxhash = XXHash64(g_dicthash_seed)(memory);
+    xxhash = XXHash64(g_dicthash_seed)("");
 }
 
 AbstractBlobStore::Dictionary::Dictionary(fstring mem) : memory(mem) {
@@ -48,7 +63,7 @@ AbstractBlobStore::Dictionary::Dictionary(fstring mem) : memory(mem) {
 }
 
 AbstractBlobStore::Dictionary::Dictionary(fstring mem, uint64_t hash) : memory(mem), xxhash(hash) {
-    assert(!isChecksumVerifyEnabled() || hash == XXHash64(g_dicthash_seed)(mem));
+    TERARK_VERIFY(!isChecksumVerifyEnabled() || hash == XXHash64(g_dicthash_seed)(mem));
 }
 
 AbstractBlobStore::Dictionary::Dictionary(terark::fstring mem, uint64_t hash, bool verified_)
@@ -70,7 +85,7 @@ AbstractBlobStore::Builder::getPreBuilder() const {
 }
 
 static bool RelaxedSizeCheck(ullong header, ullong mem) {
-  return align_up(header, 8) == align_up(mem, 8) && header <= mem;
+  return align_up(header, 64) == align_up(mem, 64) && header <= mem;
 }
 
 AbstractBlobStore*
@@ -201,7 +216,7 @@ void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
 	std::swap(m_numRecords   , y.m_numRecords   );
 	std::swap(m_unzipSize    , y.m_unzipSize    );
 	std::swap(m_fpath        , y.m_fpath        );
-  std::swap(m_isMmapData   , y.m_isMmapData   );
+    std::swap(m_isMmapData   , y.m_isMmapData   );
     std::swap(m_isUserMem    , y.m_isUserMem    );
     std::swap(m_isDetachMeta , y.m_isDetachMeta );
 	std::swap(m_dictCloseType, y.m_dictCloseType);
@@ -211,6 +226,7 @@ void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
     std::swap(m_get_record_append_CacheOffsets, y.m_get_record_append_CacheOffsets);
     std::swap(m_fspread_record_append         , y.m_fspread_record_append         );
     std::swap(m_pread_record_append           , y.m_pread_record_append           );
+    std::swap(m_get_zipped_size               , y.m_get_zipped_size               );
 }
 
 FunctionAdaptBuffer::FunctionAdaptBuffer(function<void(const void* data, size_t size)> f)

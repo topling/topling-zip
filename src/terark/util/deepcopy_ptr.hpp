@@ -1,5 +1,4 @@
-#ifndef __terark_util_deepcopy_ptr_hpp__
-#define __terark_util_deepcopy_ptr_hpp__
+#pragma once
 
 #include <boost/static_assert.hpp>
 #include <assert.h>
@@ -78,7 +77,3 @@ namespace std {
 	template<class T>
 	void swap(terark::DeepCopyPtr<T>& x, terark::DeepCopyPtr<T>& y) { x.swap(y); }
 }
-
-#endif
-
-

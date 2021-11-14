@@ -1,6 +1,11 @@
 #if __clang__
 # pragma clang diagnostic ignored "-Warray-bounds"
 #endif
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Waligned-new="
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+    #pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#endif
 
 #include "cspptrie.inl"
 #include "tmplinst.hpp"
@@ -42,15 +47,14 @@
     #error ThisCpuID unsupported
 #endif
 
-#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
-    #pragma GCC diagnostic ignored "-Wclass-memaccess"
-#endif
 namespace terark {
 
 static constexpr uint08_t FLAG_final     = 0x1 << 4;
 static constexpr uint08_t FLAG_lazy_free = 0x1 << 5;
 static constexpr uint08_t FLAG_set_final = 0x1 << 6; // fast node set final
 static constexpr uint08_t FLAG_lock      = 0x1 << 7;
+
+static constexpr size_t MAX_DYNA_NUM = 64;
 
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
@@ -207,7 +211,7 @@ template<size_t Align>
 inline typename
 PatriciaMem<Align>::LazyFreeList&
 PatriciaMem<Align>::lazy_free_list(ConcurrentLevel conLevel) {
-    assert(conLevel == m_mempool_concurrent_level);
+    TERARK_ASSERT_EQ(conLevel, m_mempool_concurrent_level);
     if (MultiWriteMultiRead == conLevel) {
         auto tc = m_mempool_lock_free.tls();
         return static_cast<LazyFreeListTLS&>(*tc);
@@ -233,7 +237,7 @@ PatriciaMem<Align>::tls_writer_token() {
 template<size_t Align>
 void PatriciaMem<Align>::
 ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
-    assert(NULL != token->m_token.get());
+    TERARK_VERIFY(NULL != token->m_token.get());
     switch (token->m_token->m_flags.state) {
     default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
     case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
@@ -375,7 +379,7 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
 
 template<size_t Align>
 void PatriciaMem<Align>::set_readonly() {
-    assert(m_mempool_concurrent_level > NoWriteReadOnly);
+    TERARK_VERIFY_GT(m_mempool_concurrent_level, NoWriteReadOnly);
     if (NoWriteReadOnly == m_writing_concurrent_level) {
         return; // fail over on release
     }
@@ -393,7 +397,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     std::map<size_t, size_t> retry_histgram;
     auto sync = [&](TCMemPoolOneThread<AlignSize>* tc) {
       auto lzf = static_cast<LazyFreeListTLS*>(tc);
-      assert(this == lzf->m_trie);
+      TERARK_VERIFY_EQ(this, lzf->m_trie);
       lzf->sync_no_atomic(this);
       lzf->reset_zero();
 
@@ -447,11 +451,11 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
 template<size_t Align>
 void PatriciaMem<Align>::mempool_set_readonly() {
   if (m_is_virtual_alloc && mmap_base) {
-    assert(-1 != m_fd);
+    TERARK_VERIFY_GE(m_fd, 0);
     // file based
     get_stat(const_cast<DFA_MmapHeader*>(this->mmap_base));
     auto base = (byte_t*)mmap_base;
-    assert(m_mempool.data() == (byte_t*)(mmap_base + 1));
+    TERARK_VERIFY_EQ(m_mempool.data(), (byte_t*)(mmap_base + 1));
     size_t realsize = sizeof(DFA_MmapHeader) + m_mempool.size();
 #if defined(_MSC_VER)
     FlushViewOfFile(base, realsize); // this flush is async
@@ -515,17 +519,9 @@ PatriciaMem<Align>::PatriciaMem()
 template<size_t Align>
 void PatriciaMem<Align>::check_valsize(size_t valsize) const {
     if (m_writing_concurrent_level >= MultiWriteMultiRead) {
-        assert(valsize <= MAX_VALUE_SIZE);
-        if (valsize > MAX_VALUE_SIZE) {
-            THROW_STD(logic_error
-                , "valsize = %zd, exceeds MAX_VALUE_SIZE = %zd"
-                , valsize, MAX_VALUE_SIZE);
-        }
+        TERARK_VERIFY_LE(valsize, MAX_VALUE_SIZE);
     }
-    assert(valsize % AlignSize == 0);
-    if (valsize % AlignSize != 0) {
-        THROW_STD(logic_error, "valsize = %zd, must align to 4", valsize);
-    }
+    TERARK_VERIFY_AL(valsize, AlignSize);
 }
 template<size_t Align>
 void PatriciaMem<Align>::mempool_lock_free_cons(size_t valsize) {
@@ -545,12 +541,21 @@ try
     m_valsize = valsize;
     check_valsize(valsize);
     switch (concurrentLevel) {
-    default: assert(false); THROW_STD(logic_error, "invalid concurrentLevel = %d", concurrentLevel);
+    default: TERARK_DIE("invalid concurrentLevel = %d", concurrentLevel);
     case MultiWriteMultiRead: mempool_lock_free_cons(valsize);    break;
     case   OneWriteMultiRead: new(&m_mempool_fixed_cap)MemPool_FixedCap<AlignSize>(MAX_STATE_SIZE + valsize); break;
     case  SingleThreadStrict:
     case  SingleThreadShared: new(&m_mempool_lock_none)MemPool_LockNone<AlignSize>(MAX_STATE_SIZE + valsize); break;
     case     NoWriteReadOnly: memset(&m_mempool_lock_free, 0, sizeof(m_mempool_lock_free)); break; // do nothing
+    }
+    bool use_hugepage = false;
+    if (!fpath.empty() && '?' == fpath[0]) {
+        // indicate fpath is a config string
+        if (const char* valstr = fpath.strstr("hugepage=")) {
+            valstr += strlen("hugepage=");
+            use_hugepage = atoi(valstr) ? true : false;
+        }
+        fpath = "";
     }
     if (NoWriteReadOnly == concurrentLevel) {
         if (fpath.empty()) {
@@ -574,10 +579,10 @@ try
     }
     else {
         if (fpath.empty()) {
-            alloc_mempool_space(maxMem);
+            alloc_mempool_space(maxMem, use_hugepage);
         }
         else {
-            assert(maxMem > 0);
+            TERARK_VERIFY_GT(maxMem, 0);
             maximize(maxMem, 2<<20); // min is 2M
             MmapWholeFile mmap;
             mmap.base = mmap_write(fpath, &mmap.size, &m_fd);
@@ -599,7 +604,7 @@ catch (const std::exception&) {
 }
 
 template<size_t Align>
-void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
+void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, bool use_hugepage) {
     if (NoWriteReadOnly == m_mempool_concurrent_level) {
         // just for load_mmap later
         return;
@@ -643,7 +648,8 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
         byte_t* mem = (byte_t*)mmap(NULL, maxMem,
             PROT_READ|PROT_WRITE,
             MAP_PRIVATE|
-            MAP_ANONYMOUS|MAP_HUGETLB|MAP_UNINITIALIZED|MAP_NORESERVE,
+            (use_hugepage ? MAP_HUGETLB : 0)|
+            MAP_ANONYMOUS|MAP_UNINITIALIZED|MAP_NORESERVE,
             -1, 0);
         TERARK_VERIFY_F(MAP_FAILED != mem,
             "mmap(size = %zd) = %s\n", maxMem, strerror(errno));
@@ -655,12 +661,12 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
 
 template<size_t Align>
 size_t PatriciaMem<Align>::new_root(size_t valsize) {
-    assert(valsize % AlignSize == 0);
+    TERARK_VERIFY_AL(valsize, AlignSize);
     check_valsize(valsize);
     size_t root_size = AlignSize * (2 + 256) + valsize;
     size_t root = mem_alloc(root_size);
     if (mem_alloc_fail == root) {
-        assert(m_writing_concurrent_level >= OneWriteMultiRead);
+        TERARK_VERIFY_GE(m_writing_concurrent_level, OneWriteMultiRead);
         return mem_alloc_fail;
     }
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
@@ -700,7 +706,7 @@ void PatriciaMem<Align>::destroy() {
         set_readonly();
     }
     if (conLevel >= MultiWriteMultiRead) {
-        assert(m_writer_token_sgl.get() == nullptr);
+        TERARK_VERIFY_EQ(m_writer_token_sgl.get(), nullptr);
     }
     else {
         m_writer_token_sgl.reset();
@@ -708,10 +714,10 @@ void PatriciaMem<Align>::destroy() {
         m_reader_token_sgl_tls.~ReaderTokenTLS_Holder();
     }
     if (this->mmap_base && !m_is_virtual_alloc) {
-        assert(-1 == m_fd);
-        assert(NoWriteReadOnly == m_mempool_concurrent_level);
+        TERARK_VERIFY_EQ(-1, m_fd);
+        TERARK_VERIFY_EQ(NoWriteReadOnly, m_mempool_concurrent_level);
         switch (m_mempool_concurrent_level) {
-        default:   assert(false); break;
+        default: TERARK_DIE("m_mempool_concurrent_level = %d", m_mempool_concurrent_level);
         case MultiWriteMultiRead: m_mempool_lock_free.risk_release_ownership(); break;
         case   OneWriteMultiRead: m_mempool_fixed_cap.risk_release_ownership(); break;
         case  SingleThreadStrict:
@@ -720,8 +726,8 @@ void PatriciaMem<Align>::destroy() {
         }
     }
     else if (!this->mmap_base && m_is_virtual_alloc) {
-        assert(-1 == m_fd);
-        assert(NoWriteReadOnly != m_mempool_concurrent_level);
+        TERARK_VERIFY_EQ(-1, m_fd);
+        TERARK_VERIFY_NE(NoWriteReadOnly, m_mempool_concurrent_level);
   #if defined(_MSC_VER)
         if (!VirtualFree(m_mempool.data(), 0, MEM_RELEASE)) {
             std::terminate();
@@ -732,16 +738,16 @@ void PatriciaMem<Align>::destroy() {
         m_mempool.risk_release_ownership();
     }
     else if (-1 != m_fd) {
-        assert(nullptr != mmap_base);
-        assert(m_is_virtual_alloc);
-        assert(m_mempool.data() == (byte_t*)(mmap_base + 1));
+        TERARK_VERIFY_NE(nullptr, mmap_base);
+        TERARK_VERIFY(m_is_virtual_alloc);
+        TERARK_VERIFY_EQ(m_mempool.data(), (byte_t*)(mmap_base + 1));
         size_t fsize = sizeof(DFA_MmapHeader) + m_mempool.capacity();
         mmap_close((void*)mmap_base, fsize, m_fd);
         mmap_base = nullptr;
         m_mempool.risk_release_ownership();
     }
     switch (m_mempool_concurrent_level) {
-    default:   assert(false); break;
+    default: TERARK_DIE("m_mempool_concurrent_level = %d", m_mempool_concurrent_level);
     case MultiWriteMultiRead: destroy_obj(&m_mempool_lock_free); break;
     case   OneWriteMultiRead: destroy_obj(&m_mempool_fixed_cap); break;
     case  SingleThreadStrict:
@@ -749,7 +755,7 @@ void PatriciaMem<Align>::destroy() {
     case     NoWriteReadOnly: break; // do nothing
     }
     // delete waiting tokens, and check errors
-    assert(m_token_tail->m_link.next == NULL);
+    TERARK_VERIFY_EQ(m_token_tail->m_link.next, NULL);
     while (!cas_weak(m_head_lock, false, true)) {
         _mm_pause();
     }
@@ -794,7 +800,7 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
         ms->lazy_free_sum += lzf->m_mem_size;
     };
     switch (m_mempool_concurrent_level) {
-    default:   assert(false); break;
+    default: TERARK_DIE("m_mempool_concurrent_level = %d", m_mempool_concurrent_level);
     case MultiWriteMultiRead:
         m_mempool_lock_free.get_fastbin(&ms->fastbin);
         const_cast<ThreadCacheMemPool<AlignSize>&>(m_mempool_lock_free).
@@ -830,13 +836,13 @@ size_t
 MainPatricia::state_move_impl(const PatriciaNode* a, size_t curr,
                               auchar_t ch, size_t* child_slot)
 const {
-    assert(curr < total_states());
-    assert(ch <= 255);
+    TERARK_ASSERT_LT(curr, total_states());
+    TERARK_ASSERT_LE(ch, 255);
     auto p = a + curr;
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
     default:
-        assert(false);
+        TERARK_DIE("curr = %zd, cnt_type = %zd", curr, cnt_type);
         break;
     case 0:
         assert(p->meta.b_is_final);
@@ -876,8 +882,7 @@ const {
     case 7: // cnt in [ 7, 16 ]
         {
             size_t n_children = p->big.n_children;
-            assert(n_children >=  7);
-            assert(n_children <= 16);
+            TERARK_ASSERT_BE(n_children, 7, 16);
             auto label = p->meta.c_label + 2; // do not use [0,1]
 #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
             if (byte_t(ch) <= label[n_children-1]) {
@@ -896,14 +901,15 @@ const {
         }
         break;
     case 8: // cnt >= 17
-        assert(p->big.n_children >= 17);
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
         if (terark_bit_test(&a[curr+1+1].child, ch)) {
             size_t idx = fast_search_byte_rs_idx(a[curr+1].bytes, byte_t(ch));
             return_on_slot(curr + 10 + idx);
         }
         break;
     case 15:
-        assert(256 == p->big.n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256);
         return_on_slot(curr + 2 + ch);
     }
     *child_slot = size_t(-1);
@@ -932,14 +938,14 @@ struct MainPatricia::NodeInfo {
     inline
     void set(const PatriciaNode* p, size_t zlen, size_t valsize) {
         assert(0==valsize || p->meta.b_is_final);
-        assert(p->meta.n_zpath_len == zlen);
+        TERARK_ASSERT_EQ(p->meta.n_zpath_len, zlen);
         size_t cnt_type = p->meta.n_cnt_type;
-        assert(cnt_type <= 8 || cnt_type == 15);
+        TERARK_ASSERT_F(cnt_type <= 8 || cnt_type == 15, "%zd", cnt_type);
         size_t skip = s_skip_slots[cnt_type];
-        assert(skip <= 10);
+        TERARK_ASSERT_LE(skip, 10);
         n_skip = skip;
         n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
-        assert(n_children <= 256);
+        TERARK_ASSERT_LE(n_children, 256);
         zp_offset = sizeof(PatriciaNode) * (skip + n_children);
         va_offset = zp_offset + pow2_align_up(zlen, AlignSize);
         node_size = va_offset + valsize;
@@ -957,7 +963,7 @@ struct MainPatricia::NodeInfo {
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
 void PatriciaMem<Align>::free_node(size_t nodeId, size_t nodeSize, LazyFreeListTLS* tls) {
-    assert(mem_alloc_fail != nodeId);
+    TERARK_ASSERT_NE(mem_alloc_fail, nodeId);
     size_t nodePos = AlignSize * nodeId;
     free_raw<ConLevel>(nodePos, nodeSize, tls);
 }
@@ -965,7 +971,7 @@ void PatriciaMem<Align>::free_node(size_t nodeId, size_t nodeSize, LazyFreeListT
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
 void PatriciaMem<Align>::free_raw(size_t nodePos, size_t nodeSize, LazyFreeListTLS* tls) {
-    assert(nodePos < m_mempool.size());
+    TERARK_ASSERT_LT(nodePos, m_mempool.size());
     if (forceLeakMem) {
       return;
     }
@@ -1009,13 +1015,13 @@ void MainPatricia::revoke_list(PatriciaNode* a, size_t head, size_t valsize,
         return;
     size_t curr = head;
     while (nil_state != curr) {
-        assert(curr < total_states());
-        assert(curr >= 2 + 256); // not in initial_state's area
+        TERARK_ASSERT_LT(curr, total_states());
+        TERARK_ASSERT_GE(curr, 2 + 256); // not in initial_state's area
         if (!a[curr].meta.b_is_final) {
             size_t next = a[curr + 1].child;
-            assert(1 == a[curr].meta.n_cnt_type);
-            assert(PT_MAX_ZPATH == a[curr].meta.n_zpath_len);
-            assert(node_size(a + curr, valsize) == PT_LINK_NODE_SIZE);
+            TERARK_ASSERT_EQ(a[curr].meta.n_cnt_type, 1);
+            TERARK_ASSERT_EQ(a[curr].meta.n_zpath_len, PT_MAX_ZPATH);
+            TERARK_ASSERT_EQ(node_size(a + curr, valsize), PT_LINK_NODE_SIZE);
             free_node<ConLevel>(curr, PT_LINK_NODE_SIZE, tls);
             curr = next;
         }
@@ -1056,7 +1062,7 @@ MainPatricia::new_suffix_chain(fstring suffix, size_t* pValpos,
         if (size_t(-1) == head) {
             head = node;
         } else {
-            assert(size_t(-1) != parent);
+            TERARK_ASSERT_NE(size_t(-1), parent);
             a[parent + 1].child = node;
         }
         suffix = suffix.substr(PT_MAX_ZPATH + 1);
@@ -1089,7 +1095,7 @@ size_t
 MainPatricia::fork(size_t parent, size_t zidx,
                    NodeInfo* ni, byte_t newChar, size_t newSuffixNode,
                    LazyFreeListTLS* tls) {
-    assert(zidx < ni->zpath.size());
+    TERARK_ASSERT_LT(zidx, ni->zpath.size());
     size_t oldSuffixNode = alloc_node<ConLevel>(ni->suffix_node_size(zidx), tls);
     if (ConLevel >= OneWriteMultiRead && mem_alloc_fail == oldSuffixNode) {
         return size_t(-1);
@@ -1110,7 +1116,7 @@ MainPatricia::fork(size_t parent, size_t zidx,
     size_t newParentSize = AlignSize*(1 + 2) + zidx; // must not final state
     size_t newParent = alloc_node<ConLevel>(newParentSize, tls);
     if (ConLevel >= OneWriteMultiRead && mem_alloc_fail == newParent) {
-        assert(node_size(a+ oldSuffixNode, m_valsize) == ni->suffix_node_size(zidx));
+        TERARK_ASSERT_EQ(node_size(a+ oldSuffixNode, m_valsize), ni->suffix_node_size(zidx));
         free_node<ConLevel>(oldSuffixNode, ni->suffix_node_size(zidx), tls);
         return size_t(-1);
     }
@@ -1143,7 +1149,7 @@ template<MainPatricia::ConcurrentLevel ConLevel>
 size_t MainPatricia::split_zpath(size_t curr, size_t splitPos,
                                  NodeInfo* ni, size_t* pValpos,
                                  size_t valsize, LazyFreeListTLS* tls) {
-    assert(splitPos < ni->zpath.size());
+    TERARK_ASSERT_LT(splitPos, ni->zpath.size());
     size_t suffixNode = alloc_node<ConLevel>(ni->suffix_node_size(splitPos), tls);
     if (ConLevel >= OneWriteMultiRead && mem_alloc_fail == suffixNode) {
         return size_t(-1);
@@ -1191,7 +1197,7 @@ inline static size_t SuffixZpathStates(size_t chainLen, size_t pos, size_t keyle
             return chainLen - 1;
     }
     if (suffixLen % (PT_MAX_ZPATH + 1) == 0) {
-        assert(suffixLen / (PT_MAX_ZPATH + 1) == chainLen-1);
+        TERARK_VERIFY_EQ(suffixLen / (PT_MAX_ZPATH + 1), chainLen-1);
         return chainLen-1; // last node of chain is not a zpath state
     } else {
         return chainLen;
@@ -1206,10 +1212,9 @@ bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
 template<MainPatricia::ConcurrentLevel ConLevel>
 bool
 MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
-    assert(AcquireDone == token->m_flags.state);
-    assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
-    assert(m_writing_concurrent_level >= SingleThreadStrict);
-    assert(m_writing_concurrent_level <= OneWriteMultiRead);
+    TERARK_ASSERT_EQ(AcquireDone, token->m_flags.state);
+    TERARK_ASSERT_LE(token->m_link.verseq, m_token_tail->m_link.verseq);
+    TERARK_ASSERT_EQ(m_writing_concurrent_level, ConLevel);
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     size_t const valsize = m_valsize;
     size_t curr_slot = size_t(-1);
@@ -1223,7 +1228,7 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
   : (void)(0)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
-    assert(newCurr != curr);
+    TERARK_ASSERT_NE(newCurr, curr);
     if (ConLevel != SingleThreadStrict) {
         ullong   age = token->m_link.verseq;
         m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
@@ -1263,7 +1268,7 @@ for (;; pos++) {
         if (kkn <= zlen) {
             if (kkn < zlen)
                 goto SplitZpath;
-            assert(key.size() == pos);
+            TERARK_ASSERT_EQ(key.size(), pos);
             if (p->meta.b_is_final) {
                 token->m_value = (char*)p->bytes + ni.va_offset;
                 return false; // existed
@@ -1330,8 +1335,7 @@ for (;; pos++) {
     case 7: // cnt in [ 7, 16 ]
         {
             size_t n_children = p->big.n_children;
-            assert(n_children >=  7);
-            assert(n_children <= 16);
+            TERARK_ASSERT_BE(n_children, 7, 16);
     #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
             if (ch <= p[1].bytes[n_children-1]) {
                 size_t idx = size_t(-1);
@@ -1349,14 +1353,15 @@ for (;; pos++) {
         }
         goto MatchFail;
     case 8: // cnt >= 17
-        assert(p->big.n_children >= 17);
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
         if (terark_bit_test(&p[1+1].child, ch)) {
             size_t idx = fast_search_byte_rs_idx(p[1].bytes, ch);
             break_on_slot(10, idx);
         }
         goto MatchFail;
     case 15:
-        assert(256 == p->big.n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256);
         {
             size_t next = p[2 + ch].child;
             if (nil_state != next) {
@@ -1371,7 +1376,7 @@ for (;; pos++) {
 #endif
 }
 MatchFail:
-assert(pos < key.size());
+TERARK_ASSERT_LE(pos, key.size());
 
 // end search key...
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1449,8 +1454,8 @@ assert(pos < key.size());
     }
     else // curr.type=15, special case, direct update curr[ch]
     {
-        assert(a->bytes == m_mempool.data());
-        assert(a[curr+2+ch].child == nil_state);
+        TERARK_ASSERT_EQ(a->bytes, m_mempool.data());
+        TERARK_ASSERT_EQ(a[curr+2+ch].child, nil_state);
         init_token_value(-1, -1, suffix_node);
         m_total_zpath_len += key.size() - pos - 1;
         if (pos + 1 < key.size()) {
@@ -1486,8 +1491,8 @@ ForkBranch: {
         return true;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
-    assert(state_move(newCurr, key[pos]) == newSuffixNode);
-    assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
+    TERARK_ASSERT_EQ(state_move(newCurr, key[pos]), newSuffixNode);
+    TERARK_ASSERT_EQ(state_move(newCurr, ni.zpath[zidx]), ni.oldSuffixNode);
     init_token_value(newCurr, ni.oldSuffixNode, newSuffixNode);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
@@ -1540,8 +1545,8 @@ MarkFinalState: {
 MarkFinalStateOmitSetNodeInfo:
     revoke_expired_nodes<ConLevel>();
     m_stat.n_mark_final++;
-    assert(15 != a[curr].meta.n_cnt_type);
-    assert(ni.node_size == ni.va_offset);
+    TERARK_ASSERT_NE(15, a[curr].meta.n_cnt_type);
+    TERARK_ASSERT_EQ(ni.node_size, ni.va_offset);
     size_t oldlen = ni.node_size;
     size_t newlen = ni.node_size + valsize;
     if (ConLevel == SingleThreadStrict) {
@@ -1598,17 +1603,17 @@ MarkFinalStateOmitSetNodeInfo:
 bool
 MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) {
     constexpr auto ConLevel = MultiWriteMultiRead;
-    assert(MultiWriteMultiRead == m_writing_concurrent_level);
-    assert(nullptr != m_token_tail);
-    assert(ThisThreadID() == token->m_thread_id);
-    assert(token->m_min_age <= token->m_link.verseq);
-    assert(token->m_min_age <= m_token_tail->m_link.verseq);
-    assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
+    TERARK_ASSERT_EQ(MultiWriteMultiRead, m_writing_concurrent_level);
+    TERARK_ASSERT_NE(nullptr, m_token_tail);
+    TERARK_ASSERT_EQ(ThisThreadID(), token->m_thread_id);
+    TERARK_ASSERT_LE(token->m_min_age, token->m_link.verseq);
+    TERARK_ASSERT_LE(token->m_min_age, m_token_tail->m_link.verseq);
+    TERARK_ASSERT_LE(token->m_link.verseq, m_token_tail->m_link.verseq);
     TERARK_ASSERT_GE(token->m_link.verseq, m_dummy.m_min_age);
     auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
-    assert(nullptr != lzf);
-    assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
-    assert(AcquireDone == token->m_flags.state);
+    TERARK_ASSERT_NE(nullptr, lzf);
+    TERARK_ASSERT_EQ(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()), lzf);
+    TERARK_ASSERT_EQ(AcquireDone, token->m_flags.state);
     if (terark_unlikely(token->m_flags.is_head)) {
         //now is_head is set before m_dummy.m_link.next, this assert
         //may fail false positive
@@ -1654,18 +1659,30 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     uint32_t backup[256];
     TERARK_IF_DEBUG(PatriciaNode bkskip[16],);
 auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lineno) {
-    assert(reinterpret_cast<PatriciaNode*>(m_mempool.data()) == a);
-    assert(newCurr != curr);
-    assert(parent < curr_slot);
-    assert(curr_slot < total_states());
+    TERARK_ASSERT_EQ(reinterpret_cast<PatriciaNode*>(m_mempool.data()), a);
+    TERARK_ASSERT_NE(newCurr, curr);
+    TERARK_ASSERT_LT(parent, curr_slot);
+    TERARK_ASSERT_LT(curr_slot, total_states());
     assert(!a[newCurr].meta.b_lazy_free);
-    assert(nil_state != ni.node_size);
+    TERARK_ASSERT_NE(nil_state, ni.node_size);
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    if (as_atomic(a[parent].flags).fetch_or(FLAG_lock, std::memory_order_acq_rel) & (FLAG_lock|FLAG_lazy_free)) {
+    PatriciaNode parent_unlock, parent_locked;
+    PatriciaNode curr_unlock, curr_locked;
+    parent_unlock = as_atomic(a[parent]).load(std::memory_order_relaxed);
+    parent_locked = parent_unlock;
+    parent_unlock.meta.b_lazy_free = 0;
+    parent_unlock.meta.b_lock = 0;
+    parent_locked.meta.b_lock = 1;
+    if (!cas_weak(a[parent], parent_unlock, parent_locked)) {
         goto RaceCondition2;
     }
     // now a[parent] is locked, try lock curr:
-    if (as_atomic(a[curr].flags).fetch_or(FLAG_lazy_free, std::memory_order_acq_rel) & (FLAG_lock|FLAG_lazy_free)) {
+    curr_unlock = as_atomic(a[curr]).load(std::memory_order_relaxed);
+    curr_locked = curr_unlock;
+    curr_unlock.meta.b_lock = 0;
+    curr_unlock.meta.b_lazy_free = 0;
+    curr_locked.meta.b_lazy_free = 1;
+    if (!cas_weak(a[curr], curr_unlock, curr_locked)) {
         goto RaceCondition1;
     }
     // now a[curr] is locked, because --
@@ -1675,9 +1692,9 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         goto RaceCondition0;
     }
     if (cas_weak(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
-        as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
+        as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
         ullong   age = token->m_link.verseq;
-        assert(age >= m_dummy.m_min_age);
+        TERARK_ASSERT_GE(age, m_dummy.m_min_age);
         maximize(lzf->m_max_word_len, key.size());
         lzf->m_n_nodes += nodeIncNum;
         lzf->m_n_words += 1;
@@ -1691,8 +1708,8 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
-      RaceCondition0: as_atomic(a[curr].flags).fetch_and(uint08_t(~FLAG_lazy_free), std::memory_order_release);
-      RaceCondition1: as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
+      RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
+      RaceCondition1: as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
       RaceCondition2:
         size_t min_age = (size_t)token->m_min_age;
         size_t age = (size_t)token->m_link.verseq;
@@ -1762,7 +1779,7 @@ for (;; pos++) {
         if (kkn <= zlen) {
             if (kkn < zlen)
                 goto SplitZpath;
-            assert(key.size() == pos);
+            TERARK_ASSERT_EQ(key.size(), pos);
             if (p->meta.b_is_final) {
                 token->m_value = (char*)p->bytes + ni.va_offset;
                 goto HandleDupKey;
@@ -1832,8 +1849,7 @@ for (;; pos++) {
     case 7: // cnt in [ 7, 16 ]
         {
             size_t n_children = p->big.n_children;
-            assert(n_children >=  7);
-            assert(n_children <= 16);
+            TERARK_ASSERT_BE(n_children, 7, 16);
     #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
             if (ch <= p[1].bytes[n_children-1]) {
                 size_t idx = size_t(-1);
@@ -1851,14 +1867,15 @@ for (;; pos++) {
         }
         goto MatchFail;
     case 8: // cnt >= 17
-        assert(p->big.n_children >= 17);
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
         if (terark_bit_test(&p[1+1].child, ch)) {
             size_t idx = fast_search_byte_rs_idx(p[1].bytes, ch);
             break_on_slot(10, idx);
         }
         goto MatchFail;
     case 15:
-        assert(256 == p->big.n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256);
         {
             size_t next = p[2 + ch].child;
             if (nil_state != next) {
@@ -1874,7 +1891,7 @@ for (;; pos++) {
 #endif
 }
 MatchFail:
-assert(pos < key.size());
+TERARK_ASSERT_LT(pos, key.size());
 
 // end search key...
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1900,8 +1917,8 @@ assert(pos < key.size());
         ni.node_size += valsize;
     }
     if (15 != a[curr].meta.n_cnt_type) {
-        assert(ni.n_skip <= 10);
-        assert(ni.n_children <= 256);
+        TERARK_ASSERT_LE(ni.n_skip, 10);
+        TERARK_ASSERT_LE(ni.n_children, 256);
         cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
         size_t newCurr = add_state_move<MultiWriteMultiRead>(curr, ch, suffix_node, valsize, lzf);
         if (size_t(-1) == newCurr) {
@@ -1943,14 +1960,15 @@ assert(pos < key.size());
     //
     // curr.type=15, special case, direct update curr[ch]
     //
-    assert(a->bytes == m_mempool.data());
-    assert(reinterpret_cast<PatriciaNode*>(m_mempool.data()) == a);
-    assert(0 == a[curr].meta.b_lazy_free);
-    assert(0 == a[curr].meta.n_zpath_len);
+    TERARK_ASSERT_EQ(a->bytes, m_mempool.data());
+    TERARK_ASSERT_EQ(reinterpret_cast<PatriciaNode*>(m_mempool.data()), a);
+    TERARK_ASSERT_EZ(a[curr].meta.b_lazy_free);
+    TERARK_ASSERT_EZ(a[curr].meta.n_zpath_len);
     init_token_value_mw(-1, -1, suffix_node); // must before cas set child
     uint32_t nil = nil_state;
     if (cas_weak(a[curr+2+ch].child, nil, uint32_t(suffix_node))) {
         as_atomic(a[curr+1].big.n_children).fetch_add(1, std::memory_order_relaxed);
+        TERARK_ASSERT_LE(a[curr+1].big.n_children, 256);
         lzf->m_n_nodes += 1;
         lzf->m_n_words += 1;
         lzf->m_adfa_total_words_len += key.size();
@@ -1962,6 +1980,7 @@ assert(pos < key.size());
         return true;
     }
     else { // curr has updated by other threads
+        TERARK_ASSERT_LE(a[curr+1].big.n_children, 256);
         free_node<MultiWriteMultiRead>(suffix_node, node_size(a + suffix_node, valsize), lzf);
         if (csppDebugLevel >= 3)
             fprintf(stderr,
@@ -1984,13 +2003,13 @@ ForkBranch: {
         token->m_value = NULL; // fail flag
         return true;
     }
-    assert(ni.n_skip <= 10);
-    assert(ni.n_children <= 256);
+    TERARK_ASSERT_LE(ni.n_skip, 10);
+    TERARK_ASSERT_LE(ni.n_children, 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     TERARK_IF_DEBUG(cpfore(bkskip, &a[curr], ni.n_skip),);
     size_t newCurr = fork<MultiWriteMultiRead>(curr, zidx, &ni, key[pos], newSuffixNode, lzf);
     if (size_t(-1) == newCurr) {
-        assert(reinterpret_cast<PatriciaNode*>(m_mempool.data()) == a);
+        TERARK_ASSERT_EQ(reinterpret_cast<PatriciaNode*>(m_mempool.data()), a);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
         token->m_value = NULL; // fail flag
         return true;
@@ -2006,8 +2025,8 @@ ForkBranch: {
         goto retry;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
-    assert(state_move(newCurr, key[pos]) == newSuffixNode);
-    assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
+    TERARK_ASSERT_EQ(state_move(newCurr, key[pos]), newSuffixNode);
+    TERARK_ASSERT_EQ(state_move(newCurr, ni.zpath[zidx]), ni.oldSuffixNode);
     init_token_value_mw(newCurr, ni.oldSuffixNode, newSuffixNode);
     update_curr_ptr(newCurr, 1 + chainLen);
     if (terark_likely(1 != ni.zpath.n)) {
@@ -2027,8 +2046,8 @@ SplitZpath: {
     }
     lzf->m_stat.n_split += 1;
     revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
-    assert(ni.n_skip <= 10);
-    assert(ni.n_children <= 256);
+    TERARK_ASSERT_LE(ni.n_skip, 10);
+    TERARK_ASSERT_LE(ni.n_children, 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     size_t valpos = size_t(-1);
     size_t newCurr = split_zpath<MultiWriteMultiRead>(curr, zidx, &ni, &valpos, valsize, lzf);
@@ -2061,8 +2080,8 @@ SplitZpath: {
 
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
-    assert(0 == a[curr].meta.b_lazy_free);
-    assert(0 == a[curr].meta.n_zpath_len);
+    TERARK_ASSERT_EZ(a[curr].meta.b_lazy_free);
+    TERARK_ASSERT_EZ(a[curr].meta.n_zpath_len);
     size_t valpos = AlignSize * (curr + 2 + 256);
     if (as_atomic(a[curr].flags).fetch_or(FLAG_set_final, std::memory_order_acq_rel) & FLAG_set_final) {
       // very rare: other thread set final
@@ -2076,7 +2095,9 @@ MarkFinalStateOnFastNode: {
     else {
       init_token_value_mw(-1, -1, -1);
       // value must be set before set FLAG_final
+      auto old_flags =
       as_atomic(a[curr].flags).fetch_or(FLAG_final, std::memory_order_release);
+      TERARK_VERIFY_EZ((old_flags & FLAG_final));
       lzf->m_n_words += 1;
       lzf->m_stat.n_mark_final += 1;
       lzf->m_adfa_total_words_len += key.size();
@@ -2086,7 +2107,7 @@ MarkFinalStateOnFastNode: {
 MarkFinalState: {
     ni.set(a + curr, 0, 0);
 MarkFinalStateOmitSetNodeInfo:
-    assert(15 != a[curr].meta.n_cnt_type);
+    TERARK_ASSERT_NE(15, a[curr].meta.n_cnt_type);
     revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     size_t oldpos = AlignSize*curr;
     size_t newlen = ni.node_size + valsize;
@@ -2097,8 +2118,8 @@ MarkFinalStateOmitSetNodeInfo:
         token->m_value = NULL;
         return true;
     }
-    assert(ni.n_skip <= 10);
-    assert(ni.n_children <= 256);
+    TERARK_ASSERT_LE(ni.n_skip, 10);
+    TERARK_ASSERT_LE(ni.n_children, 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     tiny_memcpy_align_4(a->bytes + newpos,
                         a->bytes + oldpos, ni.va_offset);
@@ -2118,7 +2139,7 @@ MarkFinalStateOmitSetNodeInfo:
 }
 HandleDupKey: {
     if (terark_unlikely(is_value_inited)) {
-        assert(n_retry > 0);
+        TERARK_ASSERT_GT(n_retry, 0);
         token->destroy_value(value, valsize);
     }
     return false;
@@ -2129,7 +2150,7 @@ template<MainPatricia::ConcurrentLevel ConLevel>
 size_t
 MainPatricia::add_state_move(size_t curr, byte_t ch,
                              size_t suffix_node, size_t valsize, LazyFreeListTLS* tls) {
-    assert(curr < total_states());
+    TERARK_ASSERT_LT(curr, total_states());
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     size_t  cnt_type = a[curr].meta.n_cnt_type;
     size_t  zplen = a[curr].meta.n_zpath_len;
@@ -2178,7 +2199,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     switch (cnt_type) {
     default:
-        assert(false);
+        TERARK_DIE("bad cnt_type = %zd", cnt_type);
         break;
     case 0:
         assert(a[curr].meta.b_is_final);
@@ -2209,8 +2230,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         break;
     case 7: { // cnt in [ 7, 16 ]
         size_t n_children = a[curr].big.n_children;
-        assert(n_children >=  7);
-        assert(n_children <= 16);
+        TERARK_ASSERT_BE(n_children, 7, 16);
         if (n_children < 16) {
             my_alloc_node(5+n_children+1);
             insert_child(7, 5, 5, n_children, a[node+1].bytes);
@@ -2236,7 +2256,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             uint32_t* oldchilds = &a[curr +  5].child;
             uint32_t* newchilds = &a[node + 10].child;
             size_t idx = fast_search_byte_rs_idx(a[node+1].bytes, byte_t(ch));
-            assert(idx<= 16);
+            TERARK_ASSERT_LE(idx, 16);
             newchilds[idx] = suffix_node;
             cpfore(newchilds      , oldchilds    , idx);
             cpfore(newchilds+idx+1, oldchilds+idx, 16-idx + aligned_valzplen/AlignSize);
@@ -2244,9 +2264,8 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         break; }
     case 8: { // cnt >= 17
             size_t n_children = a[curr].big.n_children;
-            assert(n_children >=  17);
-            assert(n_children <= 255);
-            if (n_children >= 64 && 0 == a[curr].meta.n_zpath_len) {
+            TERARK_ASSERT_BE(n_children, 17, 256);
+            if (n_children >= MAX_DYNA_NUM && 0 == a[curr].meta.n_zpath_len) {
                 // alloc fast node, always alloc value space
                 aligned_valzplen = valsize; // alloc value space
                 my_alloc_node(2 + 256);
@@ -2277,7 +2296,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
                         }
                     }
                 }
-                assert(nil_state == a[node+2+ch].child);
+                TERARK_ASSERT_EQ(nil_state, a[node+2+ch].child);
                 a[node+2+ch].child = suffix_node;
                 break;
             }
@@ -2308,31 +2327,31 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
     if (ConLevel != MultiWriteMultiRead || falseConcurrent)
     {
         size_t suf2 = state_move(node, ch);
-        assert(suf2 == suffix_node);
+        TERARK_ASSERT_EQ(suf2, suffix_node);
         if (15 != a[node].meta.n_cnt_type) {
-            assert(num_children(node) == num_children(curr)+1);
+            TERARK_ASSERT_EQ(num_children(node), num_children(curr)+1);
         }
-        assert(a[node].meta.n_cnt_type  == a[node].meta.n_cnt_type );
-        assert(a[node].meta.b_is_final  == a[node].meta.b_is_final );
-        assert(a[node].meta.n_zpath_len == a[node].meta.n_zpath_len);
+        TERARK_ASSERT_EQ(a[node].meta.n_cnt_type , a[node].meta.n_cnt_type );
+        TERARK_ASSERT_EQ(a[node].meta.b_is_final , a[node].meta.b_is_final );
+        TERARK_ASSERT_EQ(a[node].meta.n_zpath_len, a[node].meta.n_zpath_len);
         if (a[node].meta.n_zpath_len) {
-            assert(get_zpath_data(node) == get_zpath_data(curr));
+            TERARK_ASSERT_S_EQ(get_zpath_data(node), get_zpath_data(curr));
         }
         if (a[node].meta.b_is_final) {
-            assert(memcmp(a->bytes + get_valpos(a, curr),
-                          a->bytes + get_valpos(a, node), valsize) == 0);
+            TERARK_ASSERT_EZ(memcmp(a->bytes + get_valpos(a, curr),
+                             a->bytes + get_valpos(a, node), valsize));
         }
         if (csppDebugLevel >= 2) { // deep debug
             if (csppDebugLevel >= 3) {
                 for(size_t cc = 0; cc < ch; ++cc) {
                     size_t t1 = state_move(curr, cc);
                     size_t t2 = state_move(node, cc);
-                    assert(t1 == t2);
+                    TERARK_ASSERT_EQ(t1, t2);
                 }
                 for(size_t cc = ch+1; cc < 256; ++cc) {
                     size_t t1 = state_move(curr, cc);
                     size_t t2 = state_move(node, cc);
-                    assert(t1 == t2);
+                    TERARK_ASSERT_EQ(t1, t2);
                 }
             }
             for_each_move(node, [](size_t child, size_t ch) {});
@@ -2438,13 +2457,13 @@ static long g_lazy_free_debug_level =
 bool MainPatricia::lookup(fstring key, TokenBase* token) const {
   #if !defined(NDEBUG)
     if (m_writing_concurrent_level >= SingleThreadShared) {
-        assert(NULL == mmap_base || -1 != m_fd);
-        assert(NULL != m_dummy.m_link.next);
-        assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
-        assert(token->m_link.verseq >= m_dummy.m_min_age);
-        assert(ThisThreadID() == token->m_thread_id);
+        TERARK_ASSERT_F(NULL == mmap_base || -1 != m_fd, "%p %zd", mmap_base, m_fd);
+        TERARK_ASSERT_NE(m_dummy.m_link.next, nullptr);
+        TERARK_ASSERT_LE(token->m_link.verseq, m_token_tail->m_link.verseq);
+        TERARK_ASSERT_GE(token->m_link.verseq, m_dummy.m_min_age);
+        TERARK_ASSERT_EQ(ThisThreadID(), token->m_thread_id);
     }
-    assert(this == token->m_trie);
+    TERARK_ASSERT_EQ(this, token->m_trie);
   #endif
 
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
@@ -2505,7 +2524,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
      #define  maybe_prefetch  prefetch
   // #define  maybe_prefetch(x)
         switch (cnt_type) {
-        default: assert(false);              goto Fail;
+        default: TERARK_DIE("bad cnt_type = %zd", cnt_type);
         case 0:  assert(p->meta.b_is_final); goto Fail;
         case 1:
             curr = p[1].child;
@@ -2537,8 +2556,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
             }
             goto Fail;
         case 7: // cnt in [ 7, 16 ]
-            assert(p->big.n_children >=  7);
-            assert(p->big.n_children <= 16);
+            TERARK_ASSERT_BE(p->big.n_children, 7, 16);
             if (ch <= p[1].bytes[p->big.n_children-1]) {
                 intptr_t idx = -1;
                 do idx++; while (p[1].bytes[idx] < ch);
@@ -2549,7 +2567,8 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
             }
             goto Fail;
         case 8: // cnt >= 17
-            assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+            TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+            TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
             {
                 size_t i = ch / TERARK_WORD_BITS;
                 size_t j = ch % TERARK_WORD_BITS;
@@ -2562,7 +2581,8 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
             }
             goto Fail;
         case 15:
-            assert(256 == p->big.n_children);
+            TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+            TERARK_ASSERT_LE(p[1].big.n_children, 256);
             curr = p[2 + ch].child; // may be nil_state
             // do not prefetch, root's child is expected in L1 cache
             if (terark_likely(nil_state != curr))
@@ -2578,7 +2598,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
 
         switch (cnt_type) {
         default:
-            assert(false);
+            TERARK_DIE("bad cnt_type = %zd", cnt_type);
             fail_return;
         case 0:
             assert(p->meta.b_is_final);
@@ -2607,8 +2627,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
         case 7: // cnt in [ 7, 16 ]
             {
                 size_t n_children = p->big.n_children;
-                assert(n_children >=  7);
-                assert(n_children <= 16);
+                TERARK_ASSERT_BE(n_children, 7, 16);
                 auto label = p->meta.c_label + 2; // do not use [0,1]
               #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
@@ -2625,14 +2644,16 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
             }
             fail_return;
         case 8: // cnt >= 17
-            assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+            TERARK_ASSERT_BE(p[0].big.n_children, 17, 256);
+            TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
             if (terark_bit_test(&p[1+1].child, ch)) {
                 size_t idx = fast_search_byte_rs_idx(p[1].bytes, ch);
                 move_to(p[10 + idx].child);
             }
             fail_return;
         case 15:
-            assert(256 == p->big.n_children);
+            TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+            TERARK_ASSERT_LE(p[1].big.n_children, 256);
             curr = p[2 + ch].child; // may be nil_state
             if (nil_state == curr) {
                 fail_return;
@@ -2644,7 +2665,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
   #endif
     }
   Fail:
-    assert(pos < key.size());
+    //assert(pos < key.size()); // false positive
     token->m_value = NULL;
     return false;
 }
@@ -2659,12 +2680,12 @@ template<size_t Align>
 size_t PatriciaMem<Align>::alloc_aux(size_t size) {
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list(m_writing_concurrent_level));
     switch (m_writing_concurrent_level) {
-    default:   assert(false); return size_t(-1);
+    default: TERARK_DIE("m_writing_concurrent_level = %d", m_writing_concurrent_level);
     case MultiWriteMultiRead: return alloc_raw<MultiWriteMultiRead>(size, tls);
     case   OneWriteMultiRead: return alloc_raw<  OneWriteMultiRead>(size, tls);
     case  SingleThreadStrict:
     case  SingleThreadShared: return alloc_raw< SingleThreadShared>(size, tls);
-    case     NoWriteReadOnly: assert(false); return size_t(-1);
+    case     NoWriteReadOnly: TERARK_DIE("bad m_writing_concurrent_level = NoWriteReadOnly");
     }
 }
 
@@ -2678,12 +2699,12 @@ template<size_t Align>
 void PatriciaMem<Align>::free_aux(size_t pos, size_t size) {
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list(m_writing_concurrent_level));
     switch (m_writing_concurrent_level) {
-    default:   assert(false);                                           break;
+    default: TERARK_DIE("m_writing_concurrent_level = %d", m_writing_concurrent_level);
     case MultiWriteMultiRead: free_raw<MultiWriteMultiRead>(pos, size, tls); break;
     case   OneWriteMultiRead: free_raw<  OneWriteMultiRead>(pos, size, tls); break;
     case  SingleThreadStrict:
     case  SingleThreadShared: free_raw< SingleThreadShared>(pos, size, tls); break;
-    case     NoWriteReadOnly: assert(false);                            break;
+    case     NoWriteReadOnly: TERARK_DIE("bad m_writing_concurrent_level = NoWriteReadOnly");
     }
 }
 
@@ -2703,8 +2724,8 @@ void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
 
 template<size_t Align>
 void* PatriciaMem<Align>::alloc_appdata(size_t len) {
-    assert(size_t(-1) == m_appdata_offset); // just allowing call once
-    assert(size_t(00) == m_appdata_length);
+    TERARK_VERIFY_EQ(size_t(-1), m_appdata_offset); // just allowing call once
+    TERARK_VERIFY_EQ(size_t(00), m_appdata_length);
     constexpr size_t appdata_align = 256; // max possible cache line size
     len = pow2_align_up(len, AlignSize);
     size_t extlen = len + appdata_align;
@@ -2714,8 +2735,8 @@ void* PatriciaMem<Align>::alloc_appdata(size_t len) {
     }
     size_t len1 = offset - offset % appdata_align;
     size_t len2 = extlen - len1 - len;
-    assert(len1 % AlignSize == 0);
-    assert(len2 % AlignSize == 0);
+    TERARK_VERIFY_AL(len1, AlignSize);
+    TERARK_VERIFY_AL(len2, AlignSize);
     if (len1) {
         free_aux(offset, len1);
     }
@@ -2724,7 +2745,7 @@ void* PatriciaMem<Align>::alloc_appdata(size_t len) {
     }
     m_appdata_offset = offset + len1;
     m_appdata_length = len;
-    assert(m_appdata_offset % appdata_align == 0);
+    TERARK_VERIFY_AL(m_appdata_offset, appdata_align);
     auto h = const_cast<DFA_MmapHeader*>(mmap_base);
     if (h) {
         h->louds_dfa_min_zpath_id = uint32_t(m_appdata_offset / AlignSize);
@@ -2735,8 +2756,8 @@ void* PatriciaMem<Align>::alloc_appdata(size_t len) {
 
 template<size_t Align>
 void PatriciaMem<Align>::SingleThreadShared_sync_token_list(byte_t* oldmembase) {
-    assert(SingleThreadShared == m_writing_concurrent_level);
-    assert(m_mempool.data() != oldmembase);
+    TERARK_VERIFY_EQ(SingleThreadShared, m_writing_concurrent_level);
+    TERARK_VERIFY_NE(m_mempool.data(), oldmembase);
     TERARK_IF_DEBUG(size_t cnt = 0,);
     byte_t   * newmembase = m_mempool.data();
     for(auto curr = m_dummy.m_link.next; curr != NULL; curr = curr->m_link.next) {
@@ -2765,7 +2786,7 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
                 size_t(m_valsize), valsize);
         }
     }
-    assert(base->num_blocks == 1);
+    TERARK_VERIFY_EQ(base->num_blocks, 1);
     auto  blocks = base->blocks;
     if (AlignSize * base->total_states != blocks[0].length) {
         THROW_STD(out_of_range, "total_states=%lld  block[0].length = %lld, dont match"
@@ -2774,7 +2795,7 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
         );
     }
     switch (m_mempool_concurrent_level) {
-    default:   assert(false); break;
+    default: TERARK_DIE("m_writing_concurrent_level = %d", m_writing_concurrent_level);
     case MultiWriteMultiRead: m_mempool_lock_free.destroy_and_clean(); break;
     case   OneWriteMultiRead: m_mempool_fixed_cap.destroy_and_clean(); break;
     case  SingleThreadStrict:
@@ -2912,7 +2933,7 @@ constexpr size_t MAX_DEL_PTRS = 32;
 
 terark_forceinline
 void Patricia::TokenBase::del_tokens(TokenBase* ptrs[], size_t num) {
-    assert(num <= MAX_DEL_PTRS);
+    TERARK_ASSERT_LE(num, MAX_DEL_PTRS);
     for (size_t i = 0; i < num; ++i) {
         TokenBase* tok = ptrs[i];
         TERARK_VERIFY(DisposeWait == tok->m_flags.state);
@@ -2927,7 +2948,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
     size_t     delnum = 0;
     TokenBase* curr = this;
     while (true) {
-        assert(NULL != curr);
+        TERARK_ASSERT_NE(NULL, curr);
         TokenBase* next = curr->m_link.next;
         TokenFlags flags = curr->m_flags;
 
@@ -2947,8 +2968,8 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
         #if !defined(NDEBUG)
             auto p = curr->m_link.next;
             while (p) {
-                assert(p->m_link.verseq >= p->m_min_age);
-                assert(p->m_link.verseq >= min_age);
+                TERARK_ASSERT_GE(p->m_link.verseq, p->m_min_age);
+                TERARK_ASSERT_GE(p->m_link.verseq, min_age);
                 p = p->m_link.next;
             }
         #endif
@@ -3057,13 +3078,13 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         }
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         enqueue(trie);
-        assert(NULL != trie->m_dummy.m_link.next);
+        TERARK_ASSERT_NE(NULL, trie->m_dummy.m_link.next);
         cas_unlock(trie->m_head_lock);
         break;
     case ReleaseWait:
         if (cax_weak(m_flags, flags, {AcquireDone, false})) {
             // acquire done, no one should change me
-            assert(AcquireDone == m_flags.state);
+            TERARK_ASSERT_EQ(AcquireDone, m_flags.state);
         }
         else {
             if (AcquireDone == flags.state) {
@@ -3132,11 +3153,11 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     trie->m_head_is_dead = true;
                     return;
                 }
-                assert(this == trie->m_dummy.m_link.next); // now it must be true
+                TERARK_ASSERT_EQ(this, trie->m_dummy.m_link.next); // now it must be true
                 //assert(this != trie->m_token_tail); // may be false positive
                 if (next->dequeue(trie, delptrs, &delnum)) {
                     //assert(this != trie->m_token_tail); // may be false positive
-                    assert(this != trie->m_dummy.m_link.next);
+                    TERARK_ASSERT_NE(this, trie->m_dummy.m_link.next);
                     //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone self token - dequeue ok\n", m_thread_id);
                     //m_link.verseq = 0; // DO NOT change m_link.verseq
                     //m_link.next = NULL; // safe, because this != trie->m_token_tail
@@ -3144,10 +3165,10 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 else {
                     //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone self token - dequeue fail\n", m_thread_id);
-                    assert(this != trie->m_token_tail);
-                    assert(this != trie->m_dummy.m_link.next);
-                    assert(NULL != m_link.next);
-                    assert(this != m_link.next);
+                    TERARK_ASSERT_NE(this, trie->m_token_tail);
+                    TERARK_ASSERT_NE(this, trie->m_dummy.m_link.next);
+                    TERARK_ASSERT_NE(NULL, m_link.next);
+                    TERARK_ASSERT_NE(this, m_link.next);
                     trie->m_head_is_dead = true;
                 }
                 m_flags = {ReleaseDone, false};
@@ -3181,11 +3202,11 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     break; // break switch, retry
                 }
                 if (cas_weak(m_flags, flags, {ReleaseDone, false})) {
-                    assert(this == trie->m_dummy.m_link.next); // now it must be true
+                    TERARK_ASSERT_EQ(this, trie->m_dummy.m_link.next); // now it must be true
                     //assert(this != trie->m_token_tail); // may be false positive
                     if (next->dequeue(trie, delptrs, &delnum)) {
                         //assert(this != trie->m_token_tail); // may be false positive
-                        assert(this != trie->m_dummy.m_link.next);
+                        TERARK_ASSERT_NE(this, trie->m_dummy.m_link.next);
                         //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone self token - dequeue ok\n", m_thread_id);
                         //m_link.verseq = 0; // DO NOT change m_link.verseq
                         //m_link.next = NULL; // safe, because this != trie->m_token_tail
@@ -3193,10 +3214,10 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     }
                     else {
                         //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone self token - dequeue fail\n", m_thread_id);
-                        assert(this != trie->m_token_tail);
-                        assert(this != trie->m_dummy.m_link.next);
-                        assert(NULL != m_link.next);
-                        assert(this != m_link.next);
+                        TERARK_ASSERT_NE(this, trie->m_token_tail);
+                        TERARK_ASSERT_NE(this, trie->m_dummy.m_link.next);
+                        TERARK_ASSERT_NE(NULL, m_link.next);
+                        TERARK_ASSERT_NE(this, m_link.next);
                         trie->m_head_is_dead = true;
                     }
                     cas_unlock(trie->m_head_lock);
@@ -3258,7 +3279,7 @@ terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(m_flags.is_head);
-    assert(AcquireDone == m_flags.state);
+    TERARK_ASSERT_EQ(AcquireDone, m_flags.state);
     if (m_link.next) {
         // if (this != trie->m_dummy.m_link.next) {
         //     // this immediate return is for wait free:
@@ -3273,14 +3294,14 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             return;
         }
         //assert(!trie->m_head_is_dead); // false positive
-        assert(m_link.verseq <= m_link.next->m_link.verseq);
-        assert(m_link.verseq < m_link.next->m_link.verseq);
+        TERARK_ASSERT_LE(m_link.verseq, m_link.next->m_link.verseq);
+        TERARK_ASSERT_LT(m_link.verseq, m_link.next->m_link.verseq);
         TokenBase* delptrs[MAX_DEL_PTRS];
         size_t delnum = 0;
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
         enqueue(trie);
-        assert(this == trie->m_dummy.m_link.next);
+        TERARK_ASSERT_EQ(this, trie->m_dummy.m_link.next);
         // verify because at least, I'm alive
         TERARK_VERIFY(new_head->dequeue(trie, delptrs, &delnum));
         //m_min_age = trie->m_dummy.m_min_age; // do not update
@@ -3328,8 +3349,8 @@ void PatriciaMem<Align>::reclaim_head() {
     size_t     delnum = 0;
     TokenBase* head = m_dummy.m_link.next;
     if (terark_unlikely(NULL == head)) {
-        assert(NoWriteReadOnly == m_mempool_concurrent_level);
-        assert(0 == m_token_qlen);
+        TERARK_ASSERT_EQ(NoWriteReadOnly, m_mempool_concurrent_level);
+        TERARK_ASSERT_EZ(m_token_qlen);
         cas_unlock(m_head_lock);
         return;
     }
@@ -3408,7 +3429,7 @@ void Patricia::TokenBase::idle() {
   Retry:
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
-    assert(ThisThreadID() == m_thread_id);
+    TERARK_ASSERT_EQ(ThisThreadID(), m_thread_id);
     auto flags = m_flags;
     TERARK_VERIFY_F(AcquireDone == flags.state, "real = %s", enum_cstr(flags.state));
     if (conLevel >= SingleThreadShared) {
@@ -3432,13 +3453,13 @@ void Patricia::TokenBase::idle() {
     while (!cas_weak(trie->m_head_lock, false, true)) {
         _mm_pause();
     }
-    assert(this == trie->m_dummy.m_link.next);
+    TERARK_ASSERT_EQ(this, trie->m_dummy.m_link.next);
     TokenBase* delptrs[MAX_DEL_PTRS];
     size_t delnum = 0;
     TokenBase* curr = this->m_link.next;
     while (curr) {
         TokenBase* next = curr->m_link.next;
-        TokenFlags flags = curr->m_flags;
+        flags = curr->m_flags;
         TERARK_VERIFY(false == flags.is_head);
         switch (flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
@@ -3479,7 +3500,8 @@ void Patricia::TokenBase::idle() {
     trie->m_token_tail = NULL;
   SetQueueHead:
     trie->m_dummy.m_link.next = curr;
-    TERARK_VERIFY((NULL == curr) ^ (0 != trie->m_token_qlen));
+    TERARK_VERIFY_F((nullptr == curr) ^ (0 != trie->m_token_qlen),
+                    "curr: %p qlen: %d", curr, trie->m_token_qlen);
     cas_unlock(trie->m_head_lock);
     del_tokens(delptrs, delnum);
 }
@@ -3487,10 +3509,10 @@ void Patricia::TokenBase::idle() {
 void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
-    assert(ThisThreadID() == m_thread_id);
+    TERARK_ASSERT_EQ(ThisThreadID(), m_thread_id);
     assert(AcquireDone == m_flags.state || AcquireIdle == m_flags.state);
     if (conLevel >= SingleThreadShared || trie->m_token_qlen) {
-        assert(m_link.verseq <= trie->m_token_tail->m_link.verseq);
+        TERARK_ASSERT_LE(m_link.verseq, trie->m_token_tail->m_link.verseq);
         mt_release(trie);
     }
     else {
@@ -3550,11 +3572,11 @@ void Patricia::ReaderToken::acquire(Patricia* trie1) {
             m_flags.state = AcquireDone;
             break;
         }
-        m_link = {NULL, 0};
-        m_tls = NULL;
+        //m_link = {NULL, 0}; // do not reset m_link & m_tls
+        //m_tls = NULL;
       #if !defined(NDEBUG)
         if (SingleThreadStrict == conLevel) {
-            assert(0 == m_link.verseq);
+            TERARK_ASSERT_EZ(m_link.verseq);
             assert(NULL == m_tls);
             assert(NULL == m_link.next);
         }
@@ -3574,8 +3596,8 @@ Patricia::ReaderToken::~ReaderToken() {
 bool
 Patricia::WriterToken::init_value(void* value, size_t valsize)
 noexcept {
-    assert(valsize % MainPatricia::AlignSize == 0);
-    assert(valsize == m_trie->m_valsize);
+    TERARK_ASSERT_AL(valsize, MainPatricia::AlignSize);
+    TERARK_ASSERT_EQ(valsize, m_trie->m_valsize);
     return true;
 }
 
@@ -3629,11 +3651,11 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
   #if !defined(NDEBUG)
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = p - a;
-    assert(curr < total_states());
+    TERARK_ASSERT_LT(curr, total_states());
   #endif
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: assert(false); break;
+    default: TERARK_DIE("bad cnt_type = %zd", cnt_type);
     case 0: assert(p->meta.b_is_final); return nil_state;
     case 1:
     case 2: *ch = p->meta.c_label[0]; return p[1].child;
@@ -3643,7 +3665,8 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
     case 6: *ch = p->meta.c_label[0]; return p[2].child;
     case 7: *ch = p->meta.c_label[2]; return p[5].child;
     case 8: // cnt >= 17
-        assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+        TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
         for (size_t i = 0; i < 4; ++i) {
             ullong   b = unaligned_load<uint64_t>(p+2, i);
             if (b) {
@@ -3651,10 +3674,11 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
                 return p[10].child;
             }
         }
-        assert(false);
+        TERARK_DIE("cnt_type == 8, must found ch");
         break;
     case 15:
-        assert(256 == p->big.n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256);
         for (size_t ich = 0; ich < 256; ++ich) {
             uint32_t child = p[2+ich].child;
             if (nil_state != child) {
@@ -3672,11 +3696,11 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
   #if !defined(NDEBUG)
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = p - a;
-    assert(curr < total_states());
+    TERARK_ASSERT_LT(curr, total_states());
   #endif
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: assert(false); break;
+    default: TERARK_DIE("bad cnt_type = %zd", cnt_type);
     case 0: assert(p->meta.b_is_final); return nil_state;
     case 1: *ch = p->meta.c_label[0]; return p[1].child;
     case 2: *ch = p->meta.c_label[1]; return p[2].child;
@@ -3688,16 +3712,16 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
     case 7:
         {
             size_t n_children = p->big.n_children;
-            assert(n_children >=  7);
-            assert(n_children <= 16);
+            TERARK_ASSERT_BE(n_children, 7, 16);
             *ch = p[1].bytes[n_children-1];
             return p[5+n_children-1].child;
         }
     case 8:
-        assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+        TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
         {
             size_t n_children = p->big.n_children;
-            assert(n_children >= 17);
+            TERARK_ASSERT_GE(n_children, 17);
             for (size_t i = 4; i-- > 0;) {
                 ullong   w = unaligned_load<uint64_t>(p+2, i);
                 if (w) {
@@ -3709,7 +3733,8 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
         TERARK_DIE("cnt_type == 8, must found ch");
         break;
     case 15:
-        assert(256 == p->big.n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256);
         for (size_t ich = 256; ich-- > 0; ) {
             uint32_t child = p[2+ich].child;
             if (nil_state != child) {
@@ -3728,47 +3753,47 @@ const {
   #if !defined(NDEBUG)
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = p - a;
-    assert(curr < total_states());
+    TERARK_ASSERT_LT(curr, total_states());
   #endif
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: assert(false); return nil_state;
+    default: TERARK_DIE("bad cnt_type = %zd", cnt_type);
     case 0: assert(p->meta.b_is_final); return nil_state;
     case 1:
-        assert(0 == nth);
+        TERARK_ASSERT_EZ(nth);
         *ch = p->meta.c_label[0];
         return p[1].child;
     case 2:
-        assert(nth < 2);
+        TERARK_ASSERT_LT(nth, 2);
         *ch = p->meta.c_label[nth];
         return p[1+nth].child;
     case 3:
     case 4:
     case 5:
     case 6:
-        assert(nth < cnt_type);
+        TERARK_ASSERT_LT(nth, cnt_type);
         *ch = p->meta.c_label[nth];
         return p[2 + nth].child;
     case 7:
         {
-            assert(p->big.n_children >=  7);
-            assert(p->big.n_children <= 16);
-            assert(nth < p->big.n_children);
+            TERARK_ASSERT_BE(p->big.n_children, 7, 16);
+            TERARK_ASSERT_LT(nth, p->big.n_children);
             *ch = p[1].bytes[nth];
             return p[5+nth].child;
         }
     case 8:
-        assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+        TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
         {
-            assert(p->big.n_children >=  17);
-            assert(p->big.n_children <= 256);
-            assert(nth < p->big.n_children);
+            TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+            TERARK_ASSERT_LT(nth, p->big.n_children);
             *ch = rs_select1(p[1].bytes, nth);
             return p[10+nth].child;
         }
     case 15:
-        assert(256 == p->big.n_children);
-        assert(nth < p[1].big.n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256); // real n_children
+        TERARK_ASSERT_LT(nth, p[1].big.n_children); // real n_children
     //  assert(*ch < nth); // nth is ignored in this case
     //  *ch must be last char
         for (size_t ich = *ch + 1; ich < 256; ich++) {
@@ -3831,7 +3856,7 @@ public:
         auto trie = static_cast<MainPatricia*>(m_trie);
         size_t zlen; const byte_t* zptr = NULL;
         size_t curr = root;
-        assert(nil_state != root);
+        TERARK_ASSERT_NE(nil_state, root);
         const PatriciaNode* p;
         do {
             p = a + curr;
@@ -3861,7 +3886,7 @@ public:
         auto trie = static_cast<MainPatricia*>(m_trie);
         size_t zlen = 0; const byte_t* zptr = NULL;
         size_t curr = root;
-        assert(nil_state != root);
+        TERARK_ASSERT_NE(nil_state, root);
         do {
             auto p = a + curr;
             size_t cnt_type = p->meta.n_cnt_type;
@@ -3883,7 +3908,7 @@ public:
         m_curr = m_iter.back().state;
       #if !defined(NDEBUG)
         if (15 == a[m_curr].meta.n_cnt_type) {
-            assert(0 == a[m_curr+1].big.n_children);
+            TERARK_ASSERT_EZ(a[m_curr+1].big.n_children);
         } else {
             assert(a[m_curr].meta.b_is_final);
         }
@@ -4087,8 +4112,8 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                         append_lex_min_suffix(next, a);
                     }
                     else {
-                        assert(m_iter.size() == 1);
-                        assert(curr == initial_state);
+                        TERARK_ASSERT_EQ(m_iter.size(), 1);
+                        TERARK_ASSERT_EQ(curr, initial_state);
                         reset1();
                         return false;
                     }
@@ -4098,9 +4123,9 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
             pos += zlen;
         }
         else {
-            assert(pos <= key.size());
+            TERARK_ASSERT_LE(pos, key.size());
             if (terark_unlikely(key.size() == pos)) { // done
-                assert(m_word.size() == pos);
+                TERARK_ASSERT_EQ(m_word.size(), pos);
                 const size_t n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
                 e.n_children = uint16_t(n_children);
                 m_iter.push_back(e);
@@ -4118,8 +4143,8 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                         append_lex_min_suffix(next, a);
                     }
                     else {
-                        assert(m_iter.size() == 1);
-                        assert(curr == initial_state);
+                        TERARK_ASSERT_EQ(m_iter.size(), 1);
+                        TERARK_ASSERT_EQ(curr, initial_state);
                         reset1();
                         return false;
                     }
@@ -4127,17 +4152,16 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                 return true;
             }
         }
-        assert(pos < key.size());
+        TERARK_ASSERT_LT(pos, key.size());
         size_t ch = (byte_t)key.p[pos];
-        assert(curr < trie->total_states());
-        assert(ch <= 255);
+        TERARK_ASSERT_LT(curr, trie->total_states());
   #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
         default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
         case 0:
             assert(p->meta.b_is_final);
-            assert(calc_word_len() == m_word.size());
+            TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
             goto rewind_stack_for_next;
         case 1:
             if (ch <= p->meta.c_label[0]) {
@@ -4190,8 +4214,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         case 7: // cnt in [ 7, 16 ]
             {
                 size_t n_children = p->big.n_children;
-                assert(n_children >=  7);
-                assert(n_children <= 16);
+                TERARK_ASSERT_BE(n_children, 7, 16);
                 auto label = p->meta.c_label + 2; // do not use [0,1]
               #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
@@ -4220,8 +4243,8 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         case 8: // cnt >= 17
             {
                 size_t n_children = p->big.n_children;
-                assert(n_children == popcount_rs_256(p[1].bytes));
-                assert(n_children == p->big.n_children);
+                TERARK_ASSERT_BE(n_children, 17, 256);
+                TERARK_ASSERT_EQ(n_children, popcount_rs_256(p[1].bytes));
                 size_t lo = fast_search_byte_rs_idx(p[1].bytes, ch);
                 if (lo < n_children) {
                     SetNth(10, lo);
@@ -4236,10 +4259,11 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         case 15:
           {
             assert(curr == initial_state || !m_word.empty());
-            assert(256 == p->big.n_children);
-            assert(0 == zlen);
-            assert(m_word.capacity() >= 1);
-            assert(m_iter.capacity() >= 1);
+            TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+            TERARK_ASSERT_LE(p[1].big.n_children, 256);
+            TERARK_ASSERT_EZ(zlen);
+            TERARK_ASSERT_GE(m_word.capacity(), 1);
+            TERARK_ASSERT_GE(m_iter.capacity(), 1);
             e.n_children = 256;
             curr = p[2 + ch].child;
             if (terark_likely(nil_state != curr)) {
@@ -4259,7 +4283,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     }
                 }
                 if (m_word.empty()) {
-                    assert(p-a == initial_state);
+                    TERARK_ASSERT_EQ(p-a, initial_state);
                     reset1();
                     return false;
                 }
@@ -4267,9 +4291,9 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
             }
           }
         }
-        assert(false);
+        TERARK_DIE("should not goes here");
       IterNextL:
-        assert(nil_state != curr); // now curr is child
+        TERARK_ASSERT_NE(nil_state, curr); // now curr is child
         *tiny_memcpy_align_1(m_word.grow_no_init(zlen+1), zptr, zlen) = ch;
       IterNextNoZpath:
         m_iter.push_back(e);
@@ -4333,8 +4357,8 @@ seek_lower_bound_fast:
                         append_lex_min_suffix(next, a);
                     }
                     else {
-                        assert(m_iter.size() == 1);
-                        assert(curr == initial_state);
+                        TERARK_ASSERT_EQ(m_iter.size(), 1);
+                        TERARK_ASSERT_EQ(curr, initial_state);
                         reset1();
                         return false;
                     }
@@ -4344,9 +4368,9 @@ seek_lower_bound_fast:
             pos += zlen;
         }
         else {
-            assert(pos <= key.size());
+            TERARK_ASSERT_LE(pos, key.size());
             if (terark_unlikely(key.size() == pos)) { // done
-                assert(size_t(wp - m_word.data()) == pos);
+                TERARK_ASSERT_EQ(size_t(wp - m_word.data()), pos);
                 const size_t n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
                 ip->n_children = uint16_t(n_children);
                 m_iter.risk_set_end(ip+1);
@@ -4365,8 +4389,8 @@ seek_lower_bound_fast:
                         append_lex_min_suffix(next, a);
                     }
                     else {
-                        assert(m_iter.size() == 1);
-                        assert(curr == initial_state);
+                        TERARK_ASSERT_EQ(m_iter.size(), 1);
+                        TERARK_ASSERT_EQ(curr, initial_state);
                         reset1();
                         return false;
                     }
@@ -4374,10 +4398,9 @@ seek_lower_bound_fast:
                 return true;
             }
         }
-        assert(pos < key.size());
+        TERARK_ASSERT_LT(pos, key.size());
         size_t ch = (byte_t)key.p[pos];
-        assert(curr < trie->total_states());
-        assert(ch <= 255);
+        TERARK_ASSERT_LT(curr, trie->total_states());
   #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
         switch (cnt_type) {
@@ -4436,8 +4459,7 @@ seek_lower_bound_fast:
         case 7: // cnt in [ 7, 16 ]
             {
                 size_t n_children = p->big.n_children;
-                assert(n_children >=  7);
-                assert(n_children <= 16);
+                TERARK_ASSERT_BE(n_children, 7, 16);
                 auto label = p->meta.c_label + 2; // do not use [0,1]
               #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
@@ -4466,8 +4488,8 @@ seek_lower_bound_fast:
         case 8: // cnt >= 17
             {
                 size_t n_children = p->big.n_children;
-                assert(n_children == popcount_rs_256(p[1].bytes));
-                assert(n_children == p->big.n_children);
+                TERARK_ASSERT_BE(n_children, 17, 256);
+                TERARK_ASSERT_EQ(n_children, popcount_rs_256(p[1].bytes));
               //#define patricia_seek_lower_bound_readable
               #ifdef  patricia_seek_lower_bound_readable
                 size_t lo = fast_search_byte_rs_idx(p[1].bytes, ch);
@@ -4496,7 +4518,7 @@ seek_lower_bound_fast:
                     }
                     else {
                         do w = unaligned_load<uint64_t>(p+2, ++i); while (!w);
-                        assert(i < 4);
+                        TERARK_ASSERT_LT(i, 4);
                         ch = i * 64 + fast_ctz64(w);
                     }
                     goto IterNextL;
@@ -4507,10 +4529,11 @@ seek_lower_bound_fast:
         case 15:
           {
           //assert(curr == initial_state); // now it need not be initial_state
-            assert(256 == p->big.n_children);
-            assert(0 == zlen);
-            assert(m_word.capacity() >= 1);
-            assert(m_iter.capacity() >= 1);
+            TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+            TERARK_ASSERT_LE(p[1].big.n_children, 256);
+            TERARK_ASSERT_EZ(zlen);
+            TERARK_ASSERT_GE(m_word.capacity(), 1);
+            TERARK_ASSERT_GE(m_iter.capacity(), 1);
             ip->n_children = 256;
             curr = p[2 + ch].child;
             if (terark_likely(nil_state != curr)) {
@@ -4535,9 +4558,9 @@ seek_lower_bound_fast:
             }
           }
         }
-        assert(false);
+        TERARK_DIE("should not goes here");
       IterNextL:
-        assert(nil_state != curr); // now curr is child
+        TERARK_ASSERT_NE(nil_state, curr); // now curr is child
         while (zlen) *wp++ = *zptr++, zlen--;
       IterNextNoZpathL:
         *wp = ch;
@@ -4546,7 +4569,7 @@ seek_lower_bound_fast:
         append_lex_min_suffix(curr, a);
         return true;
       NextLoopL:
-        assert(nil_state != curr); // now curr is child
+        TERARK_ASSERT_NE(nil_state, curr); // now curr is child
         while (zlen) *wp++ = *zptr++, zlen--;
       ThisLoopDone:
         *wp++ = ch;
@@ -4576,19 +4599,19 @@ rewind_stack_for_next:
             size_t  cnt_type = p->meta.n_cnt_type;
             size_t  nth = top.nth_child;
             byte_t* pch = &m_word.back();
-            assert (p->meta.n_zpath_len == top.zpath_len);
+            TERARK_ASSERT_EQ(p->meta.n_zpath_len, top.zpath_len);
             switch (cnt_type) {
             default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
             case 0:  TERARK_VERIFY(p->meta.b_is_final); break;
             case 1:
-                assert(0 == nth);
-                assert(1 == top.n_children);
+                TERARK_ASSERT_EZ(nth);
+                TERARK_ASSERT_EQ(1, top.n_children);
                 *pch = p->meta.c_label[0];
                 curr = p[1].child;
                 break;
             case 2:
-                assert(nth < 2);
-                assert(2 == top.n_children);
+                TERARK_ASSERT_LT(nth, 2);
+                TERARK_ASSERT_EQ(2, top.n_children);
                 *pch = p->meta.c_label[nth];
                 curr = p[1+nth].child;
                 break;
@@ -4596,40 +4619,36 @@ rewind_stack_for_next:
             case 4:
             case 5:
             case 6:
-                assert(nth < cnt_type);
-                assert(cnt_type == top.n_children);
+                TERARK_ASSERT_LT(nth, cnt_type);
+                TERARK_ASSERT_EQ(cnt_type, top.n_children);
                 *pch = p->meta.c_label[nth];
                 curr = p[2+nth].child;
                 break;
             case 7:
                 {
-                    assert(p->big.n_children >=  7);
-                    assert(p->big.n_children <= 16);
-                    assert(p->big.n_children == top.n_children);
-                    assert(nth < p->big.n_children);
+                    TERARK_ASSERT_BE(p->big.n_children, 7, 16);
+                    TERARK_ASSERT_EQ(p->big.n_children, top.n_children);
+                    TERARK_ASSERT_LT(nth, p->big.n_children);
                     *pch = p[1].bytes[nth];
                     curr = p[5+nth].child;
                 }
                 break;
             case 8:
-                assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+                TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
                 {
-                    assert(p->big.n_children >= 17);
-                    assert(p->big.n_children <= 256);
-                    assert(p->big.n_children == top.n_children);
-                    assert(nth < p->big.n_children);
+                    TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+                    TERARK_ASSERT_EQ(p->big.n_children, top.n_children);
+                    TERARK_ASSERT_LT(nth, p->big.n_children);
                     auto ch1 = rs_next_one_pos(&p[2].child, *pch);
-                #if !defined(NDEBUG)
-                    auto ch2 = rs_select1(p[1].bytes, nth);
-                    assert(ch1 == ch2);
-                #endif
+                    TERARK_ASSERT_EQ(rs_select1(p[1].bytes, nth), ch1);
                     *pch = ch1;
                     curr = p[10 + nth].child;
                 }
                 break;
             case 15:
-                assert(256 == p->big.n_children);
-                assert(256 == top.n_children);
+                TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+                TERARK_ASSERT_LE(p[1].big.n_children, 256);
+                TERARK_ASSERT_EQ(256, top.n_children);
             //  assert(curr == initial_state);
             //  assert(nth < p[1].big.n_children);
             //  assert(*pch < nth); // nth is ignored in this case
@@ -4655,12 +4674,12 @@ rewind_stack_for_next:
           #endif
         }
         if (terark_unlikely(m_iter.size() == 1)) {
-            assert(top.state == initial_state);
+            TERARK_ASSERT_EQ(top.state, initial_state);
             reset1();
             return false;
         }
       StackPop:
-        assert(m_word.size() >= top.zpath_len + 1u);
+        TERARK_ASSERT_GE(m_word.size(), top.zpath_len + 1u);
         m_word.pop_n(top.zpath_len + 1);
         m_iter.pop_back();
     }
@@ -4684,9 +4703,9 @@ bool MainPatricia::IterImpl::incr() {
 #endif
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
-    assert(calc_word_len() == m_word.size());
-    assert(0 == m_iter.back().nth_child);
-    assert(m_curr == m_iter.back().state);
+    TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
+    TERARK_ASSERT_EZ(m_iter.back().nth_child);
+    TERARK_ASSERT_EQ(m_curr, m_iter.back().state);
     size_t curr = trie->first_child(a + m_curr, m_word.grow_no_init(1));
     if (terark_unlikely(nil_state == curr)) {
         m_word.back() = '\0';
@@ -4700,33 +4719,33 @@ bool MainPatricia::IterImpl::incr() {
                 reset1();
                 return false;
             }
-            assert(len >= m_iter[top].zpath_len + 1u);
+            TERARK_ASSERT_GE(len, m_iter[top].zpath_len + 1u);
             len -= m_iter[top].zpath_len + 1;
         }
         m_word.risk_set_size(len);
         m_iter.risk_set_size(top + 1);
         m_iter[top].nth_child++;
-        assert(m_iter[top].nth_child > 0);
-        assert(m_iter[top].nth_child < m_iter[top].n_children);
-        assert(calc_word_len() == len);
+        TERARK_ASSERT_GT(m_iter[top].nth_child, 0);
+        TERARK_ASSERT_LT(m_iter[top].nth_child, m_iter[top].n_children);
+        TERARK_ASSERT_EQ(calc_word_len(), len);
         curr = m_iter[top].state;
         size_t  ch = size_t(-1);
         auto    p = a + curr;
         size_t  cnt_type = p->meta.n_cnt_type;
         size_t  nth_child = m_iter[top].nth_child;
-        assert (nth_child < m_iter[top].n_children);
+        TERARK_ASSERT_LT(nth_child, m_iter[top].n_children);
         switch (cnt_type) {
         default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
         case 0:  TERARK_DIE("0 == cnt_type"); break;
         case 1:
-            assert(nth_child < 1);
-            assert(m_iter[top].n_children == 1);
+            TERARK_ASSERT_LT(nth_child, 1);
+            TERARK_ASSERT_EQ(m_iter[top].n_children, 1);
             ch = p->meta.c_label[0];
             curr = p[1].child;
             break;
         case 2:
-            assert(nth_child < 2);
-            assert(m_iter[top].n_children == 2);
+            TERARK_ASSERT_LT(nth_child, 2);
+            TERARK_ASSERT_EQ(m_iter[top].n_children, 2);
             ch = p->meta.c_label[nth_child];
             curr = p[1+nth_child].child;
             break;
@@ -4734,20 +4753,22 @@ bool MainPatricia::IterImpl::incr() {
         case 5:
         case 4:
         case 3:
-            assert(nth_child < cnt_type);
-            assert(m_iter[top].n_children == cnt_type);
+            TERARK_ASSERT_LT(nth_child, cnt_type);
+            TERARK_ASSERT_EQ(m_iter[top].n_children, cnt_type);
             ch = p->meta.c_label[nth_child];
             curr = p[2+nth_child].child;
             break;
         case 7: // cnt in [ 7, 16 ]
-            assert(nth_child < p->big.n_children);
-            assert(m_iter[top].n_children == p->big.n_children);
+            TERARK_ASSERT_BE(p->big.n_children, 7, 16);
+            TERARK_ASSERT_LT(nth_child, p->big.n_children);
+            TERARK_ASSERT_EQ(m_iter[top].n_children, p->big.n_children);
             ch = p[1].bytes[nth_child];
             curr = p[5+nth_child].child;
             break;
         case 8: // cnt >= 17
-            assert(m_iter[top].n_children == p->big.n_children);
-            assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+            TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+            TERARK_ASSERT_EQ(m_iter[top].n_children, p->big.n_children);
+            TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
             ch = m_word.data()[len]; // prev char in stack
             ch = rs_next_one_pos(&p[2].child, ch);
             curr = p[10 + nth_child].child;
@@ -4755,9 +4776,10 @@ bool MainPatricia::IterImpl::incr() {
         case 15:
         //  assert(0 == len);
         //  assert(0 == top);
-            assert(256 == m_iter[top].n_children);
-            assert(256 == p->big.n_children);
-            assert(0 == p->meta.n_zpath_len);
+            TERARK_ASSERT_EQ(256, m_iter[top].n_children);
+            TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+            TERARK_ASSERT_LE(p[1].big.n_children, 256);
+            TERARK_ASSERT_EZ(p->meta.n_zpath_len);
         //  assert(curr == initial_state);
             ch = m_word.data()[len] + 1;
             for (; ch < 256; ch++) {
@@ -4768,8 +4790,8 @@ bool MainPatricia::IterImpl::incr() {
                 }
             }
             if (0 == top) {
-                assert(0 == len);
-                assert(initial_state == curr);
+                TERARK_ASSERT_EZ(len);
+                TERARK_ASSERT_EQ(initial_state, curr);
                 reset1();
                 return false;
             }
@@ -4777,7 +4799,7 @@ bool MainPatricia::IterImpl::incr() {
             goto LoopForType15;
         }
       switch_done:
-        assert(calc_word_len() == m_word.size());
+        TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
         m_word.unchecked_push_back(ch);
     }
     append_lex_min_suffix(curr, a);
@@ -4800,19 +4822,19 @@ bool MainPatricia::IterImpl::decr() {
         }
     }
 #endif
-    assert(calc_word_len() == m_word.size());
+    TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
-    assert(m_curr == m_iter.back().state);
+    TERARK_ASSERT_EQ(m_curr, m_iter.back().state);
     assert(a[m_curr].meta.b_is_final);
-    assert(0 == m_iter.back().nth_child);
+    TERARK_ASSERT_EZ(m_iter.back().nth_child);
     size_t top = m_iter.size();
     size_t len = m_word.size();
     if (terark_unlikely(0 == --top)) {
         reset1();
         return false;
     }
-    assert(len >= m_iter[top].zpath_len + 1u);
+    TERARK_ASSERT_GE(len, m_iter[top].zpath_len + 1u);
     len -= m_iter[top].zpath_len + 1;
   LoopForType15:
     while (m_iter[--top].nth_child == 0) {
@@ -4828,16 +4850,16 @@ bool MainPatricia::IterImpl::decr() {
             reset1();
             return false;
         }
-        assert(len >= m_iter[top].zpath_len + 1u);
+        TERARK_ASSERT_GE(len, m_iter[top].zpath_len + 1u);
         len -= m_iter[top].zpath_len + 1;
     }
-    assert(m_iter[top].n_children >= 2);
-    assert(m_iter[top].nth_child > 0);
-    assert(m_iter[top].nth_child < m_iter[top].n_children);
+    TERARK_ASSERT_GE(m_iter[top].n_children, 2);
+    TERARK_ASSERT_GT(m_iter[top].nth_child, 0);
+    TERARK_ASSERT_LT(m_iter[top].nth_child, m_iter[top].n_children);
     m_iter[top].nth_child--;
     m_iter.risk_set_size(top + 1);
     m_word.risk_set_size(len);
-    assert(calc_word_len() == len);
+    TERARK_ASSERT_EQ(calc_word_len(), len);
     size_t  curr = m_iter[top].state;
     size_t  ch = size_t(-1);
     auto    p = a + curr;
@@ -4847,13 +4869,13 @@ bool MainPatricia::IterImpl::decr() {
     default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
     case 0:
     case 1:
-        assert(nth_child < cnt_type);
-        assert(m_iter[top].n_children == cnt_type);
+        TERARK_ASSERT_LT(nth_child, cnt_type);
+        TERARK_ASSERT_EQ(m_iter[top].n_children, cnt_type);
         TERARK_DIE("cnt_type must not be {0,1}"); break;
         break;
     case 2:
-        assert(nth_child < 2);
-        assert(m_iter[top].n_children == 2);
+        TERARK_ASSERT_LT(nth_child, 2);
+        TERARK_ASSERT_EQ(m_iter[top].n_children, 2);
         ch = p->meta.c_label[nth_child];
         curr = p[1+nth_child].child;
         break;
@@ -4861,35 +4883,33 @@ bool MainPatricia::IterImpl::decr() {
     case 5:
     case 4:
     case 3:
-        assert(nth_child < cnt_type);
-        assert(m_iter[top].n_children == cnt_type);
+        TERARK_ASSERT_LT(nth_child, cnt_type);
+        TERARK_ASSERT_EQ(m_iter[top].n_children, cnt_type);
         ch = p->meta.c_label[nth_child];
         curr = p[2+nth_child].child;
         break;
     case 7: // cnt in [ 7, 16 ]
-        assert(nth_child < p->big.n_children);
-        assert(m_iter[top].n_children == p->big.n_children);
+        TERARK_ASSERT_BE(p->big.n_children, 7, 16);
+        TERARK_ASSERT_LT(nth_child, p->big.n_children);
+        TERARK_ASSERT_EQ(m_iter[top].n_children, p->big.n_children);
         ch = p[1].bytes[nth_child];
         curr = p[5 + nth_child].child;
         break;
     case 8: // cnt >= 17
-        assert(m_iter[top].n_children == p->big.n_children);
-        assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
-        ch = m_word.data()[len]; assert(ch > 0); // larger char
+        TERARK_ASSERT_BE(p->big.n_children, 17, 256);
+        TERARK_ASSERT_EQ(m_iter[top].n_children, p->big.n_children);
+        TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
+        ch = m_word.data()[len]; TERARK_ASSERT_GT(ch, 0); // larger char
         ch = rs_prev_one_pos(&p[2].child, ch);
-      #if !defined(NDEBUG)
-        {
-            size_t ch1 = rs_select1(p[1].bytes, nth_child);
-            assert(ch == ch1);
-        }
-      #endif
+        TERARK_ASSERT_EQ(rs_select1(p[1].bytes, nth_child), ch);
         curr = p[10 + nth_child].child;
         break;
     case 15:
     //  assert(0 == top);
     //  assert(0 == len);
-        assert(256 == m_iter[top].n_children);
-        assert(256 == p->big.n_children);
+        TERARK_ASSERT_EQ(256, m_iter[top].n_children);
+        TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+        TERARK_ASSERT_LE(p[1].big.n_children, 256);
     //  assert(curr == initial_state);
         ch = m_word.data()[len];
         while (ch) {
@@ -4908,7 +4928,7 @@ bool MainPatricia::IterImpl::decr() {
             return true;
         }
         if (0 == top) {
-            assert(curr == initial_state);
+            TERARK_ASSERT_EQ(curr, initial_state);
             reset1();
             return false;
         }
@@ -4916,7 +4936,7 @@ bool MainPatricia::IterImpl::decr() {
         goto LoopForType15;
     }
   switch_done:
-    assert(calc_word_len() == m_word.size());
+    TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
     m_word.unchecked_push_back(ch);
     append_lex_max_suffix(curr, a);
     return true;
@@ -4957,7 +4977,7 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
                 goto RestoreLastMatch;
             }
         }
-        assert(pos <= key.size());
+        TERARK_ASSERT_LE(pos, key.size());
         if (p->meta.b_is_final) {
             last_stack_top = m_iter.size();
             last_match_len = pos;
@@ -4965,7 +4985,7 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
         if (key.size() == pos) { // done
             goto RestoreLastMatch;
         }
-        assert(n_children > 0);
+        TERARK_ASSERT_GT(n_children, 0);
       #define match_nth_char(skip, nth) \
               curr = p[skip+nth].child; \
               e->nth_child = nth;       \
@@ -4986,9 +5006,8 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
                 if (ch == p->meta.c_label[0]) { match_nth_char(2, 0); }
                 goto RestoreLastMatch;
         case 7: // cnt in [ 7, 16 ]
-            assert(n_children == p->big.n_children);
-            assert(n_children >=  7);
-            assert(n_children <= 16);
+            TERARK_ASSERT_EQ(n_children, p->big.n_children);
+            TERARK_ASSERT_BE(n_children, 7, 16);
             {
                 auto label = p->meta.c_label + 2; // do not use [0,1]
                 if (ch <= label[n_children-1]) {
@@ -5001,15 +5020,17 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
                 goto RestoreLastMatch;
             }
         case 8: // cnt >= 17
-            assert(n_children == p->big.n_children);
-            assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+            TERARK_ASSERT_BE(n_children, 17, 256);
+            TERARK_ASSERT_EQ(n_children, p->big.n_children);
+            TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
             if (terark_bit_test(&a[curr+1+1].child, ch)) {
                 size_t lo = fast_search_byte_rs_idx(a[curr + 1].bytes, byte_t(ch));
                 match_nth_char(10, lo);
             }
             goto RestoreLastMatch;
         case 15:
-            assert(256 == p->big.n_children);
+            TERARK_ASSERT_EQ(p[0].big.n_children, 256);
+            TERARK_ASSERT_LE(p[1].big.n_children, 256);
             if (nil_state != p[2 + ch].child) {
                 match_nth_char(2, ch);
             }

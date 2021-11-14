@@ -1,5 +1,4 @@
-#ifndef __terark_smallmap_hpp__
-#define __terark_smallmap_hpp__
+#pragma once
 
 #include <assert.h>
 #include <stdlib.h>
@@ -80,7 +79,3 @@ private:
 };
 
 } // namespace terark
-
-#endif // __terark_smallmap_hpp__
-
-

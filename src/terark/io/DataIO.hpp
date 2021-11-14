@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_DataIO_h__
-#define __terark_io_DataIO_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include "DataInput.hpp"
 #include "DataOutput.hpp"
@@ -226,6 +221,32 @@ DataIO_IsDump_TypeTrue2(PortableNoVarInt, var_int64_t)
 	BOOST_STATIC_ASSERT(sizeof(dio_t) == sizeof(stream))
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-} // namespace terark
+template<class T>
+class ExplicitSerDePointerProxy {
+  T** pp;
+  template<class DataIO>
+  friend void DataIO_loadObject(DataIO& dio, ExplicitSerDePointerProxy x) {
+    typedef typename std::remove_const<T>::type U;
+    std::unique_ptr<U> p(new U());
+    dio >> *p;
+    *x.pp = p.release();
+  }
+  template<class DataIO>
+  friend void DataIO_saveObject(DataIO& dio, ExplicitSerDePointerProxy x) {
+    dio << **x.pp;
+  }
+public:
+  explicit ExplicitSerDePointerProxy(T*& pr) : pp(&pr) {}
+};
+template<class T>
+pass_by_value<ExplicitSerDePointerProxy<T> > ExplicitSerDePointer(T*& pr) {
+  return pass_by_value<ExplicitSerDePointerProxy<T> >(
+                       ExplicitSerDePointerProxy<T>(pr));
+}
+template<class T>
+pass_by_value<ExplicitSerDePointerProxy<T> > ExplicitSerDePointer(T* const & pr) {
+  return pass_by_value<ExplicitSerDePointerProxy<T> >(
+                       ExplicitSerDePointerProxy<T>(const_cast<T*&>(pr)));
+}
 
-#endif // __terark_io_DataIO_h__
+} // namespace terark

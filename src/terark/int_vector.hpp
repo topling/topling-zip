@@ -1,5 +1,4 @@
-#ifndef __terark_int_vector_hpp__
-#define __terark_int_vector_hpp__
+#pragma once
 
 #include "bitmap.hpp"
 #include <terark/util/throw.hpp>
@@ -400,6 +399,3 @@ typedef ZipIntVector<size_t>   UintVector;
 typedef ZipIntVector<intptr_t> SintVector;
 
 } // namespace terark
-
-#endif // __terark_int_vector_hpp__
-

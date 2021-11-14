@@ -1,5 +1,4 @@
-#ifndef __terark_util_strjoin_hpp__
-#define __terark_util_strjoin_hpp__
+#pragma once
 
 #include <string>
 #include <stddef.h>
@@ -29,7 +28,3 @@ strjoin_helper<std::string> strjoin(const char* s, ptrdiff_t n) { return strjoin
 
 strjoin_helper<std::wstring> strjoin(const wchar_t* s) { return strjoin_helper<std::wstring>(s); }
 strjoin_helper<std::wstring> strjoin(const wchar_t* s, ptrdiff_t n) { return strjoin_helper<std::wstring>(s, n); }
-
-#endif // __terark_util_strjoin_hpp__
-
-

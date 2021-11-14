@@ -1,7 +1,7 @@
 template<int gOffsetBytes>
 terark_no_inline
 terark_flatten static void
-DoUnzipFuncName(const byte_t* pos, const byte_t* end, valvec<byte_t>* recData,
+DoUnzipFuncName(const byte_t* pos, const byte_t* end, UnzipOutBuf* recData,
                 const byte_t* dic,
                 size_t gOffsetBits, size_t reserveOutputMultiplier)
 {

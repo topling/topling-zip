@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __terark_io_stream_range_hpp__
-#define __terark_io_stream_range_hpp__
 
 #include <stddef.h>
 #include <string>
@@ -119,5 +117,3 @@ namespace terark {
 	template<class T> pass_by_value<RestAllTpl<T> > RestAll(T& t) { return RestAllTpl<T>(t); }
 
 } // namespace terark
-
-#endif // __terark_io_stream_range_hpp__

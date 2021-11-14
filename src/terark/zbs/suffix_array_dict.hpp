@@ -1,6 +1,3 @@
-#ifndef __terark_suffix_array_dict_hpp__
-#define __terark_suffix_array_dict_hpp__
-
 #pragma once
 
 #include <memory>
@@ -100,6 +97,3 @@ public:
 #endif
 
 } // namespace terark
-
-#endif // __terark_suffix_array_dict_hpp__
-

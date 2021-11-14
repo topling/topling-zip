@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_int_diff_coding_h__
-#define __terark_int_diff_coding_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <terark/io/var_int.hpp>
 //#include <terark/io/DataIO.hpp>
@@ -96,6 +91,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_int_diff_coding_h__
-

@@ -1,5 +1,4 @@
-#ifndef __terark_rank_select_se_512_hpp__
-#define __terark_rank_select_se_512_hpp__
+#pragma once
 
 #include "rank_select_basic.hpp"
 
@@ -22,23 +21,21 @@ public:
     rank_select_se_512_tpl(size_t n, valvec_reserve);
     rank_select_se_512_tpl(const rank_select_se_512_tpl&);
     rank_select_se_512_tpl& operator=(const rank_select_se_512_tpl&);
-#if defined(HSM_HAS_MOVE)
     rank_select_se_512_tpl(rank_select_se_512_tpl&& y) noexcept;
     rank_select_se_512_tpl& operator=(rank_select_se_512_tpl&& y) noexcept;
-#endif
     ~rank_select_se_512_tpl();
-    void clear();
-    void risk_release_ownership();
+    void clear() noexcept;
+    void risk_release_ownership() noexcept;
     void risk_mmap_from(unsigned char* base, size_t length);
-    void shrink_to_fit();
+    void shrink_to_fit() noexcept;
 
-    void swap(rank_select_se_512_tpl&);
+    void swap(rank_select_se_512_tpl&) noexcept;
     void build_cache(bool speed_select0, bool speed_select1);
-    size_t mem_size() const;
-    inline size_t rank1(size_t bitpos) const;
-    inline size_t rank0(size_t bitpos) const;
-    size_t select0(size_t id) const;
-    size_t select1(size_t id) const;
+    size_t mem_size() const { return m_capacity / 8; }
+    inline size_t rank1(size_t bitpos) const noexcept;
+    inline size_t rank0(size_t bitpos) const noexcept;
+    size_t select0(size_t id) const noexcept;
+    size_t select1(size_t id) const noexcept;
     size_t max_rank1() const { return m_max_rank1; }
     size_t max_rank0() const { return m_max_rank0; }
     bool isall0() const { return m_max_rank1 == 0; }
@@ -56,7 +53,7 @@ protected:
         operator size_t() const { return base; }
     };
 #pragma pack(pop)
-    void nullize_cache();
+    void nullize_cache() noexcept;
     RankCache512* m_rank_cache;
     index_t*   m_sel0_cache;
     index_t*   m_sel1_cache;
@@ -66,31 +63,31 @@ public:
     const RankCache512* get_rank_cache() const { return m_rank_cache; }
     const index_t* get_sel0_cache() const { return m_sel0_cache; }
     const index_t* get_sel1_cache() const { return m_sel1_cache; }
-    static inline size_t fast_rank0(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos);
-    static inline size_t fast_rank1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos);
-    static inline size_t fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t id);
-    static inline size_t fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t id);
+    static inline size_t fast_rank0(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) noexcept;
+    static inline size_t fast_rank1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) noexcept;
+    static inline size_t fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t id) noexcept;
+    static inline size_t fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t id) noexcept;
 
     size_t excess1(size_t bp) const { return 2*rank1(bp) - bp; }
     static size_t fast_excess1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos)
         { return 2 * fast_rank1(bits, rankCache, bitpos) - bitpos; }
 
-    void prefetch_rank1(size_t bitpos) const
+    void prefetch_rank1(size_t bitpos) const noexcept
         { _mm_prefetch((const char*)&m_rank_cache[bitpos/LineBits], _MM_HINT_T0); }
-    static void fast_prefetch_rank1(const RankCache512* rankCache, size_t bitpos)
+    static void fast_prefetch_rank1(const RankCache512* rankCache, size_t bitpos) noexcept
         { _mm_prefetch((const char*)&rankCache[bitpos/LineBits], _MM_HINT_T0); }
 };
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-rank0(size_t bitpos) const {
+rank0(size_t bitpos) const noexcept {
     assert(bitpos <= m_size); // bitpos can be m_size
     return bitpos - rank1(bitpos);
 }
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-rank1(size_t bitpos) const {
+rank1(size_t bitpos) const noexcept {
     assert(bitpos <= m_size); // bitpos can be m_size
     const RankCache512& rc = m_rank_cache[bitpos / 512];
     const uint64_t* pu64 = (const uint64_t*)this->m_words;
@@ -101,13 +98,13 @@ rank1(size_t bitpos) const {
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-fast_rank0(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) {
+fast_rank0(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) noexcept {
     return bitpos - fast_rank1(bits, rankCache, bitpos);
 }
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-fast_rank1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) {
+fast_rank1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) noexcept {
     const RankCache512& rc = rankCache[bitpos / 512];
     const uint64_t* pu64 = (const uint64_t*)bits;
     size_t k = bitpos % 512 / 64;
@@ -117,7 +114,7 @@ fast_rank1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) 
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t Rank0) {
+fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t Rank0) noexcept {
     size_t lo = sel0[Rank0 / LineBits];
     size_t hi = sel0[Rank0 / LineBits + 1];
     if (hi - lo < 32) {
@@ -170,7 +167,7 @@ fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* ran
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t Rank1) {
+fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t Rank1) noexcept {
     size_t lo = sel1[Rank1 / LineBits];
     size_t hi = sel1[Rank1 / LineBits + 1];
     if (hi - lo < 32) {
@@ -226,6 +223,3 @@ typedef rank_select_se_512_tpl<uint32_t> rank_select_se_512_32;
 typedef rank_select_se_512_tpl<uint64_t> rank_select_se_512_64;
 
 } // namespace terark
-
-#endif // __terark_rank_select_se_512_hpp__
-

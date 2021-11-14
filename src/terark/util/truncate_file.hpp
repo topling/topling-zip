@@ -1,6 +1,3 @@
-#ifndef __terark_util_truncate_file_hpp__
-#define __terark_util_truncate_file_hpp__
-
 #pragma once
 
 #include <terark/config.hpp>
@@ -12,8 +9,7 @@ namespace terark {
 	template<class String>
 	inline
 	void truncate_file(const String& fpath, unsigned long long size) {
-		truncate_file(fpath.c_str(), size);
+		assert(fpath.data()[fpath.size()] == '\0');
+		truncate_file(fpath.data(), size);
 	}
 }
-
-#endif // __terark_util_truncate_file_hpp__

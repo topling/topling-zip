@@ -128,20 +128,20 @@ init_from_memory(fstring dataMem, Dictionary/*dict*/) {
 
 template<class NestLoudsTrie>
 void NestLoudsTrieBlobStore<NestLoudsTrie>::
-get_meta_blocks(valvec<fstring>* blocks) const {
+get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(this->get_mmap()); // all data are index
+	blocks->push_back({"mmap", this->get_mmap()}); // all data are index
 }
 
 template<class NestLoudsTrie>
 void NestLoudsTrieBlobStore<NestLoudsTrie>::
-get_data_blocks(valvec<fstring>* blocks) const {
+get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
 }
 
 template<class NestLoudsTrie>
 void NestLoudsTrieBlobStore<NestLoudsTrie>::
-detach_meta_blocks(const valvec<fstring>& blocks) {
+detach_meta_blocks(const valvec<Block>& blocks) {
     THROW_STD(invalid_argument
         , "NestLoudsTrieBlobStore detach_meta_blocks unsupported !");
 }

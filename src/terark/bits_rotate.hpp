@@ -1,5 +1,4 @@
-#ifndef __terark_bits_rotate_hpp__
-#define __terark_bits_rotate_hpp__
+#pragma once
 
 #if defined(_MSC_VER)
 // Seems Visual C++ didn't optimize rotate shift, so use intrinsics
@@ -65,6 +64,3 @@ inline Uint BitsRotateRight(Uint x, int c) {
 #endif
 
 } // namespace terark
-
-#endif // __terark_bits_rotate_hpp__
-

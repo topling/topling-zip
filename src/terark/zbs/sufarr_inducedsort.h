@@ -1,5 +1,4 @@
-#ifndef _SAIS_H
-#define _SAIS_H 1
+#pragma once
 
 /**
  * 1.基本介绍:
@@ -50,6 +49,4 @@ int sufarr_inducedsort_int_bwt(const int *source, int *height, int *rank, int si
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

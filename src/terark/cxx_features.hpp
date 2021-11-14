@@ -5,11 +5,7 @@
 // You should have received a copy of the CC0 Public Domain Dedication along
 // with this software.
 // If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
-#ifndef __terark_cxx_features_hpp__
-#define __terark_cxx_features_hpp__
-
-#ifndef CXXUTILS_FEATURES_HPP
-#define CXXUTILS_FEATURES_HPP
+#pragma once
 
 #ifndef __has_feature
 #define __has_feature(x) 0
@@ -262,7 +258,3 @@
 #define CXX_NOEXCEPT 201003
 #endif  // defined(__GXX_EXPERIMENTAL_CXX0X__)
 #endif  // cxx_noexcept
-#endif  // CXXUTILS_FEATURES_HPP
-
-#endif  // __terark_cxx_features_hpp__
-

@@ -1,10 +1,5 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef __terark_io_var_int_h__
-#define __terark_io_var_int_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <limits>
 
@@ -255,6 +250,3 @@ TERARK_DLL_EXPORT int64_t reverse_get_var_int64(const unsigned char* buf, unsign
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 } // namespace terark
-
-#endif // __terark_io_var_int_h__
-

@@ -1,3 +1,6 @@
+# 0. Disallow Bytedance Inc.
+All changes after 2021-06-01 is disallowed to be used by bytedance, see [LICENSE](LICENSE).
+
 # 1. Introduction
 - TerarkZip is [TerarkDB](https://github.com/bytedance/terarkdb)'s submodule
 - Users can also use TerarkZip as a compression and indexing algorithm library

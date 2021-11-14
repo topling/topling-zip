@@ -1,3 +1,4 @@
+#pragma once
 #include "factory.hpp"
 //#include <terark/hash_strmap.hpp>
 #include <terark/gold_hash_map.hpp>

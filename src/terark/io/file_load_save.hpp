@@ -1,5 +1,4 @@
-#ifndef __terark_io_file_util_hpp__
-#define __terark_io_file_util_hpp__
+#pragma once
 
 #include <terark/io/DataIO.hpp>
 #include <terark/io/FileStream.hpp>
@@ -27,6 +26,3 @@ void native_save_file(const char* fname, const Object& obj) {
 }
 
 } // namespace terark
-
-#endif // __terark_io_file_util_hpp__
-

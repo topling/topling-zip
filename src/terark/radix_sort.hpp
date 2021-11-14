@@ -1,8 +1,6 @@
-#ifndef __terark_radix_sort__
-#define __terark_radix_sort__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
 # pragma warning(disable: 4127)
 #endif
 
@@ -222,6 +220,3 @@ namespace terark {
 	}
 
 } // namespace terark
-
-#endif
-

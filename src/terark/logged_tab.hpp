@@ -1,5 +1,4 @@
-#ifndef __terark_logged_tab_hpp__
-#define __terark_logged_tab_hpp__
+#pragma once
 
 #include "io/DataIO.hpp"
 #include "io/FileStream.hpp"
@@ -214,6 +213,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_logged_tab_hpp__
-

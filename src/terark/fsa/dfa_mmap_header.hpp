@@ -1,5 +1,4 @@
-#ifndef __terark_fsa_dfa_mmap_header_hpp__
-#define __terark_fsa_dfa_mmap_header_hpp__
+#pragma once
 
 #include "fsa.hpp"
 
@@ -62,5 +61,3 @@ BOOST_STATIC_ASSERT(sizeof(DFA_MmapHeader) == 1024);
 typedef DFA_MmapHeader DFA_Stat;
 
 } // namespace terark
-
-#endif // __terark_fsa_dfa_mmap_header_hpp__

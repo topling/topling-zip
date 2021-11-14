@@ -1,14 +1,8 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_IOException_h__
-#define __terark_io_IOException_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <exception>
-#include <string>
-#include <terark/config.hpp>
+#include <terark/fstring.hpp>
 
 namespace terark {
 
@@ -23,12 +17,11 @@ protected:
 	std::string m_message;
 	int m_errCode;
 public:
-	explicit IOException(const char* szMsg = "terark::IOException");
-	explicit IOException(const std::string& msg);
-	explicit IOException(int errCode, const char* szMsg = "terark::IOException");
-	virtual ~IOException() throw() {}
+	explicit IOException(fstring msg);
+	explicit IOException(int errCode, fstring szMsg);
+	virtual ~IOException() override;
 
-	const char* what() const throw() { return m_message.c_str(); }
+	const char* what() const noexcept override;
 	int errCode() const throw() { return m_errCode; }
 
 	static int lastError();
@@ -42,9 +35,9 @@ class TERARK_DLL_EXPORT OpenFileException : public IOException
 {
 	std::string m_path;
 public:
-	explicit OpenFileException(const char* path, const char* szMsg = "terark::OpenFileException");
-	explicit OpenFileException(const std::string& msg) : IOException(msg) {}
-	~OpenFileException() throw() {}
+	using IOException::IOException;
+	explicit OpenFileException(fstring path, fstring szMsg);
+	~OpenFileException() override;
 };
 
 // blocked streams read 0 bytes will cause this exception
@@ -53,41 +46,27 @@ public:
 class TERARK_DLL_EXPORT EndOfFileException : public IOException
 {
 public:
-	explicit EndOfFileException(const char* szMsg = "terark::EndOfFileException")
-		: IOException(szMsg)
-	{ }
-	explicit EndOfFileException(const std::string& msg) : IOException(msg) {}
+	using IOException::IOException;
 };
 
 class TERARK_DLL_EXPORT OutOfSpaceException : public IOException
 {
 public:
-	explicit OutOfSpaceException(const char* szMsg = "terark::OutOfSpaceException")
-		: IOException(szMsg)
-	{ }
-	explicit OutOfSpaceException(const std::string& msg) : IOException(msg) {}
+	using IOException::IOException;
 };
 
 class TERARK_DLL_EXPORT DelayWriteException : public IOException
 {
 public:
-	DelayWriteException(const char* szMsg = "terark::DelayWriteException")
-		: IOException(szMsg)
-	{ }
-	DelayWriteException(const std::string& msg) : IOException(msg) {}
+	using IOException::IOException;
 //	size_t streamPosition;
 };
 
 class TERARK_DLL_EXPORT BrokenPipeException : public IOException
 {
 public:
-	BrokenPipeException(const char* szMsg = "terark::BrokenPipeException")
-		: IOException(szMsg)
-	{ }
-	BrokenPipeException(const std::string& msg) : IOException(msg) {}
+	using IOException::IOException;
 };
 
 
 } // namespace terark
-
-#endif // __terark_io_IOException_h__

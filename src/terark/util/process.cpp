@@ -154,9 +154,17 @@ noexcept {
         string_appender<std::string> cmd2;
         cmd2.reserve(cmd.size() + 32);
         cmd2.append(cmd.c_str(), cmd.size());
-        cmd2.append(m_mode_is_read ? " >" : " <");
+        if (mode == "r2")
+            cmd2.append(" 2>");
+        else
+            cmd2.append(m_mode_is_read ? " >" : " <");
+
         cmd2.append(" /dev/fd/");
         cmd2 << (m_mode_is_read ? m_pipe[1] : m_pipe[0]);
+
+        if (mode == "r12")
+            cmd2.append(" 2>&1");
+
         cmd2.swap(m_cmd);
     }
 
@@ -297,13 +305,15 @@ struct VforkCmdPromise {
 
     void operator()(std::string&& stdoutData, const std::exception* ex) {
     //  fprintf(stderr, "INFO: VforkCmdPromise.set(%s)\n", stdoutData.c_str());
-        promise->set_value(std::move(stdoutData));
         if (ex) {
             try {
                 throw *ex;
             } catch (...) {
                 promise->set_exception(std::current_exception());
             }
+        }
+        else {
+          promise->set_value(std::move(stdoutData));
         }
     }
 };
@@ -383,6 +393,18 @@ vfork_cmd(fstring cmd, fstring stdinData,
           function<void(std::string&&, const std::exception*)> onFinish,
           fstring tmpFilePrefix)
 {
+    auto writeStdinData = [stdinData](ProcPipeStream& pipe) {
+       pipe.ensureWrite(stdinData.data(), stdinData.size());
+    };
+    vfork_cmd(cmd, ref(writeStdinData), onFinish, tmpFilePrefix);
+}
+
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd,
+               function<void(ProcPipeStream&)> write,
+               function<void(std::string&& stdoutData, const std::exception*)> onFinish,
+               fstring tmpFilePrefix)
+{
     auto share = std::make_shared<VforkCmdImpl>(cmd, tmpFilePrefix);
 
     share->proc.open(share->cmdw, "w",
@@ -404,7 +426,7 @@ vfork_cmd(fstring cmd, fstring stdinData,
             onFinish(std::string(""), &ex);
         }
     });
-    share->proc.ensureWrite(stdinData.data(), stdinData.size());
+    write(share->proc);
     share->proc.close();
 }
 
@@ -412,7 +434,17 @@ std::future<std::string>
 vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
     VforkCmdPromise prom;
     std::future<std::string> future = prom.promise->get_future();
-    vfork_cmd(cmd, stdinData, std::move(prom));
+    vfork_cmd(cmd, stdinData, std::move(prom), tmpFilePrefix);
+    return future;
+}
+
+TERARK_DLL_EXPORT
+std::future<std::string>
+vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
+          fstring tmpFilePrefix) {
+    VforkCmdPromise prom;
+    std::future<std::string> future = prom.promise->get_future();
+    vfork_cmd(cmd, std::move(write), std::move(prom), tmpFilePrefix);
     return future;
 }
 

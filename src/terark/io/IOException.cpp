@@ -14,25 +14,26 @@
 
 namespace terark {
 
-IOException::IOException(const char* szMsg)
-  : m_message(szMsg), m_errCode(lastError())
+IOException::IOException(fstring msg)
+  : m_errCode(lastError())
 {
+	m_message.assign(msg.data(), msg.size());
 	m_message += ": ";
 	m_message += errorText(m_errCode);
 }
 
-IOException::IOException(const std::string& msg)
-  : m_message(msg), m_errCode(lastError())
+IOException::IOException(int errCode, fstring szMsg)
+  : m_errCode(errCode)
 {
+	m_message.assign(szMsg.data(), szMsg.size());
 	m_message += ": ";
 	m_message += errorText(m_errCode);
 }
 
-IOException::IOException(int errCode, const char* szMsg)
-  : m_message(szMsg), m_errCode(errCode)
-{
-	m_message += ": ";
-	m_message += errorText(m_errCode);
+IOException::~IOException() = default;
+
+const char* IOException::what() const noexcept {
+	return m_message.c_str();
 }
 
 int IOException::lastError()
@@ -63,18 +64,25 @@ std::string IOException::errorText(int errCode)
 	LocalFree(hLocal);
 #else
 	string_appender<> oss;
-	oss << "error[code=" << errCode << ", message=" << ::strerror(errCode) << "]";
+	//char msg[256] = "strerror_r failed";
+	//::strerror_r(errCode, msg, sizeof(msg));
+        // strerror_r has two different version, thus is not portable
+        #define msg strerror(errCode)
+	oss << "error[code=" << errCode << ", message=" << msg << "]";
 #endif
 	return oss.str();
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-OpenFileException::OpenFileException(const char* path, const char* szMsg)
-	: IOException(szMsg), m_path(path)
+OpenFileException::OpenFileException(fstring path, fstring szMsg)
+	: IOException(szMsg)
 {
+	m_path.assign(path.data(), path.size());
 	m_message += ": ";
 	m_message += m_path;
 }
+
+OpenFileException::~OpenFileException() = default;
 
 } // namespace terark

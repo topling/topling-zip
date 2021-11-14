@@ -1,5 +1,4 @@
-#ifndef __terark_util_mmap_hpp__
-#define __terark_util_mmap_hpp__
+#pragma once
 
 #include <stddef.h>
 #include <utility>
@@ -88,6 +87,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_util_mmap_hpp__
-

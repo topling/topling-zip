@@ -1,9 +1,7 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef DataBuffer_h__
-#define DataBuffer_h__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
 # pragma warning(disable: 4819)
 #endif
 
@@ -105,5 +103,3 @@ private:
 
 
 } // namespace terark
-
-#endif // DataBuffer_h__

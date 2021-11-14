@@ -1,6 +1,8 @@
 //#ifndef INDEX_UT
 //#include "db/builder.h" // for cf_options.h
 //#endif
+#if !(defined(__CYGWIN__) || defined(_MSC_VER)) && 0
+
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
     #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
@@ -3390,6 +3392,7 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
       info.type = PrefixAlgo::asc_allone;
       prefixCost = 0;
     } else if (useFewOne) {
+      assert(bit_count > 0);
       /*****/if (bit_count < (1ULL << 24)) {
         info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_3 : PrefixAlgo::non_desc_few_one_3;
       } else if (bit_count < (1ULL << 32)) {
@@ -3405,6 +3408,7 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
       }
       prefixCost = info.bit_count1 * i * 256 / 255;
     } else if (useFewZero) {
+      assert(bit_count > 0);
       assert(info.entry_count == keyCount);
       /*****/if (bit_count < (1ULL << 24)) {
         info.type = PrefixAlgo::asc_few_zero_3;
@@ -3934,3 +3938,6 @@ FactoryExpander<PrefixComponentList_1, SuffixComponentList_1>::ExpandedFactorySe
 #endif
 
 } // namespace rocksdb
+
+#endif // !(defined(__CYGWIN__) || defined(_MSC_VER))
+

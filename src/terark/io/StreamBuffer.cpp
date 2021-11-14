@@ -34,10 +34,11 @@ IOBufferBase::~IOBufferBase()
 
 void IOBufferBase::initbuf(size_t capacity)
 {
+	capacity = align_up(capacity, 4096);
 #if defined(_MSC_VER)
 #if defined(_DEBUG) || !defined(NDEBUG)
 // raise assert when debug
-	assert(0 == m_beg);
+	TERARK_VERIFY_EZ(m_beg);
 	m_beg = (byte*)malloc(capacity);
 #else
 // when release, free m_beg for avoid memory leak
@@ -67,7 +68,7 @@ void IOBufferBase::set_bufsize(size_t size)
 	}
 	else
 	{
-		assert(m_capacity);
+		TERARK_VERIFY(0 != m_capacity);
 #if defined(_MSC_VER)
 		byte* pnewbuf = (byte*)realloc(m_beg, size);
 		if (0 == pnewbuf)
@@ -91,9 +92,9 @@ void IOBufferBase::set_bufsize(size_t size)
 
 void IOBufferBase::set_bufeof(size_t eofpos)
 {
-	assert(0 != m_beg);
-	assert(eofpos <= m_capacity);
-	assert(m_pos <= m_beg + eofpos);
+	TERARK_VERIFY_NE(nullptr, m_beg);
+	TERARK_VERIFY_LE(eofpos, m_capacity);
+	TERARK_VERIFY_LE(size_t(m_pos - m_beg), eofpos);
 
 	m_end = m_beg + eofpos;
 
@@ -129,7 +130,7 @@ void InputBuffer::setMemory(const void* mem, size_t len) {
 //! @return retval is 0, or in range[min_length, max_length]
 size_t InputBuffer::read_min_max(void* vbuf, size_t min_length, size_t max_length)
 {
-	assert(min_length <= max_length);
+	TERARK_VERIFY_LE(min_length, max_length);
 
 	if (terark_unlikely(0 == m_is))
 	{
@@ -159,7 +160,7 @@ size_t InputBuffer::do_fill_and_read(void* vbuf, size_t length)
 //	assert(m_pos + length > m_end);
 
 	// (0 == length && m_pos == m_end) means prefetch only
-	assert((0 == length && m_pos == m_end) || m_pos + length > m_end);
+	TERARK_VERIFY((0 == length && m_pos == m_end) || m_pos + length > m_end);
 
 	if (terark_unlikely(NULL == m_is))
 	{
@@ -267,7 +268,7 @@ int InputBuffer::fill_and_get_byte()
 int InputBuffer::test_eof()
 {
 	// 只有当 m_pos == m_end 时，该函数才会被调用
-	assert(m_pos == m_end);
+	TERARK_VERIFY_EQ(m_pos, m_end);
 
 	if (terark_unlikely(0 == m_is))
 		return 1;
@@ -372,15 +373,10 @@ template<class BaseClass>
 OutputBufferBase<BaseClass>::~OutputBufferBase()
 {
 	if (m_os) {
-		try {
-			flush_buffer();
-		}
-		catch (const std::exception& exp)
-		{
-			fprintf(stderr
-				, "fatal: caught exception in %s, what=%s, ignored!\n"
-				, BOOST_CURRENT_FUNCTION, exp.what());
-		}
+		flush_buffer(); // must success, if fail, it throws exception
+		// throws exception in destructor makes process coredump,
+		// this is what we want, we should not eat the exception and
+		// let process keep running in error state
 	}
 }
 
@@ -392,28 +388,19 @@ void OutputBufferBase<BaseClass>::flush_buffer()
 	{
 		return;
 	}
-	if (terark_unlikely(NULL == m_os))
-	{
-		string_appender<> oss;
-		oss << "\"" << BOOST_CURRENT_FUNCTION << "\""
-			<< ", m_os==NULL, regard as DelayWriteException";
-		throw DelayWriteException(oss.str());
-	}
+	TERARK_VERIFY_F(nullptr != m_os, "m_os can not be NULL");
 	if (terark_likely(m_pos != m_beg))
 	{
-		assert(m_beg);
 		// write [m_beg, m_pos) to stream
 		//
 		size_t n1 = m_pos-m_beg;
 		size_t n2 = m_os->write(m_beg, n1);
+		int err = errno; // save errno
 		this->update_pos(n2);
 		if (n1 != n2)
-		{
-			string_appender<> oss;
-			oss << "\"" << BOOST_CURRENT_FUNCTION << "\""
-				<< ", WriteBytes[want=" << n1 << ", written=" << n2 << "]";
-			throw DelayWriteException(oss);
-		}
+			throw DelayWriteException(err, ExceptionFormatString(
+				"%s:%d: %s: WriteBytes[want=%zd, written=%zd]",
+				__FILE__, __LINE__, BOOST_CURRENT_FUNCTION, n1, n2));
 	}
 
 	// set all buffer available
@@ -438,8 +425,7 @@ size_t OutputBufferBase<BaseClass>::flush_and_write(const void* vbuf, size_t len
 template<class BaseClass>
 size_t OutputBufferBase<BaseClass>::do_flush_and_write(const void* vbuf, size_t length)
 {
-	assert(length != 0);
-	assert(m_pos + length > m_end);
+	TERARK_VERIFY_GT(length, size_t(m_end - m_pos));
 
 	if (terark_unlikely((IOutputStream*)(-1) == m_os)) { // memory mode
 	  // enlarge buffer on memory mode
@@ -448,21 +434,16 @@ size_t OutputBufferBase<BaseClass>::do_flush_and_write(const void* vbuf, size_t 
 	  size_t enlarge_cap = m_capacity * 103 / 64; // ~ < 1.618
 	  size_t new_cap = align_up(max(min_cap, enlarge_cap), 4096);
 	  this->set_bufsize(new_cap);
-	  assert(new_cap == m_capacity);
+	  TERARK_VERIFY_EQ(new_cap, m_capacity);
 	  m_end = m_beg + new_cap;
-	  assert(m_pos + length <= m_end);
+	  TERARK_VERIFY_LE(length, size_t(m_end - m_pos));
 	  memcpy(m_pos, vbuf, length);
 	  m_pos += length;
 	  return length;
 	}
 
-	if (terark_unlikely(0 == m_os))
-	{
-		std::string msg;
-		msg.append("\"").append(BOOST_CURRENT_FUNCTION).append("\"");
-		msg.append(", m_is==NULL, regard as DelayWriteException");
-		throw DelayWriteException(msg);
-	}
+	TERARK_VERIFY_F(nullptr != m_os, "m_os can not be NULL");
+
 	if (terark_unlikely(length >= m_capacity)) // remain bytes more than capacity, or unbuffered
 	{
 		flush_buffer();
@@ -510,7 +491,7 @@ void OutputBufferBase<BaseClass>::flush_and_ensureWrite(const void* vbuf, size_t
 template<class BaseClass>
 void OutputBufferBase<BaseClass>::flush_and_write_byte(byte b)
 {
-	assert(m_pos == m_end);
+	TERARK_VERIFY_EQ(m_pos, m_end);
 	flush_and_ensureWrite(&b, 1);
 }
 
@@ -717,7 +698,7 @@ stream_position_t SeekableBufferBase<BaseClass>::size() const
 	if (m_beg==m_end || is_prefetched())
 		return m_seekable->size();
 	else {
-		assert(!is_prefetched());
+		TERARK_VERIFY(!is_prefetched());
 		stream_position_t cur_size = m_stream_pos + (m_pos-m_beg);
 		stream_position_t str_size = m_seekable->size();
 		return max(cur_size, str_size);

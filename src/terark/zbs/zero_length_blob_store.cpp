@@ -15,22 +15,22 @@
 
 namespace terark {
 
-REGISTER_BlobStore(ZeroLengthBlobStore, "ZeroLengthBlobStore");
+REGISTER_BlobStore(ZeroLengthBlobStore);
 
 void ZeroLengthBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     m_mmapBase = (FileHeaderBase*)dataMem.p;
     m_numRecords = m_mmapBase->records;
 }
 
-void ZeroLengthBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
+void ZeroLengthBlobStore::get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
 }
 
-void ZeroLengthBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
+void ZeroLengthBlobStore::get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
 }
 
-void ZeroLengthBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+void ZeroLengthBlobStore::detach_meta_blocks(const valvec<Block>& blocks) {
     assert(blocks.empty());
 }
 
@@ -56,6 +56,7 @@ ZeroLengthBlobStore::ZeroLengthBlobStore() {
         (m_get_record_append);
     m_fspread_record_append = static_cast<fspread_record_append_func_t>
                (&ZeroLengthBlobStore::fspread_record_append_imp);
+    m_get_zipped_size = dest_scast(&ZeroLengthBlobStore::get_zipped_size_imp);
 }
 
 ZeroLengthBlobStore::~ZeroLengthBlobStore() {
@@ -91,6 +92,11 @@ ZeroLengthBlobStore::fspread_record_append_imp(
     valvec<byte_t>* rdbuf)
 const {
     assert(recID < m_numRecords);
+}
+
+size_t
+ZeroLengthBlobStore::get_zipped_size_imp(size_t recID, CacheOffsets*) const {
+    return 0;
 }
 
 void ZeroLengthBlobStore::reorder_zip_data(ZReorderMap& newToOld,

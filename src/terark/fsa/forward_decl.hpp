@@ -1,5 +1,4 @@
-#ifndef __terark_fsa_forward_decl_hpp__
-#define __terark_fsa_forward_decl_hpp__
+#pragma once
 
 #include <stdio.h>
 #include <memory>
@@ -26,6 +25,3 @@ TERARK_DLL_EXPORT MatchingDFA* MatchingDFA_load(fstring fname);
 TERARK_DLL_EXPORT MatchingDFA* MatchingDFA_load(FILE*);
 
 } // namespace terark
-
-#endif // __terark_fsa_forward_decl_hpp__
-

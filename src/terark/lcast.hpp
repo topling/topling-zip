@@ -1,5 +1,4 @@
-#ifndef __terark_lcast_hpp_penglei__
-#define __terark_lcast_hpp_penglei__
+#pragma once
 
 #include <string>
 #include <terark/fstring.hpp>
@@ -134,6 +133,3 @@ TERARK_DLL_EXPORT std::string hex_encode(const void* data, size_t datalen);
 inline std::string hex_encode(fstring data) { return hex_encode(data.data(), data.size()); }
 
 } // namespace terark
-
-#endif // __terark_lcast_hpp_penglei__
-

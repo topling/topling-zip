@@ -176,11 +176,12 @@ public:
     Dictionary get_dict() const override;
     const UintVecMin0& get_index() const { return m_offsets; }
 
-    void get_meta_blocks(valvec<fstring>* blocks) const override;
-    void get_data_blocks(valvec<fstring>* blocks) const override;
-    void detach_meta_blocks(const valvec<fstring>& blocks) override;
+    void get_meta_blocks(valvec<Block>* blocks) const override;
+    void get_data_blocks(valvec<Block>* blocks) const override;
+    void detach_meta_blocks(const valvec<Block>& blocks) override;
 
 	size_t mem_size() const override;
+	size_t get_record_size(size_t recID) const;
 
 private:
     template<bool ZipOffset, int CheckSumLevel, EntropyAlgo Entropy, int EntropyInterLeave>
@@ -202,6 +203,9 @@ private:
 
 	template<EntropyAlgo Entropy, int EntropyInterLeave>
 	void read_record_append_entropy(const byte_t* zdata, size_t zlen,size_t recId, valvec<byte_t>* recData) const;
+
+	template<bool ZipOffset>
+	size_t get_zipped_size_tpl(size_t recID, CacheOffsets* co) const;
 
     void set_func_ptr();
 

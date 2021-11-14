@@ -22,7 +22,7 @@
 
 namespace terark {
 
-REGISTER_BlobStore(EntropyZipBlobStore, "EntropyZipBlobStore");
+REGISTER_BlobStore(EntropyZipBlobStore);
 
 static const uint64_t g_debsnark_seed = 0x5342425f5a617445ull; // echo EtaZ_BBS | od -t x8
 
@@ -203,32 +203,32 @@ void EntropyZipBlobStore::init_from_components(SortedUintVec&& offset,
     m_isUserMem = true;
 }
 
-void EntropyZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
+void EntropyZipBlobStore::get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_offsets.data(), m_offsets.mem_size());
+    blocks->push_back({"offsets", {m_offsets.data(), (ptrdiff_t)m_offsets.mem_size()}});
     assert(!(m_decoder_o0 != nullptr && m_decoder_o1 != nullptr));
     if (m_decoder_o0 != nullptr) {
-        blocks->emplace_back(
+        blocks->push_back({"decoder_o0", {
                 reinterpret_cast<const char*>(m_decoder_o0),
-                sizeof(Huffman::decoder));
+                sizeof(Huffman::decoder)}});
     }
     else {
-        blocks->emplace_back(
+        blocks->push_back({"decoder_o1", {
                 reinterpret_cast<const char*>(m_decoder_o1),
-                sizeof(Huffman::decoder_o1));
+                sizeof(Huffman::decoder_o1)}});
     }
 }
 
-void EntropyZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
+void EntropyZipBlobStore::get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_content);
+    blocks->push_back({"zipped", m_content});
 }
 
-void EntropyZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+void EntropyZipBlobStore::detach_meta_blocks(const valvec<Block>& blocks) {
     assert(!m_isDetachMeta);
     assert(blocks.size() == 2);
-    auto offset_mem = blocks.front();
-    auto decoder_mem = blocks.back();
+    auto offset_mem = blocks.front().data;
+    auto decoder_mem = blocks.back().data;
     assert(offset_mem.size() == m_offsets.mem_size());
     assert(decoder_mem.size() == sizeof(Huffman::decoder) ||
            decoder_mem.size() == sizeof(Huffman::decoder_o1));

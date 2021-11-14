@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_DataIO_Version_h__
-#define __terark_io_DataIO_Version_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <terark/stdtypes.hpp>
 //#include "var_int.hpp"
@@ -191,6 +186,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_io_DataIO_Version_h__
-

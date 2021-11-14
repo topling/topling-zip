@@ -64,6 +64,14 @@ namespace terark {
 #endif
 	}
 
+#if defined(CLOCK_MONOTONIC_RAW) || defined(CLOCK_MONOTONIC)
+#else
+profiling& qtime::pf() noexcept {
+	static profiling instance;
+	return instance;
+}
+#endif
+
 } // namespace terark
 
 

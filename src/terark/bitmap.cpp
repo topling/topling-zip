@@ -61,7 +61,6 @@ febitvec& febitvec::operator=(const febitvec& y) {
 	return *this;
 }
 
-#if defined(HSM_HAS_MOVE)
 febitvec::febitvec(febitvec&& y) noexcept {
 	m_words = y.m_words;
 	m_size = y.m_size;
@@ -77,8 +76,6 @@ febitvec& febitvec::operator=(febitvec&& y) noexcept {
 	y.risk_release_ownership();
 	return *this;
 }
-#endif
-
 
 febitvec::febitvec(const febitvec& y, size_t beg, size_t len) {
 	assert(beg <= y.m_size);

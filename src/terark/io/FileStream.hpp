@@ -1,10 +1,5 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef __terark_io_FileStream_h__
-#define __terark_io_FileStream_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <stdio.h>
 #include <assert.h>
@@ -260,7 +255,42 @@ inline void FileStream::puts(fstring text) {
 	ensureWrite(text.data(), text.size());
 }
 
+class TERARK_DLL_EXPORT OsFileStream
+	: public RefCounter
+	, public ISeekable
+	, public IInputStream
+	, public IOutputStream
+{
+	DECLARE_NONE_COPYABLE_CLASS(OsFileStream)
+protected:
+	int m_fd;
+	bool m_eof = false;
+public:
+	typedef boost::mpl::true_ is_seekable;
+	static void ThrowOpenFileException(fstring fpath, int flags, int mode);
+	OsFileStream(fstring fpath, int flags, int mode);
+	OsFileStream() noexcept : m_fd(-1) {}
+	~OsFileStream() override;
+	bool isOpen() const noexcept { return m_fd >= 0; }
+	operator int() const noexcept { return m_fd; } // NOLINT
+	void open(fstring fpath, int flags, int mode);
+	bool xopen(fstring fpath, int flags, int mode) noexcept;
+	void close();
+	void attach(int fd) noexcept;
+	int detach() noexcept;
+	int fd() const noexcept { return m_fd; }
+	bool eof() const noexcept override { return m_eof; }
+	size_t read(void* buf, size_t len) override;
+	size_t write(const void* buf, size_t len) override;
+	void flush() override;
+	void rewind() override;
+	void seek(stream_offset_t offset, int origin) override;
+	void seek(stream_position_t pos) override;
+	stream_position_t tell() const override;
+	stream_position_t size() const override;
+	size_t pread(stream_position_t pos, void* buf, size_t len);
+	size_t pwrite(stream_position_t pos, const void* buf, size_t len);
+	void chsize(llong newfsize) const;
+};
+
 } // namespace terark
-
-#endif
-

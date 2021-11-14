@@ -132,7 +132,6 @@ public:
         }
     }
 
-#ifdef HSM_HAS_MOVE
     MemPool_LockMutex(MemPool_LockMutex&& y) noexcept : mem(y) {
         assert(y.data() == NULL);
         assert(y.size() == 0);
@@ -153,7 +152,6 @@ public:
         ::new(this) MemPool_LockMutex(y);
         return *this;
     }
-#endif
 
     using mem::data;
     using mem::size; // bring to public...

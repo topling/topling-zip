@@ -1,10 +1,14 @@
-#ifndef __terark_automata_graph_walker_hpp__
-#define __terark_automata_graph_walker_hpp__
+#pragma once
 
 #include <boost/current_function.hpp>
 #include <boost/noncopyable.hpp>
 #include <terark/bitmap.hpp>
 #include "fsa.hpp"
+
+#if defined(__clang__) //|| defined(__GNUC__) || defined(__GNUG__)
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wunused-lambda-capture"
+#endif
 
 namespace terark {
 
@@ -647,8 +651,8 @@ public:
 	}
 };
 
+#if defined(__clang__) //|| defined(__GNUC__) || defined(__GNUG__)
+	#pragma clang diagnostic pop
+#endif
+
 } // namespace terark
-
-#endif // __terark_automata_graph_walker_hpp__
-
-

@@ -1,5 +1,4 @@
-#ifndef __terark_rank_select_mixed_se_512_hpp__
-#define __terark_rank_select_mixed_se_512_hpp__
+#pragma once
 
 #include "rank_select_basic.hpp"
 #include "rank_select_mixed_basic.hpp"
@@ -16,20 +15,18 @@ public:
     rank_select_mixed_se_512(size_t n, valvec_reserve);
     rank_select_mixed_se_512(const rank_select_mixed_se_512&);
     rank_select_mixed_se_512& operator=(const rank_select_mixed_se_512&);
-#if defined(HSM_HAS_MOVE)
     rank_select_mixed_se_512(rank_select_mixed_se_512&& y) noexcept;
     rank_select_mixed_se_512& operator=(rank_select_mixed_se_512&& y) noexcept;
-#endif
 
     ~rank_select_mixed_se_512();
-    void clear();
-    void risk_release_ownership();
+    void clear() noexcept;
+    void risk_release_ownership() noexcept;
     void risk_mmap_from(unsigned char* base, size_t length);
-    void shrink_to_fit();
+    void shrink_to_fit() noexcept;
 
-    void swap(rank_select_mixed_se_512&);
-    const void* data() const;
-    size_t mem_size() const;
+    void swap(rank_select_mixed_se_512&) noexcept;
+    const void* data() const { return m_words; }
+    size_t mem_size() const { return m_capacity / 8; }
 
 protected:
     struct RankCacheMixed {
@@ -51,17 +48,17 @@ protected:
     };
     typedef bm_uint_t bldata_t;
 
-    static size_t fix_resize_size(size_t bits) {
+    static size_t fix_resize_size(size_t bits) noexcept {
         rank_select_check_overflow(bits, > , rank_select_mixed_se_512);
         return ((bits + WordBits - 1) & ~(WordBits - 1)) * 2;
     }
-    void grow();
+    void grow() noexcept;
     void reserve(size_t bits_capacity);
-    void nullize_cache();
+    void nullize_cache() noexcept;
     const bldata_t* bldata() const { return m_words; }
 
-    template<size_t dimensions> void bits_range_set0_dx(size_t i, size_t k);
-    template<size_t dimensions> void bits_range_set1_dx(size_t i, size_t k);
+    template<size_t dimensions> void bits_range_set0_dx(size_t i, size_t k) noexcept;
+    template<size_t dimensions> void bits_range_set1_dx(size_t i, size_t k) noexcept;
 
     template<size_t dimensions>
     void set_word_dx(size_t word_idx, bm_uint_t bits) {
@@ -77,7 +74,7 @@ protected:
     size_t num_words_dx() const { return (m_size[dimensions] + WordBits - 1) / WordBits; }
 
     template<size_t dimensions>
-    void push_back_dx(bool val) {
+    void push_back_dx(bool val) noexcept {
         rank_select_check_overflow(m_size[dimensions], >= , rank_select_mixed_se_512);
         assert(m_size[dimensions] * 2 <= m_capacity);
         if (terark_unlikely(m_size[dimensions] * 2 == m_capacity))
@@ -106,14 +103,14 @@ protected:
         terark_bit_set1(m_words + (i / WordBits * 2 + dimensions), i % WordBits);
     }
     template<size_t dimensions> void build_cache_dx(bool speed_select0, bool speed_select1);
-    template<size_t dimensions> size_t one_seq_len_dx(size_t bitpos) const;
-    template<size_t dimensions> size_t zero_seq_len_dx(size_t bitpos) const;
-    template<size_t dimensions> size_t one_seq_revlen_dx(size_t endpos) const;
-    template<size_t dimensions> size_t zero_seq_revlen_dx(size_t endpos) const;
-    template<size_t dimensions> inline size_t rank0_dx(size_t bitpos) const;
-    template<size_t dimensions> inline size_t rank1_dx(size_t bitpos) const;
-    template<size_t dimensions> size_t select0_dx(size_t id) const;
-    template<size_t dimensions> size_t select1_dx(size_t id) const;
+    template<size_t dimensions> size_t one_seq_len_dx(size_t bitpos) const noexcept;
+    template<size_t dimensions> size_t zero_seq_len_dx(size_t bitpos) const noexcept;
+    template<size_t dimensions> size_t one_seq_revlen_dx(size_t endpos) const noexcept;
+    template<size_t dimensions> size_t zero_seq_revlen_dx(size_t endpos) const noexcept;
+    template<size_t dimensions> inline size_t rank0_dx(size_t bitpos) const noexcept;
+    template<size_t dimensions> inline size_t rank1_dx(size_t bitpos) const noexcept;
+    template<size_t dimensions> size_t select0_dx(size_t id) const noexcept;
+    template<size_t dimensions> size_t select1_dx(size_t id) const noexcept;
 
 public:
     template<size_t dimensions>
@@ -156,44 +153,44 @@ protected:
     const RankCacheMixed* get_rank_cache_base() const { return m_rank_cache; }
 public:
     template<size_t dimensions>
-    static inline bool fast_is0_dx(const bm_uint_t* bits, size_t i);
+    static inline bool fast_is0_dx(const bm_uint_t* bits, size_t i) noexcept;
     template<size_t dimensions>
-    static inline bool fast_is1_dx(const bm_uint_t* bits, size_t i);
+    static inline bool fast_is1_dx(const bm_uint_t* bits, size_t i) noexcept;
 
     template<size_t dimensions>
-    static inline size_t fast_rank0_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos);
+    static inline size_t fast_rank0_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos) noexcept;
     template<size_t dimensions>
-    static inline size_t fast_rank1_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos);
+    static inline size_t fast_rank1_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos) noexcept;
     template<size_t dimensions>
-    static inline size_t fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t id);
+    static inline size_t fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t id) noexcept;
     template<size_t dimensions>
-    static inline size_t fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t id);
+    static inline size_t fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t id) noexcept;
 
     template<size_t dimensions>
-    void prefetch_bit_dx(size_t i) const
+    void prefetch_bit_dx(size_t i) const noexcept
       { _mm_prefetch((const char*)&m_words[i / WordBits * 2 + dimensions], _MM_HINT_T0); }
     template<size_t dimensions>
-    static void fast_prefetch_bit_dx(const bldata_t* m_words, size_t i)
+    static void fast_prefetch_bit_dx(const bldata_t* m_words, size_t i) noexcept
       { _mm_prefetch((const char*)&m_words[i / WordBits * 2 + dimensions], _MM_HINT_T0); }
 
     template<size_t dimensions>
-    void prefetch_rank1_dx(size_t bitpos) const
+    void prefetch_rank1_dx(size_t bitpos) const noexcept
       { _mm_prefetch((const char*)&m_rank_cache[bitpos / LineBits].base[dimensions], _MM_HINT_T0); }
     template<size_t dimensions>
-    static void fast_prefetch_rank1_dx(const RankCacheMixed* rankCache, size_t bitpos)
+    static void fast_prefetch_rank1_dx(const RankCacheMixed* rankCache, size_t bitpos) noexcept
       { _mm_prefetch((const char*)&rankCache[bitpos / LineBits].base[dimensions], _MM_HINT_T0); }
 };
 
 template<size_t dimensions>
 inline size_t rank_select_mixed_se_512::
-rank0_dx(size_t bitpos) const {
+rank0_dx(size_t bitpos) const noexcept {
     assert(bitpos <= m_size[dimensions]);
     return bitpos - rank1_dx<dimensions>(bitpos);
 }
 
 template<size_t dimensions>
 inline size_t rank_select_mixed_se_512::
-rank1_dx(size_t bitpos) const {
+rank1_dx(size_t bitpos) const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     assert(bitpos <= m_size[dimensions]);
     const RankCacheMixed& rc = m_rank_cache[bitpos / 512];
@@ -205,25 +202,25 @@ rank1_dx(size_t bitpos) const {
 
 template<size_t dimensions>
 inline bool rank_select_mixed_se_512::
-fast_is0_dx(const bldata_t* m_words, size_t i) {
+fast_is0_dx(const bldata_t* m_words, size_t i) noexcept {
     return !terark_bit_test(m_words + (i / WordBits * 2 + dimensions), i % WordBits);
 }
 
 template<size_t dimensions>
 inline bool rank_select_mixed_se_512::
-fast_is1_dx(const bldata_t* m_words, size_t i) {
+fast_is1_dx(const bldata_t* m_words, size_t i) noexcept {
     return terark_bit_test(m_words + (i / WordBits * 2 + dimensions), i % WordBits);
 }
 
 template<size_t dimensions>
 inline size_t rank_select_mixed_se_512::
-fast_rank0_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos) {
+fast_rank0_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos) noexcept {
     return bitpos - fast_rank1_dx<dimensions>(bits, rankCache, bitpos);
 }
 
 template<size_t dimensions>
 inline size_t rank_select_mixed_se_512::
-fast_rank1_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos) {
+fast_rank1_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bitpos) noexcept {
     const RankCacheMixed& rc = rankCache[bitpos / 512];
     const uint64_t* pu64 = (const uint64_t*)bits;
     size_t k = bitpos % 512 / 64;
@@ -233,7 +230,7 @@ fast_rank1_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bit
 
 template<size_t dimensions>
 inline size_t rank_select_mixed_se_512::
-fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t Rank0) {
+fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t Rank0) noexcept {
     size_t lo, hi;
     lo = sel0[Rank0 / LineBits];
     hi = sel0[Rank0 / LineBits + 1];
@@ -282,7 +279,7 @@ fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixe
 
 template<size_t dimensions>
 inline size_t rank_select_mixed_se_512::
-fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t Rank1) {
+fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t Rank1) noexcept {
     size_t lo, hi;
     lo = sel1[Rank1 / LineBits];
     hi = sel1[Rank1 / LineBits + 1];
@@ -333,6 +330,3 @@ TERARK_NAME_TYPE(rank_select_mixed_se_512_0, rank_select_mixed_dimensions<rank_s
 TERARK_NAME_TYPE(rank_select_mixed_se_512_1, rank_select_mixed_dimensions<rank_select_mixed_se_512, 1>);
 
 } // namespace terark
-
-#endif // __terark_rank_select_mixed_se_512_hpp__
-

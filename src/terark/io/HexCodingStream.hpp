@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_HexCodingStream_h__
-#define __terark_io_HexCodingStream_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <assert.h>
 //#include <string.h>
@@ -173,6 +168,3 @@ bin_dump_hex(SrcStream& src)
 }
 
 } // namespace terark
-
-#endif
-

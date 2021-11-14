@@ -79,6 +79,10 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 			, fname, lsize.QuadPart, lsize.QuadPart);
 	}
 	*fsize = size_t(lsize.QuadPart);
+	if (0 == *fsize) { // allow mmap empty file with readonly
+		::CloseHandle(hFile);
+		return NULL;
+	}
 	DWORD flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
 	if (getEnvBool("mmap_load_huge_pages")) {
 		flProtect |= SEC_LARGE_PAGES;
@@ -121,13 +125,19 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 		close(fd);
 		THROW_STD(logic_error, "stat(fname=%s) = %s", fname, strerror(errno));
 	}
-	if (writable && 0 == st.st_size) {
-		st.st_size = std::max(size_t(4*1024), *fsize);
-		int err = ftruncate(fd, st.st_size);
-		if (err) {
-			close(fd);
-			THROW_STD(logic_error, "ftruncate(fname=%s, len=%zd) = %s"
-				, fname, size_t(st.st_size), strerror(errno));
+	if (0 == st.st_size) {
+		if (writable) {
+			st.st_size = std::max(size_t(4*1024), *fsize);
+			int err = ftruncate(fd, st.st_size);
+			if (err) {
+				close(fd);
+				THROW_STD(logic_error, "ftruncate(fname=%s, len=%zd) = %s"
+					, fname, size_t(st.st_size), strerror(errno));
+			}
+		}
+		else { // allow mmap empty file with readonly
+			::close(fd);
+			return NULL;
 		}
 	}
 	*fsize = st.st_size;

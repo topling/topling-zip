@@ -1,5 +1,4 @@
-#ifndef __terark_zip_reorder_map_hpp__
-#define __terark_zip_reorder_map_hpp__
+#pragma once
 
 #include <terark/io/DataOutput.hpp>
 #include <terark/io/StreamBuffer.hpp>
@@ -110,5 +109,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_zip_reorder_map_hpp__

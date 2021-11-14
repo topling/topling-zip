@@ -1,8 +1,12 @@
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #include "sorted_uint_vec.hpp"
 #include <terark/bitmap.hpp>
 #include <terark/num_to_str.hpp>
 #include <terark/io/FileStream.hpp>
 #include <terark/io/StreamBuffer.hpp>
+#include <terark/util/autofree.hpp>
 #include <terark/util/function.hpp>
 #include <boost/intrusive_ptr.hpp>
 
@@ -215,16 +219,19 @@ Bits_04_14 = 0b0000000000000000000000111111111111110000000000000011111111111111,
 Zc03_07_09 = 0b0000000111000000111000000111000000111000000111000000111000000111,
 Zc01_07_09 = 0b0000000001000000001000000001000000001000000001000000001000000001,
 Bits_06_09 = 0b0000000000000000000111111111000000000111111111000000000111111111,
+/*
 Bits_03_18 = 0b0000000000000000000000000001000000000000000001000000000000000001,
-
+*/
 Bits_06_10 = 0b0000000000000011111111110000000000111111111100000000001111111111;
 
+/*
 static inline size_t s_get_mask(size_t bits) {
 	if (sizeof(size_t)*8 == bits)
 		return size_t(-1);
 	else
 		return ~(size_t(-1) << bits);
 }
+*/
 
 #define WordUnits      (64/Width)
 #define UnitMask       ( (size_t(+1) <<    Width) - 1 )

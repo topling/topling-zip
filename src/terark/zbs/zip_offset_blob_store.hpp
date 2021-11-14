@@ -5,8 +5,6 @@
  *      Author: leipeng
  */
 
-#ifndef ZBS_ZO_PLAIN_BLOB_STORE_HPP_
-#define ZBS_ZO_PLAIN_BLOB_STORE_HPP_
 #pragma once
 
 #include "abstract_blob_store.hpp"
@@ -28,6 +26,7 @@ class TERARK_DLL_EXPORT ZipOffsetBlobStore : public AbstractBlobStore {
                                    size_t baseOffset, size_t recID,
                                    valvec<byte_t>* recData,
                                    valvec<byte_t>* rdbuf) const;
+	size_t get_zipped_size_imp(size_t recID, CacheOffsets* co) const;
 public:
     ZipOffsetBlobStore();
     ~ZipOffsetBlobStore();
@@ -43,9 +42,9 @@ public:
     void swap(ZipOffsetBlobStore& other);
 
     void init_from_memory(fstring dataMem, Dictionary dict) override;
-    void get_meta_blocks(valvec<fstring>* blocks) const override;
-    void get_data_blocks(valvec<fstring>* blocks) const override;
-    void detach_meta_blocks(const valvec<fstring>& blocks) override;
+    void get_meta_blocks(valvec<Block>* blocks) const override;
+    void get_data_blocks(valvec<Block>* blocks) const override;
+    void detach_meta_blocks(const valvec<Block>& blocks) override;
     void save_mmap(function<void(const void*, size_t)> write) const override;
     using AbstractBlobStore::save_mmap;
 
@@ -66,5 +65,3 @@ public:
 };
 
 } // namespace terark
-
-#endif /* ZBS_ZO_PLAIN_BLOB_STORE_HPP_ */

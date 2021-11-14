@@ -1,6 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_byte_swap_impl_h__
-#define __terark_io_byte_swap_impl_h__
+#pragma once
 
 /* The ISO C99 standard specifies that in C++ implementations these
  *    should only be defined if explicitly requested __STDC_CONSTANT_MACROS
@@ -113,7 +112,20 @@ inline long byte_swap(long x) { return byte_swap((unsigned long long)x); }
 
 #endif
 
+inline unsigned char byte_swap(unsigned char x) { return x; }
+inline   signed char byte_swap(  signed char x) { return x; }
+inline          char byte_swap(         char x) { return x; }
+
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 5000
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#endif
+
+inline float  byte_swap(float  x) { return byte_swap(*reinterpret_cast<unsigned int*>(&x)); }
+inline double byte_swap(double x) { return byte_swap(*reinterpret_cast<unsigned long long*>(&x)); }
+
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 5000
+  #pragma GCC diagnostic pop
+#endif
+
 } // namespace terark
-
-#endif // __terark_io_byte_swap_impl_h__
-

@@ -52,7 +52,7 @@ rank_select_mixed_se_512::rank_select_mixed_se_512(const rank_select_mixed_se_51
     assert(y.m_size[0] == y.m_size[1]);
     m_size[0] = y.m_size[0];
     m_size[1] = y.m_size[1];
-    STDEXT_copy_n(y.m_words, y.m_capacity / WordBits, this->m_words);
+    std::copy_n(y.m_words, y.m_capacity / WordBits, this->m_words);
     if (y.m_rank_cache) {
         m_rank_cache = (RankCacheMixed*)this->m_words + (y.m_rank_cache - (RankCacheMixed*)y.m_words);
     }
@@ -86,8 +86,6 @@ rank_select_mixed_se_512& rank_select_mixed_se_512::operator=(const rank_select_
     return *this;
 }
 
-#if defined(HSM_HAS_MOVE)
-
 rank_select_mixed_se_512::rank_select_mixed_se_512(rank_select_mixed_se_512&& y) noexcept {
     memcpy(this, &y, sizeof(*this));
     y.risk_release_ownership();
@@ -101,20 +99,18 @@ rank_select_mixed_se_512& rank_select_mixed_se_512::operator=(rank_select_mixed_
     return *this;
 }
 
-#endif
-
 rank_select_mixed_se_512::~rank_select_mixed_se_512() {
     if (m_words)
         ::free(m_words);
 }
 
-void rank_select_mixed_se_512::clear() {
+void rank_select_mixed_se_512::clear() noexcept {
     if (m_words)
         ::free(m_words);
     risk_release_ownership();
 }
 
-void rank_select_mixed_se_512::risk_release_ownership() {
+void rank_select_mixed_se_512::risk_release_ownership() noexcept {
     nullize_cache();
     m_words = nullptr;
     m_capacity = 0;
@@ -169,7 +165,7 @@ void rank_select_mixed_se_512::risk_mmap_from(unsigned char* base, size_t length
     }
 }
 
-void rank_select_mixed_se_512::shrink_to_fit() {
+void rank_select_mixed_se_512::shrink_to_fit() noexcept {
     assert(NULL == m_rank_cache);
     assert(NULL == m_sel0_cache[0]);
     assert(NULL == m_sel0_cache[1]);
@@ -182,13 +178,12 @@ void rank_select_mixed_se_512::shrink_to_fit() {
     size_t size = std::max(m_size[0], m_size[1]);
     size_t new_bytes = ((size + LineBits - 1) & ~(LineBits - 1)) * 2 / 8;
     auto new_words = (bm_uint_t*)realloc(m_words, new_bytes);
-    if (NULL == new_words)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != new_words, "new_bytes = %zd", new_bytes);
     m_words = new_words;
     m_capacity = new_bytes * 8;
 }
 
-void rank_select_mixed_se_512::swap(rank_select_mixed_se_512& y) {
+void rank_select_mixed_se_512::swap(rank_select_mixed_se_512& y) noexcept {
     std::swap(m_words, y.m_words);
     std::swap(m_size, y.m_size);
     std::swap(m_capacity, y.m_capacity);
@@ -200,23 +195,14 @@ void rank_select_mixed_se_512::swap(rank_select_mixed_se_512& y) {
     std::swap(m_max_rank1, y.m_max_rank1);
 }
 
-const void* rank_select_mixed_se_512::data() const {
-    return m_words;
-}
-
-size_t rank_select_mixed_se_512::mem_size() const {
-    return m_capacity / 8;
-}
-
-void rank_select_mixed_se_512::grow() {
+void rank_select_mixed_se_512::grow() noexcept {
     assert(std::max(m_size[0], m_size[1]) * 2 == m_capacity);
     assert((m_flags & (1 << 1)) == 0);
     assert((m_flags & (1 << 4)) == 0);
     // size_t(WordBits) prevent debug link error
     size_t newcapBits = 2 * std::max(m_capacity, size_t(WordBits));
     bm_uint_t* new_words = (bm_uint_t*)realloc(m_words, newcapBits/8);
-    if (NULL == new_words)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != new_words, "newcapBits = %zd", newcapBits);
     if (g_Terark_hasValgrind) {
         byte_t* q = (byte_t*)new_words;
         memset(q + m_capacity/8, 0, (newcapBits - m_capacity)/8);
@@ -240,7 +226,7 @@ void rank_select_mixed_se_512::reserve(size_t newcapBits) {
     m_capacity = newcapBits;
 }
 
-void rank_select_mixed_se_512::nullize_cache() {
+void rank_select_mixed_se_512::nullize_cache() noexcept {
     m_flags = 0;
     m_rank_cache = NULL;
     m_sel0_cache[0] = NULL;
@@ -254,7 +240,7 @@ void rank_select_mixed_se_512::nullize_cache() {
 }
 
 template<size_t dimensions>
-void rank_select_mixed_se_512::bits_range_set0_dx(size_t i, size_t k) {
+void rank_select_mixed_se_512::bits_range_set0_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
@@ -274,11 +260,11 @@ void rank_select_mixed_se_512::bits_range_set0_dx(size_t i, size_t k) {
     }
 }
 
-template void TERARK_DLL_EXPORT rank_select_mixed_se_512::bits_range_set0_dx<0>(size_t i, size_t k);
-template void TERARK_DLL_EXPORT rank_select_mixed_se_512::bits_range_set0_dx<1>(size_t i, size_t k);
+template void TERARK_DLL_EXPORT rank_select_mixed_se_512::bits_range_set0_dx<0>(size_t i, size_t k) noexcept;
+template void TERARK_DLL_EXPORT rank_select_mixed_se_512::bits_range_set0_dx<1>(size_t i, size_t k) noexcept;
 
 template<size_t dimensions>
-void rank_select_mixed_se_512::bits_range_set1_dx(size_t i, size_t k) {
+void rank_select_mixed_se_512::bits_range_set1_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
@@ -405,7 +391,7 @@ template void TERARK_DLL_EXPORT rank_select_mixed_se_512::build_cache_dx<0>(bool
 template void TERARK_DLL_EXPORT rank_select_mixed_se_512::build_cache_dx<1>(bool speed_select0, bool speed_select1);
 
 template<size_t dimensions>
-size_t rank_select_mixed_se_512::one_seq_len_dx(size_t bitpos) const {
+size_t rank_select_mixed_se_512::one_seq_len_dx(size_t bitpos) const noexcept {
     assert(bitpos < m_size[dimensions]);
     size_t j = bitpos / WordBits * 2 + dimensions, sum;
     size_t mod = bitpos % WordBits;
@@ -435,11 +421,11 @@ size_t rank_select_mixed_se_512::one_seq_len_dx(size_t bitpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_len_dx<0>(size_t bitpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_len_dx<1>(size_t bitpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_len_dx<0>(size_t bitpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_len_dx<1>(size_t bitpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_se_512::zero_seq_len_dx(size_t bitpos) const {
+size_t rank_select_mixed_se_512::zero_seq_len_dx(size_t bitpos) const noexcept {
     assert(bitpos < m_size[dimensions]);
     size_t j = bitpos / WordBits * 2 + dimensions, sum;
     size_t mod = bitpos % WordBits;
@@ -467,11 +453,11 @@ size_t rank_select_mixed_se_512::zero_seq_len_dx(size_t bitpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_len_dx<0>(size_t bitpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_len_dx<1>(size_t bitpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_len_dx<0>(size_t bitpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_len_dx<1>(size_t bitpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_se_512::one_seq_revlen_dx(size_t endpos) const {
+size_t rank_select_mixed_se_512::one_seq_revlen_dx(size_t endpos) const noexcept {
     assert(endpos <= m_size[dimensions]);
     size_t j, sum;
     if (endpos%WordBits != 0) {
@@ -503,11 +489,11 @@ size_t rank_select_mixed_se_512::one_seq_revlen_dx(size_t endpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_revlen_dx<0>(size_t endpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_revlen_dx<1>(size_t endpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_revlen_dx<0>(size_t endpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::one_seq_revlen_dx<1>(size_t endpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_se_512::zero_seq_revlen_dx(size_t endpos) const {
+size_t rank_select_mixed_se_512::zero_seq_revlen_dx(size_t endpos) const noexcept {
     assert(endpos <= m_size[dimensions]);
     size_t j, sum;
     if (endpos%WordBits != 0) {
@@ -536,11 +522,11 @@ size_t rank_select_mixed_se_512::zero_seq_revlen_dx(size_t endpos) const {
     return sum;
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_revlen_dx<0>(size_t endpos) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_revlen_dx<1>(size_t endpos) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_revlen_dx<0>(size_t endpos) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::zero_seq_revlen_dx<1>(size_t endpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_se_512::select0_dx(size_t Rank0) const {
+size_t rank_select_mixed_se_512::select0_dx(size_t Rank0) const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     GUARD_MAX_RANK(0[dimensions], Rank0);
     size_t lo, hi;
@@ -597,11 +583,11 @@ size_t rank_select_mixed_se_512::select0_dx(size_t Rank0) const {
 #undef select0_nth64
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select0_dx<0>(size_t Rank0) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select0_dx<1>(size_t Rank0) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select0_dx<0>(size_t Rank0) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select0_dx<1>(size_t Rank0) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_se_512::select1_dx(size_t Rank1) const {
+size_t rank_select_mixed_se_512::select1_dx(size_t Rank1) const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     GUARD_MAX_RANK(1[dimensions], Rank1);
     size_t lo, hi;
@@ -658,8 +644,8 @@ size_t rank_select_mixed_se_512::select1_dx(size_t Rank1) const {
 #undef select1_nth64
 }
 
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select1_dx<0>(size_t Rank1) const;
-template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select1_dx<1>(size_t Rank1) const;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select1_dx<0>(size_t Rank1) const noexcept;
+template size_t TERARK_DLL_EXPORT rank_select_mixed_se_512::select1_dx<1>(size_t Rank1) const noexcept;
 
 template class TERARK_DLL_EXPORT rank_select_mixed_dimensions<rank_select_mixed_se_512, 0>;
 template class TERARK_DLL_EXPORT rank_select_mixed_dimensions<rank_select_mixed_se_512, 1>;

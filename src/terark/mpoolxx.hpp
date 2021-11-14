@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_mpool_cxx_h__
-#define __terark_mpool_cxx_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include "c/mpool.h"
 #include <string.h>
@@ -336,5 +331,3 @@ namespace terark {
 	};
 
 } // name space terark
-
-#endif // __terark_mpool_cxx_h__

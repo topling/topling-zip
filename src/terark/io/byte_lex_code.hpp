@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __terark_db_byte_lex_code_hpp__
-#define __terark_db_byte_lex_code_hpp__
 
 #include <terark/pass_by_value.hpp>
 #include <boost/type_traits/is_signed.hpp>
@@ -126,5 +124,3 @@ ByteLexCodeOutput<double>
 ByteLexCode(const double& x) { return ByteLexCodeOutput<double>(x); }
 
 } // namespace terark
-
-#endif // __terark_db_byte_lex_code_hpp__

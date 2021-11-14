@@ -127,7 +127,6 @@ public:
         }
     }
 
-#ifdef HSM_HAS_MOVE
     MemPool_ThisType(MemPool_ThisType&& y) noexcept : mem(y) {
         assert(y.data() == NULL);
         assert(y.size() == 0);
@@ -152,7 +151,6 @@ public:
         ::new(this) MemPool_ThisType(y);
         return *this;
     }
-#endif
 
     void get_fastbin(valvec<size_t>* fast) const {
         fast->resize_fill(free_list_len, 0);

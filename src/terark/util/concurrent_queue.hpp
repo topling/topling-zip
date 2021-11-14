@@ -1,6 +1,5 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef __terark_concurrent_queue_h__
-#define __terark_concurrent_queue_h__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 # pragma once
@@ -307,6 +306,40 @@ public:
 		m_popCond.notify_one();
 		return true;
 	}
+	size_t push_back_n(const value_type* vec, size_t num)
+	{
+		UniqueLock lock(m_mtx);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
+		size_t idx = 0;
+		for (; idx < num && !is_full(m_queue, m_maxSize); ++idx)
+			m_queue.push_back(vec[idx]); // require this method
+		m_popCond.notify_one();
+		return idx;
+	}
+	size_t push_back_n(const value_type* vec, size_t num, int timeout)
+	{
+		UniqueLock lock(m_mtx);
+		if (!m_pushCond.wait_for(lock, MilliSec(timeout), is_not_full(m_queue, m_maxSize))) return 0;
+		assert(!is_full(m_queue, m_maxSize));
+		size_t idx = 0;
+		for (; idx < num && !is_full(m_queue, m_maxSize); ++idx)
+			m_queue.push_back(vec[idx]); // require this method
+		m_popCond.notify_one();
+		return idx;
+	}
+	size_t push_back_n_nowait(const value_type* vec, size_t num)
+	{
+		UniqueLock lock(m_mtx);
+		if (is_full(m_queue, m_maxSize) || 0 == num) {
+			return 0;
+		}
+		size_t idx = 0;
+		do m_queue.push_back(vec[idx]); // require this method
+		while (++idx < num && !is_full(m_queue, m_maxSize));
+		m_popCond.notify_one();
+		return idx;
+	}
 	bool pop_front(value_type& result, int timeout)
 	{
 		UniqueLock lock(m_mtx);
@@ -322,6 +355,46 @@ public:
 		value_type value;
 		pop_front(value);
 		return value;
+	}
+	size_t pop_front_n(value_type* vec, size_t cap)
+	{
+		UniqueLock lock(m_mtx);
+		while (m_queue.empty()) m_popCond.wait(lock);
+		size_t idx = 0;
+		for (; idx < cap && !m_queue.empty(); ++idx) {
+			vec[idx] = m_queue.front();
+			m_queue.pop_front(); // require this method
+		}
+		m_pushCond.notify_one();
+		return idx;
+	}
+	size_t pop_front_n(value_type* vec, size_t cap, int timeout)
+	{
+		UniqueLock lock(m_mtx);
+		if (!m_popCond.wait_for(lock, MilliSec(timeout), is_not_empty(m_queue))) return 0;
+		assert(!m_queue.empty());
+		size_t idx = 0;
+		for (; idx < cap && !m_queue.empty(); ++idx) {
+			vec[idx] = m_queue.front();
+			m_queue.pop_front(); // require this method
+		}
+		m_pushCond.notify_one();
+		return idx;
+	}
+	size_t pop_front_n_nowait(value_type* vec, size_t cap)
+	{
+		UniqueLock lock(m_mtx);
+		if (m_queue.empty() || 0 == cap) {
+			return 0; // no need to notify
+		}
+		size_t idx = 0;
+		do {
+			vec[idx] = m_queue.front();
+			m_queue.pop_front(); // require this method
+			idx++;
+		} while (idx < cap && !m_queue.empty());
+		m_pushCond.notify_one();
+		return idx;
 	}
 
 	//@{
@@ -525,5 +598,3 @@ public:
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 # pragma warning(pop)
 #endif
-
-#endif // __terark_concurrent_queue_h__

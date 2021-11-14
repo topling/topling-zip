@@ -94,8 +94,6 @@ rank_select_mixed_xl_256<Arity>::operator=(const rank_select_mixed_xl_256& y) {
     return *this;
 }
 
-#if defined(HSM_HAS_MOVE)
-
 template<size_t Arity>
 rank_select_mixed_xl_256<Arity>::rank_select_mixed_xl_256(rank_select_mixed_xl_256&& y) noexcept {
     memcpy(this, &y, sizeof(*this));
@@ -112,8 +110,6 @@ rank_select_mixed_xl_256<Arity>::operator=(rank_select_mixed_xl_256&& y) noexcep
     return *this;
 }
 
-#endif
-
 template<size_t Arity>
 rank_select_mixed_xl_256<Arity>::~rank_select_mixed_xl_256() {
     if (m_lines)
@@ -121,14 +117,14 @@ rank_select_mixed_xl_256<Arity>::~rank_select_mixed_xl_256() {
 }
 
 template<size_t Arity>
-void rank_select_mixed_xl_256<Arity>::clear() {
+void rank_select_mixed_xl_256<Arity>::clear() noexcept {
     if (m_lines)
         ::free(m_lines);
     risk_release_ownership();
 }
 
 template<size_t Arity>
-void rank_select_mixed_xl_256<Arity>::risk_release_ownership() {
+void rank_select_mixed_xl_256<Arity>::risk_release_ownership() noexcept {
     nullize_cache();
     m_lines = nullptr;
     m_capacity = 0;
@@ -175,7 +171,7 @@ void rank_select_mixed_xl_256<Arity>::risk_mmap_from(unsigned char* base, size_t
 }
 
 template<size_t Arity>
-void rank_select_mixed_xl_256<Arity>::shrink_to_fit() {
+void rank_select_mixed_xl_256<Arity>::shrink_to_fit() noexcept {
     for (size_t i = 0; i < Arity; ++i) {
         assert(NULL == m_sel0_cache[i]);
         assert(NULL == m_sel1_cache[i]);
@@ -185,14 +181,13 @@ void rank_select_mixed_xl_256<Arity>::shrink_to_fit() {
     size_t size = *std::max_element(m_size, m_size + Arity);
     size_t new_bytes = ((size + LineBits - 1) & ~(LineBits - 1)) / LineBits * sizeof(RankCacheMixed);
     auto new_lines = (RankCacheMixed*)realloc(m_lines, new_bytes);
-    if (NULL == new_lines)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != new_lines, "new_bytes = %zd", new_bytes);
     m_lines = new_lines;
     m_capacity = new_bytes;
 }
 
 template<size_t Arity>
-void rank_select_mixed_xl_256<Arity>::swap(rank_select_mixed_xl_256& y) {
+void rank_select_mixed_xl_256<Arity>::swap(rank_select_mixed_xl_256& y) noexcept {
     std::swap(m_lines     , y.m_lines     );
     std::swap(m_size      , y.m_size      );
     std::swap(m_capacity  , y.m_capacity  );
@@ -204,7 +199,7 @@ void rank_select_mixed_xl_256<Arity>::swap(rank_select_mixed_xl_256& y) {
 }
 
 template<size_t Arity>
-void rank_select_mixed_xl_256<Arity>::grow() {
+void rank_select_mixed_xl_256<Arity>::grow() noexcept {
     assert(*std::max_element(m_size, m_size + Arity) == m_capacity / sizeof(RankCacheMixed) * LineBits);
     assert((m_flags & (1 << 1)) == 0);
     assert((m_flags & (1 << 4)) == 0);
@@ -212,8 +207,7 @@ void rank_select_mixed_xl_256<Arity>::grow() {
     assert((m_flags & (1 <<11)) == 0);
     size_t newcapBytes = 2 * std::max(m_capacity, sizeof(RankCacheMixed));
     auto new_lines = (RankCacheMixed*)realloc(m_lines, newcapBytes);
-    if (NULL == new_lines)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != new_lines, "newcapBytes = %zd", newcapBytes);
     if (g_Terark_hasValgrind) {
         byte_t* q = (byte_t*)new_lines;
         memset(q + m_capacity, 0, newcapBytes - m_capacity);
@@ -245,7 +239,7 @@ void rank_select_mixed_xl_256<Arity>::reserve(size_t bits_capacity) {
 }
 
 template<size_t Arity>
-void rank_select_mixed_xl_256<Arity>::nullize_cache() {
+void rank_select_mixed_xl_256<Arity>::nullize_cache() noexcept {
     m_flags = 0;
     for (size_t i = 0; i < Arity; ++i) {
         m_sel0_cache[i] = NULL;
@@ -257,7 +251,7 @@ void rank_select_mixed_xl_256<Arity>::nullize_cache() {
 
 template<size_t Arity>
 template<size_t dimensions>
-void rank_select_mixed_xl_256<Arity>::bits_range_set0_dx(size_t i, size_t k) {
+void rank_select_mixed_xl_256<Arity>::bits_range_set0_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
@@ -283,7 +277,7 @@ void rank_select_mixed_xl_256<Arity>::bits_range_set0_dx(size_t i, size_t k) {
 
 template<size_t Arity>
 template<size_t dimensions>
-void rank_select_mixed_xl_256<Arity>::bits_range_set1_dx(size_t i, size_t k) {
+void rank_select_mixed_xl_256<Arity>::bits_range_set1_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
@@ -426,7 +420,7 @@ build_cache_impl(bool speed_select0,
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::one_seq_len_dx(size_t bitpos) const {
+size_t rank_select_mixed_xl_256<Arity>::one_seq_len_dx(size_t bitpos) const noexcept {
     assert(bitpos < m_size[dimensions]);
     size_t j = bitpos / LineBits, k, sum;
     if (bitpos % WordBits != 0) {
@@ -461,7 +455,7 @@ size_t rank_select_mixed_xl_256<Arity>::one_seq_len_dx(size_t bitpos) const {
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::zero_seq_len_dx(size_t bitpos) const {
+size_t rank_select_mixed_xl_256<Arity>::zero_seq_len_dx(size_t bitpos) const noexcept {
     assert(bitpos < m_size[dimensions]);
     size_t j = bitpos / LineBits, k, sum;
     if (bitpos % WordBits != 0) {
@@ -494,7 +488,7 @@ size_t rank_select_mixed_xl_256<Arity>::zero_seq_len_dx(size_t bitpos) const {
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::one_seq_revlen_dx(size_t endpos) const {
+size_t rank_select_mixed_xl_256<Arity>::one_seq_revlen_dx(size_t endpos) const noexcept {
     assert(endpos <= m_size[dimensions]);
     size_t j, k, sum;
     if (endpos % WordBits != 0) {
@@ -532,7 +526,7 @@ size_t rank_select_mixed_xl_256<Arity>::one_seq_revlen_dx(size_t endpos) const {
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::zero_seq_revlen_dx(size_t endpos) const {
+size_t rank_select_mixed_xl_256<Arity>::zero_seq_revlen_dx(size_t endpos) const noexcept {
     assert(endpos <= m_size[dimensions]);
     size_t j, k, sum;
     if (endpos % WordBits != 0) {
@@ -567,7 +561,7 @@ size_t rank_select_mixed_xl_256<Arity>::zero_seq_revlen_dx(size_t endpos) const 
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const {
+size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept {
     assert(m_flags & (1 << (1 + 3 * dimensions)));
     GUARD_MAX_RANK(0[dimensions], Rank0);
     size_t lo, hi;
@@ -612,7 +606,7 @@ size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const {
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const {
+size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const noexcept {
     assert(m_flags & (1 << (1 + 3 * dimensions)));
     GUARD_MAX_RANK(1[dimensions], Rank1);
     size_t lo, hi;

@@ -1,5 +1,4 @@
-#ifndef __penglei_bitmap_h__
-#define __penglei_bitmap_h__
+#pragma once
 
 #include "bitmanip.hpp"
 #include "stdtypes.hpp"
@@ -262,10 +261,8 @@ public:
 
 	febitvec(const febitvec&); // copy-cons
 	febitvec& operator=(const febitvec&); // assign
-#if defined(HSM_HAS_MOVE)
 	febitvec(febitvec&&) noexcept; // move-cons
 	febitvec& operator=(febitvec&&) noexcept; // move-assign
-#endif
 
 	febitvec(const febitvec& y, size_t beg, size_t len);
 
@@ -528,7 +525,3 @@ public:
 };
 
 } // namespace terark
-
-
-#endif
-

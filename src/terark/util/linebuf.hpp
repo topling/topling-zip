@@ -1,5 +1,4 @@
-#ifndef __terark_util_linebuf_hpp__
-#define __terark_util_linebuf_hpp__
+#pragma once
 
 #include <assert.h>
 #include <ctype.h>
@@ -22,6 +21,8 @@ struct TERARK_DLL_EXPORT LineBuf : boost::noncopyable {
 	typedef char* iterator;
 	typedef char* const_iterator;
 
+	explicit LineBuf(FILE*, size_t align = 0);
+	explicit LineBuf(fstring fname, size_t align = 0);
 	LineBuf();
 	~LineBuf();
 
@@ -77,7 +78,12 @@ private:
 	void push_back_slow_path(char ch);
 public:
 
-	operator char*() const { return p; }
+	unsigned char operator[](size_t i) const {
+		assert(nullptr != p);
+		TERARK_ASSERT_LT(i, n);
+		return p[i];
+	}
+	const char* c_str() const { assert(!p || '\0' == p[n]); return p; }
 	operator fstring() const { return fstring(p, n); }
 
 	/// split into fields
@@ -198,6 +204,3 @@ public:
 };
 
 } // namespace terark
-
-#endif // __terark_util_linebuf_hpp__
-

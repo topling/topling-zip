@@ -1,5 +1,4 @@
-#ifndef __terark_rank_select_il_256_hpp__
-#define __terark_rank_select_il_256_hpp__
+#pragma once
 
 #include "rank_select_basic.hpp"
 
@@ -27,7 +26,7 @@ protected:
     size_t    m_max_rank1; // m_max_rank0+m_max_rank1==LineBits*m_lines.size()
     size_t    m_size;
 
-    void push_back_slow_path(bool val);
+    void push_back_slow_path(bool val) noexcept;
 
 public:
     typedef boost::mpl::false_ is_mixed;
@@ -40,10 +39,8 @@ public:
     rank_select_il(size_t bits, valvec_reserve);
     rank_select_il(const rank_select_il& y);
     rank_select_il& operator=(const rank_select_il& y);
-#if defined(HSM_HAS_MOVE)
     rank_select_il(rank_select_il&& y) noexcept;
     rank_select_il& operator=(rank_select_il&& y) noexcept;
-#endif
     ~rank_select_il();
 
     void clear();
@@ -316,6 +313,3 @@ public:
 
 
 } // namespace terark
-
-#endif // __terark_rank_select_il_256_hpp__
-

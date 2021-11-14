@@ -1,5 +1,4 @@
-#ifndef __terark_FileDataIO_hpp__
-#define __terark_FileDataIO_hpp__
+#pragma once
 
 #include "DataIO.hpp"
 #include "FileStream.hpp"
@@ -37,6 +36,3 @@ namespace terark {
 	typedef FileDataInput<LittleEndianDataInput<InputBuffer> > LittleEndianFileDataInput;
 	typedef FileDataOutput<LittleEndianDataOutput<OutputBuffer> > LittleEndianFileDataOutput;
 }
-
-#endif // __terark_FileDataIO_hpp__
-

@@ -1,6 +1,5 @@
 ﻿/* vim: set tabstop=4 : */
-#ifndef __terark_compare_hpp__
-#define __terark_compare_hpp__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 #  pragma once
@@ -536,6 +535,3 @@ public:
 } // namespace terark
 
 #include <boost/type_traits/detail/bool_trait_undef.hpp>
-
-#endif // __terark_compare_hpp__
-

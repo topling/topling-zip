@@ -12,7 +12,7 @@
 #include "var_int.hpp"
 
 namespace terark {
-
+/*
 static void write_error_msg(string_appender<>& oss)
 {
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
@@ -32,19 +32,19 @@ static void write_error_msg(string_appender<>& oss)
 	LocalFree(hLocal);
 
 #else
-	char szbuf[256];
+	char szbuf[256] = "strerror_r failed";
 	int  errCode = errno;
-	if (strerror_r(errCode, szbuf, 256) != 0)
-		snprintf(szbuf, sizeof(szbuf), "strerror_r failed");
+	strerror_r(errCode, szbuf, 256);
 	oss << "error[code=" << errCode << ", message=" << szbuf << "]";
 #endif
 }
-
+*/
 static std::string error_info(const std::string& fpath, const char* uinfo)
 {
 	string_appender<> oss;
-	oss << "file=\"" << fpath << "\"" << ", " << uinfo << " : ";
-	write_error_msg(oss);
+	oss << "file=\"" << fpath << "\"" << ", " << uinfo;
+        //oss << " : ";
+	//write_error_msg(oss);
 	return oss.str();
 }
 
@@ -112,7 +112,7 @@ void MemMapStream::init()
 	m_best_block_size = 256 * 1024;
 #else
 	m_hFile = -1;
-	m_page_size = sysconf(_SC_PAGESIZE);
+	m_page_size = (uint32_t)sysconf(_SC_PAGESIZE);
 	//m_AllocationGranularity = m_page_size;
 	m_AllocationGranularity = 2u << 20u; // 2MiB
 	m_best_block_size = m_AllocationGranularity;
@@ -120,12 +120,14 @@ void MemMapStream::init()
 	m_file_pos = 0;
 	m_file_size = 0;
 	m_beg = m_pos = m_end = 0;
+	m_is_owner = true;
 	assert(m_best_block_size % m_AllocationGranularity == 0);
 }
 
 void MemMapStream::clone(const MemMapStream& source)
 {
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
+    TERARK_VERIFY_NE(m_hFile, INVALID_HANDLE_VALUE);
 	HANDLE hProcess = GetCurrentProcess();
 	BOOL bRet = DuplicateHandle(
 		hProcess,
@@ -140,12 +142,14 @@ void MemMapStream::clone(const MemMapStream& source)
         cleanup_and_throw("failed on calling DuplicateHandle");
 	m_hMap = 0;
 #else
+    TERARK_VERIFY_LT(m_hFile, 0);
 	m_hFile = ::dup(source.m_hFile);
 #endif
+	m_is_owner = true;
 	m_page_size = source.m_page_size;
 	m_AllocationGranularity = source.m_AllocationGranularity;
 	m_file_pos = 0;
-	m_beg = m_pos = m_end = 0;
+	m_beg = m_pos = m_end = nullptr;
 	m_best_block_size = source.m_best_block_size;
 	m_fpath = source.m_fpath;
 }
@@ -276,7 +280,7 @@ void MemMapStream::set_fsize(stream_position_t fsize)
 
 bool MemMapStream::remap_impl(stream_position_t fpos, size_t map_size)
 {
-	bool readonly = !(m_mode & O_RDWR);
+	bool readonly = !(m_mode & (O_RDWR|O_WRONLY));
 
 	if (m_beg)
 		::UnmapViewOfFile(m_beg);
@@ -324,10 +328,9 @@ void* MemMapStream::map(stream_position_t fpos, size_t size, int mode)
 	}
 //	int flags = (mode & O_RDWR) ? MAP_SHARED : MAP_PRIVATE;
 	int flags = MAP_SHARED;
-	void* base = ::mmap(NULL, size,
-                         (mode & O_RDWR) ? (PROT_READ | PROT_WRITE) : PROT_READ,
-                         flags,
-                         m_hFile, fpos);
+	int prot = (mode & O_RDWR) ? (PROT_WRITE | PROT_READ)
+	         : (mode & O_WRONLY) ? PROT_WRITE : PROT_READ;
+	void* base = ::mmap(NULL, size, prot, flags, m_hFile, fpos);
 	if (MAP_FAILED == base)
 	{
 		throw IOException(error_info(m_fpath, "failed mmap").c_str());
@@ -365,6 +368,19 @@ void MemMapStream::open(stream_position_t new_file_size, const std::string& fpat
 	return;
 }
 
+void MemMapStream::dopen(intptr_t fd, stream_position_t new_file_size,
+                         const std::string& fpath, int mode) {
+    TERARK_VERIFY_GE(fd, 0);
+#if defined(O_LARGEFILE)
+	mode |= O_LARGEFILE;
+#endif
+    init(new_file_size, fpath, mode);
+    m_hFile = (int)fd;
+    m_is_owner = false;
+	set_fsize(new_file_size);
+	m_file_size = get_fsize();
+}
+
 stream_position_t MemMapStream::get_fsize()
 {
     struct stat info;
@@ -382,7 +398,8 @@ void MemMapStream::set_fsize(stream_position_t fsize)
 	if (ftruncate(m_hFile, fsize) == -1)
 	{
 		string_appender<> oss;
-		oss << "failed ftruncate(" << fsize << "), old_fsize=" << m_file_size;
+		oss << "failed ftruncate(fd = " << m_hFile << ", size = " << fsize
+                    << "), old_fsize=" << m_file_size;
         cleanup_and_throw(oss.str().c_str());
 	}
 	m_file_size = fsize;
@@ -401,7 +418,7 @@ bool MemMapStream::remap_impl(stream_position_t fpos, size_t map_size)
 		set_fsize(fpos + map_size);
 	}
 //	int flags = m_mode & O_RDWR ? MAP_SHARED : MAP_PRIVATE;
-	int flags = MAP_SHARED;
+	int flags = MAP_SHARED | MAP_POPULATE;
     m_beg = (unsigned char*)::mmap(NULL, map_size,
                          m_mode & O_RDWR ? (PROT_READ | PROT_WRITE) : PROT_READ,
                          flags,
@@ -470,7 +487,7 @@ void MemMapStream::unaligned_remap(stream_position_t fpos, size_t size)
 
 	stream_position_t aligned_fpos = align_down(fpos, m_AllocationGranularity);
 	size_t page_offset = size_t(fpos - aligned_fpos);
-	size_t map_size = max(m_best_block_size, page_offset + size);
+	size_t map_size = max(size_t(m_best_block_size), page_offset + size);
 	if (!(m_mode & O_RDWR))
 	{ // mapped area can not beyond file size
 		stream_position_t remain = m_file_size - this->tell();
@@ -489,10 +506,10 @@ void MemMapStream::cleanup_and_throw(const char* msg)
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
 	if (m_hMap != NULL)
         ::CloseHandle(m_hMap);
-    if (m_hFile != INVALID_HANDLE_VALUE)
+    if (m_hFile != INVALID_HANDLE_VALUE && m_is_owner)
         ::CloseHandle(m_hFile);
 #else
-    if (-1 != m_hFile)
+    if (-1 != m_hFile && m_is_owner)
         ::close(m_hFile);
 #endif
 
@@ -510,12 +527,12 @@ void MemMapStream::close()
 		error = !::UnmapViewOfFile(m_beg) || error;
 	if (m_hMap != NULL)
 		error = !::CloseHandle(m_hMap) || error;
-	if (m_hFile != INVALID_HANDLE_VALUE)
+	if (m_hFile != INVALID_HANDLE_VALUE && m_is_owner)
 	    error = !::CloseHandle(m_hFile) || error;
 #else
 	if (m_beg)
 		error = ::munmap(m_beg, align_up(m_end-m_beg, m_page_size)) != 0 || error;
-	if (-1 != m_hFile)
+	if (-1 != m_hFile && m_is_owner)
 		error = ::close(m_hFile) != 0 || error;
 #endif
 
@@ -562,7 +579,7 @@ void MemMapStream::remap_and_probe(size_t size)
     // 所以是 (m_pos-m_beg), 而非 (m_end-m_beg)
 
 	stream_position_t old_pos = tell();
-	unaligned_remap(m_file_pos + (m_pos-m_beg), max(m_best_block_size, size));
+	unaligned_remap(m_file_pos + (m_pos-m_beg), max(size_t(m_best_block_size), size));
 	m_pos = m_beg + (old_pos - m_file_pos);
 }
 
@@ -579,7 +596,7 @@ size_t MemMapStream::remap_and_read(void* vbuf, size_t size)
 
     size_t remain = size - curr;
     size_t file_remain = size_t(m_file_size - m_file_pos); // NOLINT
-    size_t mapsize = min(file_remain, max(m_best_block_size, remain));
+    size_t mapsize = min(file_remain, max(size_t(m_best_block_size), remain));
 
     unaligned_remap(m_file_pos, mapsize);
 
@@ -603,7 +620,7 @@ size_t MemMapStream::remap_and_write(const void* vbuf, size_t size)
 	size_t remain = size - curr;
 
 	// may fail(throw exception) because out of space
-	unaligned_remap(m_file_pos, max(m_best_block_size, remain));
+	unaligned_remap(m_file_pos, max(size_t(m_best_block_size), remain));
 
 	memcpy(m_pos, bbuf+curr, remain);
 	m_pos += remain;

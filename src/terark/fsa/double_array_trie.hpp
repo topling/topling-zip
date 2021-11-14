@@ -1,6 +1,6 @@
-#ifndef __terark_automata_double_array_trie_hpp__
-#define __terark_automata_double_array_trie_hpp__
+#pragma once
 
+#include <terark/util/autofree.hpp>
 #include <terark/util/throw.hpp>
 #include <limits.h>
 #include "fsa.hpp"
@@ -410,6 +410,3 @@ typedef DoubleArrayTrie MyType;
 typedef DoubleArrayTrie<DA_State8B> DoubleArrayTrie_8B;
 
 } // namespace terark
-
-#endif // __terark_automata_double_array_trie_hpp__
-

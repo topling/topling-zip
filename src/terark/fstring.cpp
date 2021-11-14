@@ -37,7 +37,7 @@ bool operator<(fstring16 x, fstring16 y) {
 		uint16_t cy = y.p[i];
 		if (cx != cy) {
 			if (sizeof(int) > 2)
-				ret = cx - cy;
+				ret = int(cx) - int(cy);
 			else if (cx < cy)
 				ret = -1;
 			else
@@ -175,7 +175,7 @@ void basic_fstring<uint16_t>::trim() {
 template struct basic_fstring<char>;
 template struct basic_fstring<uint16_t>;
 
-bool getEnvBool(const char* envName, bool Default) {
+bool getEnvBool(const char* envName, bool Default) noexcept {
 	if (const char* env = getenv(envName)) {
 		if (isdigit(env[0])) {
 			return atoi(env) != 0;
@@ -188,14 +188,14 @@ bool getEnvBool(const char* envName, bool Default) {
 		if (strcasecmp(env, "false") == 0)
 			return false;
 		fprintf(stderr
-			, "WARN: terark::getEnvBool(\"%s\") = \"%s\" is invalid, treat as false\n"
-			, envName, env
+			, "WARN: terark::getEnvBool(\"%s\") = \"%s\" is invalid, treat as Default = %s\n"
+			, envName, env, Default?"true":"false"
 		);
 	}
 	return Default;
 }
 
-long getEnvLong(const char* envName, long Default) {
+long getEnvLong(const char* envName, long Default) noexcept {
 	if (const char* env = getenv(envName)) {
 		int base = 0; // env can be oct, dec, hex
 		return strtol(env, NULL, base);
@@ -203,14 +203,26 @@ long getEnvLong(const char* envName, long Default) {
 	return Default;
 }
 
-double getEnvDouble(const char* envName, double Default) {
+double getEnvDouble(const char* envName, double Default) noexcept {
   if (const char* env = getenv(envName)) {
     return strtof(env, NULL);
   }
   return Default;
 }
 
-unsigned long long ParseSizeXiB(const char* str) {
+const char* getEnvStr(const char* envName, const char* Default) {
+  if (auto value = getenv(envName)) {
+    return value;
+  }
+  else if (nullptr == Default) {
+    // nullptr indicate envName must be defined
+    THROW_STD(invalid_argument, "missing env var: %s", envName);
+  }
+  else
+    return Default;
+}
+
+unsigned long long ParseSizeXiB(const char* str) noexcept {
 	if (NULL == str || '\0' == *str) {
 		return 0;
 	}
@@ -230,17 +242,17 @@ unsigned long long ParseSizeXiB(const char* str) {
     else
         return uint64_t(val);
 }
-unsigned long long ParseSizeXiB(fstring str) {
+unsigned long long ParseSizeXiB(fstring str) noexcept {
   return ParseSizeXiB(str.c_str());
 }
 
-unsigned long long ParseSizeXiB(const char* str, const char* Default) {
+unsigned long long ParseSizeXiB(const char* str, const char* Default) noexcept {
 	if (str && '\0' != *str)
 		return ParseSizeXiB(str);
 	else
 		return ParseSizeXiB(Default);
 }
-unsigned long long ParseSizeXiB(const char* str, unsigned long long Default) {
+unsigned long long ParseSizeXiB(const char* str, unsigned long long Default) noexcept {
 	if (str && '\0' != *str)
 		return ParseSizeXiB(str);
 	else

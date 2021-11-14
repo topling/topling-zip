@@ -1,5 +1,4 @@
-#ifndef __terark_rank_select_se_256_hpp__
-#define __terark_rank_select_se_256_hpp__
+#pragma once
 
 #include "rank_select_basic.hpp"
 
@@ -20,29 +19,27 @@ public:
     rank_select_se(size_t n, valvec_reserve);
     rank_select_se(const rank_select_se&);
     rank_select_se& operator=(const rank_select_se&);
-#if defined(HSM_HAS_MOVE)
     rank_select_se(rank_select_se&& y) noexcept;
     rank_select_se& operator=(rank_select_se&& y) noexcept;
-#endif
     ~rank_select_se();
-    void clear();
-    void risk_release_ownership();
+    void clear() noexcept;
+    void risk_release_ownership() noexcept;
     void risk_mmap_from(unsigned char* base, size_t length);
-    void shrink_to_fit();
+    void shrink_to_fit() noexcept;
 
-    void swap(rank_select_se&);
+    void swap(rank_select_se&) noexcept;
     void build_cache(bool speed_select0, bool speed_select1);
-    size_t mem_size() const;
-    inline size_t rank0(size_t bitpos) const;
-    inline size_t rank1(size_t bitpos) const;
-    size_t select0(size_t id) const;
-    size_t select1(size_t id) const;
+    size_t mem_size() const { return m_capacity / 8; }
+    inline size_t rank0(size_t bitpos) const noexcept;
+    inline size_t rank1(size_t bitpos) const noexcept;
+    size_t select0(size_t id) const noexcept;
+    size_t select1(size_t id) const noexcept;
     size_t max_rank1() const { return m_max_rank1; }
     size_t max_rank0() const { return m_max_rank0; }
     bool isall0() const { return m_max_rank1 == 0; }
     bool isall1() const { return m_max_rank0 == 0; }
 protected:
-    void nullize_cache();
+    void nullize_cache() noexcept;
     struct RankCache {
         uint32_t  lev1;
         uint8_t   lev2[4]; // use uint64 for rank-select word
@@ -59,29 +56,29 @@ public:
     const uint32_t* get_sel0_cache() const { return m_sel0_cache; }
     const uint32_t* get_sel1_cache() const { return m_sel1_cache; }
 
-    static inline size_t fast_rank0(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos);
-    static inline size_t fast_rank1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos);
-    static inline size_t fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t id);
-    static inline size_t fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t id);
+    static inline size_t fast_rank0(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) noexcept;
+    static inline size_t fast_rank1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) noexcept;
+    static inline size_t fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t id) noexcept;
+    static inline size_t fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t id) noexcept;
 
     size_t excess1(size_t bp) const { return 2*rank1(bp) - bp; }
     static size_t fast_excess1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos)
         { return 2 * fast_rank1(bits, rankCache, bitpos) - bitpos; }
 
-    void prefetch_rank1(size_t bitpos) const
+    void prefetch_rank1(size_t bitpos) const noexcept
         { _mm_prefetch((const char*)&m_rank_cache[bitpos/LineBits], _MM_HINT_T0); }
-    static void fast_prefetch_rank1(const RankCache* rankCache, size_t bitpos)
+    static void fast_prefetch_rank1(const RankCache* rankCache, size_t bitpos) noexcept
         { _mm_prefetch((const char*)&rankCache[bitpos/LineBits], _MM_HINT_T0); }
 };
 
 inline size_t rank_select_se::
-rank0(size_t bitpos) const {
+rank0(size_t bitpos) const noexcept {
     assert(bitpos <= m_size);
     return bitpos - rank1(bitpos);
 }
 
 inline size_t rank_select_se::
-rank1(size_t bitpos) const {
+rank1(size_t bitpos) const noexcept {
     assert(bitpos <= m_size);
     RankCache rc = m_rank_cache[bitpos / LineBits];
     return rc.lev1 + rc.lev2[(bitpos / 64) % 4] +
@@ -90,12 +87,12 @@ rank1(size_t bitpos) const {
 }
 
 inline size_t rank_select_se::
-fast_rank0(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) {
+fast_rank0(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) noexcept {
     return bitpos - fast_rank1(bits, rankCache, bitpos);
 }
 
 inline size_t rank_select_se::
-fast_rank1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) {
+fast_rank1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) noexcept {
     RankCache rc = rankCache[bitpos / LineBits];
     return rc.lev1 + rc.lev2[(bitpos / 64) % 4] +
         fast_popcount_trail(
@@ -103,7 +100,7 @@ fast_rank1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) {
 }
 
 inline size_t rank_select_se::
-fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t Rank0) {
+fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t Rank0) noexcept {
     size_t lo = sel0[Rank0 / LineBits];
     size_t hi = sel0[Rank0 / LineBits + 1];
     if (hi - lo < 32) {
@@ -143,7 +140,7 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
 }
 
 inline size_t rank_select_se::
-fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t Rank1) {
+fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t Rank1) noexcept {
     size_t lo = sel1[Rank1 / LineBits];
     size_t hi = sel1[Rank1 / LineBits + 1];
     if (hi - lo < 32) {
@@ -186,6 +183,3 @@ typedef rank_select_se rank_select_se_256;
 typedef rank_select_se rank_select_se_256_32;
 
 } // namespace terark
-
-#endif // __terark_rank_select_se_256_hpp__
-

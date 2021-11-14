@@ -25,6 +25,7 @@ BlobStore::BlobStore() {
     m_get_record_append_CacheOffsets = NULL;
     m_fspread_record_append = NULL;
     m_pread_record_append = &BlobStore::pread_record_append_default_impl;
+    m_get_zipped_size = NULL;
 }
 
 BlobStore::~BlobStore() {
@@ -43,14 +44,14 @@ BlobStore* BlobStore::load_from_user_memory(fstring dataMem,
     return AbstractBlobStore::load_from_user_memory(dataMem, dict);
 }
 
-valvec<fstring> BlobStore::get_meta_blocks() const {
-  valvec<fstring> blocks;
+valvec<BlobStore::Block> BlobStore::get_meta_blocks() const {
+  valvec<Block> blocks;
   this->get_meta_blocks(&blocks);
   return blocks;
 }
 
-valvec<fstring> BlobStore::get_data_blocks() const {
-  valvec<fstring> blocks;
+valvec<BlobStore::Block> BlobStore::get_data_blocks() const {
+  valvec<Block> blocks;
   this->get_data_blocks(&blocks);
   return blocks;
 }

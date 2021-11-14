@@ -1,7 +1,7 @@
-#ifndef __terark_rpatricial_trie_hpp__
-#define __terark_rpatricial_trie_hpp__
+#pragma once
 
 #include "nest_louds_trie.hpp"
+#include <terark/util/autofree.hpp>
 
 namespace terark {
 
@@ -14,34 +14,34 @@ protected:
 	rank_select_t& getIsTerm() { return m_is_term; }
 	const rank_select_t& getIsTerm() const { return m_is_term; }
 public:
-    bool is_term(size_t s) const {
+    bool is_term(size_t s) const noexcept {
         assert(s < m_is_term.size());
         return m_is_term[s];
     }
-    inline bool is_term2(const NestTrie* trie, size_t s) const {
+    inline bool is_term2(const NestTrie* trie, size_t s) const noexcept {
         assert(trie == m_trie);
         assert(s < m_is_term.size());
         return m_is_term[s];
     }
-    inline void prefetch_term_bit(const NestTrie* trie, size_t s) const {
+    inline void prefetch_term_bit(const NestTrie* trie, size_t s) const noexcept {
         assert(trie == m_trie);
         assert(s < m_is_term.size());
         m_is_term.prefetch_bit(s);
     }
-    inline size_t term_rank1(const NestTrie* trie, size_t s) const {
+    inline size_t term_rank1(const NestTrie* trie, size_t s) const noexcept {
         assert(trie == m_trie);
         assert(s < m_is_term.size());
         return m_is_term.rank1(s);
     }
-    void swap(NestTrieDAWG_IsTerm& y) {
+    void swap(NestTrieDAWG_IsTerm& y) noexcept {
 		std::swap(m_trie, y.m_trie);
 		m_is_term.swap(y.m_is_term);
 	}
-	void risk_release_ownership() {
+	void risk_release_ownership() noexcept {
 		m_trie->risk_release_ownership();
 		m_is_term.risk_release_ownership();
 	}
-	size_t mem_size() const {
+	size_t mem_size() const noexcept {
 		return m_trie->mem_size() + m_is_term.mem_size();
 	}
 };
@@ -51,37 +51,37 @@ protected:
 	NestTrie* m_trie;
 	typedef typename NestTrie::rank_select2_t rank_select2_t;
 	typename rank_select2_t::rank_select_view_1&
-	getIsTerm() {
+	getIsTerm() noexcept {
 		return m_trie->m_is_link.template get<1>();
 	}
 	const typename rank_select2_t::rank_select_view_1&
-	getIsTerm() const {
+	getIsTerm() const noexcept {
 		return m_trie->m_is_link.template get<1>();
 	}
 public:
-    bool is_term(size_t s) const {
+    bool is_term(size_t s) const noexcept {
         assert(s < m_trie->m_is_link.template get<1>().size());
         return m_trie->m_is_link.template get<1>().is1(s);
     }
-    inline bool is_term2(const NestTrie* trie, size_t s) const {
+    inline bool is_term2(const NestTrie* trie, size_t s) const noexcept {
         assert(trie == m_trie);
         assert(s < trie->m_is_link.template get<1>().size());
         return trie->m_is_link.template get<1>().is1(s);
     }
-    inline void prefetch_term_bit(const NestTrie* trie, size_t s) const {
+    inline void prefetch_term_bit(const NestTrie* trie, size_t s) const noexcept {
         assert(trie == m_trie);
         assert(s < trie->m_is_link.template get<1>().size());
         trie->m_is_link.template get<1>().prefetch_bit(s);
     }
-    inline size_t term_rank1(const NestTrie* trie, size_t s) const {
+    inline size_t term_rank1(const NestTrie* trie, size_t s) const noexcept {
         assert(trie == m_trie);
         assert(s < trie->m_is_link.template get<1>().size());
         return trie->m_is_link.template get<1>().rank1(s);
     }
-    void swap(NestTrieDAWG_IsTerm<NestTrie, true>& y) {
+    void swap(NestTrieDAWG_IsTerm<NestTrie, true>& y) noexcept {
 		std::swap(m_trie, y.m_trie);
 	}
-	void risk_release_ownership() {
+	void risk_release_ownership() noexcept {
 		m_trie->risk_release_ownership();
 	}
 	size_t mem_size() const { return m_trie->mem_size(); }
@@ -135,27 +135,27 @@ public:
     size_t iterator_max_mem_size() const {
         return UserMemIterator::s_max_mem_size(m_trie); }
 
-	void swap(NestTrieDAWG& y);
+	void swap(NestTrieDAWG& y) noexcept;
 
     size_t max_strlen() const { return m_trie->m_max_strlen; }
 	size_t total_states() const { return getIsTerm().size(); }
 	bool has_freelist() const override; // return false
 
-	size_t state_move(size_t, auchar_t ch) const;
-	size_t state_move_slow(size_t, auchar_t ch, StateMoveContext& ctx) const;
-	size_t state_move_fast(size_t, auchar_t ch, size_t n_children, size_t child0) const;
-	size_t state_move_fast(size_t parent, auchar_t ch, const StateMoveContext& ctx) const {
+	size_t state_move(size_t, auchar_t ch) const noexcept;
+	size_t state_move_slow(size_t, auchar_t ch, StateMoveContext& ctx) const noexcept;
+	size_t state_move_fast(size_t, auchar_t ch, size_t n_children, size_t child0) const noexcept;
+	size_t state_move_fast(size_t parent, auchar_t ch, const StateMoveContext& ctx) const noexcept {
 		return state_move_fast(parent, ch, ctx.n_children, ctx.child0);
 	}
 
-	bool   is_free(size_t s) const { return false; }
-	bool   is_pzip(size_t s) const { return m_trie->is_pzip(s); }
+	bool   is_free(size_t s) const noexcept { return false; }
+	bool   is_pzip(size_t s) const noexcept { return m_trie->is_pzip(s); }
 	bool   v_has_children(size_t) const override final;
 	size_t v_num_children(size_t s) const;
 	size_t v_gnode_states() const override final;
 	size_t zp_nest_level() const override final;
 
-	fstring get_zpath_data(size_t, MatchContext*) const;
+	fstring get_zpath_data(size_t, MatchContext*) const noexcept;
 	size_t mem_size() const override final;
 
 	void build_from(SortableStrVec&, const NestLoudsTrieConfig&);
@@ -186,14 +186,14 @@ public:
 		m_trie->template for_each_dest_rev<OP>(parent, op);
 	}
 
-	size_t state_to_word_id(size_t state) const {
+	size_t state_to_word_id(size_t state) const noexcept {
 		assert(state < m_trie->total_states());
 		return getIsTerm().rank1(state);
 	}
 	size_t v_state_to_word_id(size_t state) const override;
 
     size_t state_to_dict_rank(size_t state) const override;
-    size_t dict_rank_to_state(size_t rank) const;
+    size_t dict_rank_to_state(size_t rank) const noexcept;
 
 // DAWG functions:
 	enum { is_compiled = 1 }; // for dawg
@@ -203,32 +203,32 @@ public:
 	using DawgType::nth_word;
 	using BaseDAWG::match_dawg;
 	using BaseDAWG::match_dawg_l;
-	size_t index(MatchContext&, fstring) const override final;
-	size_t index(fstring) const override final;
+	size_t index(MatchContext&, fstring) const noexcept override final;
+	size_t index(fstring) const noexcept override final;
 	template<bool HasLink>
-	size_t index_impl(fstring) const;
+	size_t index_impl(fstring) const noexcept;
 	template<bool HasLink>
-	size_t index_impl(MatchContext&, fstring) const;
+	size_t index_impl(MatchContext&, fstring) const noexcept;
 
-    void lower_bound(MatchContext&, fstring, size_t* index, size_t* dict_rank) const override final;
-    size_t index_begin() const;
-    size_t index_end() const;
-    size_t index_next(size_t nth) const;
-    size_t index_prev(size_t nth) const;
+    void lower_bound(MatchContext&, fstring, size_t* index, size_t* dict_rank) const noexcept override final;
+    size_t index_begin() const noexcept;
+    size_t index_end() const noexcept;
+    size_t index_next(size_t nth) const noexcept;
+    size_t index_prev(size_t nth) const noexcept;
 
-	void nth_word(MatchContext&, size_t, std::string*) const override final;
-	void nth_word(size_t, std::string*) const override final;
-	void nth_word(MatchContext&, size_t, valvec<byte_t>*) const;
-	void nth_word(size_t, valvec<byte_t>*) const;
+	void nth_word(MatchContext&, size_t, std::string*) const noexcept override final;
+	void nth_word(size_t, std::string*) const noexcept override final;
+	void nth_word(MatchContext&, size_t, valvec<byte_t>*) const noexcept;
+	void nth_word(size_t, valvec<byte_t>*) const noexcept;
 
 	void get_random_keys_append(SortableStrVec* keys, size_t max_keys) const override;
 
-	DawgIndexIter dawg_lower_bound(MatchContext&, fstring) const override;
+	DawgIndexIter dawg_lower_bound(MatchContext&, fstring) const noexcept override;
 
 	template<class OnMatch, class TR>
 	size_t tpl_match_dawg
 (MatchContext& ctx, size_t base_nth, fstring str, OnMatch on_match, TR tr)
-	const {
+	const noexcept {
         assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
         if (m_trie->m_is_link.max_rank1() > 0)
             return tpl_match_dawg_impl<OnMatch, TR, true>(ctx, base_nth, str, on_match, tr);
@@ -238,7 +238,7 @@ public:
 	template<class OnMatch, class TR, bool HasLink>
 	size_t tpl_match_dawg_impl
 (MatchContext& ctx, size_t base_nth, fstring str, OnMatch on_match, TR tr)
-	const {
+	const noexcept {
 		if (0 == ctx.root) {
 			assert(0 == ctx.pos);
 			assert(0 == ctx.zidx);
@@ -336,5 +336,3 @@ TERARK_NAME_TYPE(DfudsPatriciaTrie_IL, SuffixCoutableNestTrieDAWG<NestDfudsTrie_
 */
 
 } // namespace terark
-
-#endif // __terark_rpatricial_trie_hpp__

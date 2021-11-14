@@ -1,5 +1,4 @@
-#ifndef __terark_fsa_tmplinst_hpp__
-#define __terark_fsa_tmplinst_hpp__
+#pragma once
 
 #include <terark/io/DataIO.hpp>
 #include <terark/io/StreamBuffer.hpp>
@@ -76,5 +75,3 @@ public:
 		BOOST_PP_CAT(gs_dfa_tmplinst, __LINE__)(BOOST_STRINGIZE(DFA), typeid(DFA).name());
 
 } // namespace terark
-
-#endif // __terark_fsa_tmplinst_hpp__

@@ -21,6 +21,7 @@
 #include <terark/mempool_thread_cache.hpp>
 #include <terark/thread/mutex.hpp>
 #include <terark/util/throw.hpp>
+#include <terark/util/autofree.hpp>
 #include <terark/util/auto_grow_circular_queue.hpp>
 #include <deque>
 #include <mutex>
@@ -163,7 +164,7 @@ protected:
 
     void reclaim_head();
 
-    void alloc_mempool_space(intptr_t maxMem);
+    void alloc_mempool_space(intptr_t maxMem, bool use_hugepage);
 
     template<ConcurrentLevel>
     void revoke_expired_nodes();

@@ -1,5 +1,4 @@
-#ifndef __terark_rank_select_simple_hpp__
-#define __terark_rank_select_simple_hpp__
+#pragma once
 
 #include "rank_select_basic.hpp"
 
@@ -19,10 +18,8 @@ public:
     rank_select_simple(size_t n, valvec_reserve);
     rank_select_simple(const rank_select_simple&);
     rank_select_simple& operator=(const rank_select_simple&);
-#if defined(HSM_HAS_MOVE)
     rank_select_simple(rank_select_simple&& y) noexcept;
     rank_select_simple& operator=(rank_select_simple&& y) noexcept;
-#endif
     ~rank_select_simple();
     void clear();
     void risk_release_ownership();
@@ -214,8 +211,4 @@ private:
     unsigned char* m_placeholder;
 };
 
-
 } // namespace terark
-
-#endif // __terark_rank_select_simple_hpp__
-

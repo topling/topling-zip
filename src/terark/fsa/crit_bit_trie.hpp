@@ -1,3 +1,5 @@
+#pragma once
+
 #include <queue>
 #include <terark/histogram.hpp>
 #include <terark/rank_select.hpp>

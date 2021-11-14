@@ -1,14 +1,7 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_DataInputIterator_h__
-#define __terark_io_DataInputIterator_h__
+#pragma once
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
-
-#ifndef __terark_io_DataInput_h__
 #include "DataInput.hpp"
-#endif
 
 namespace terark {
 

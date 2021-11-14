@@ -7,6 +7,7 @@
 #include "forward_decl.hpp"
 
 #include <terark/util/autoclose.hpp>
+#include <terark/util/autofree.hpp>
 #include <terark/bitmap.hpp>
 #include <terark/util/unicode_iterator.hpp>
 

@@ -1,5 +1,3 @@
-#ifndef TERARK_FSA_DFA_ALGO_BASIC_HPP_
-#define TERARK_FSA_DFA_ALGO_BASIC_HPP_
 #pragma once
 
 #include <terark/config.hpp>
@@ -52,5 +50,3 @@ public:
 };
 
 } // namespace terark
-
-#endif /* TERARK_FSA_DFA_ALGO_BASIC_HPP_ */

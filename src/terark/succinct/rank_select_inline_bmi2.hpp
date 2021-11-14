@@ -4,8 +4,7 @@
  *  Created on: Sep 1, 2015
  *      Author: leipeng
  */
-#ifndef TERARK_RANK_SELECT_INLINE_BMI2_HPP_
-#define TERARK_RANK_SELECT_INLINE_BMI2_HPP_
+#pragma once
 
 #include <terark/config.hpp>
 #include <terark/util/throw.hpp>
@@ -75,7 +74,3 @@ inline size_t UintSelect1(unsigned long x, size_t r) {
 
 
 } // namespace terark
-
-
-
-#endif /* TERARK_RANK_SELECT_INLINE_BMI2_HPP_ */

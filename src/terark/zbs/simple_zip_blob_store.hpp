@@ -18,9 +18,9 @@ public:
 	SimpleZipBlobStore();
 	~SimpleZipBlobStore();
 
-    void get_meta_blocks(valvec<fstring>* blocks) const override;
-    void get_data_blocks(valvec<fstring>* blocks) const override;
-    void detach_meta_blocks(const valvec<fstring>& blocks) override;
+    void get_meta_blocks(valvec<Block>* blocks) const override;
+    void get_data_blocks(valvec<Block>* blocks) const override;
+    void detach_meta_blocks(const valvec<Block>& blocks) override;
 	void build_from(class SortableStrVec& strVec, const class NestLoudsTrieConfig&);
 	void load_mmap(fstring fpath, const void* mmapBase, size_t mmapSize);
     void save_mmap(function<void(const void*, size_t)> write) const override;

@@ -1,5 +1,4 @@
-#ifndef __terark_util_sortable_strvec_hpp__
-#define __terark_util_sortable_strvec_hpp__
+#pragma once
 
 #include <terark/valvec.hpp>
 #include <terark/fstring.hpp>
@@ -572,5 +571,3 @@ using DoSortedStrVec = SortedStrVecUintTpl<uint32_t>; // Do : DWORD    offset
 using QoSortedStrVec = SortedStrVecUintTpl<uint64_t>; // Qo : QWORD    offset
 
 } // namespace terark
-
-#endif // __terark_util_sortable_strvec_hpp__

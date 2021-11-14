@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_DataIO_Tuple_h__
-#define __terark_io_DataIO_Tuple_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 #include <boost/tuple/tuple.hpp>
 #include <boost/type_traits.hpp>
@@ -82,5 +77,3 @@ inline void DataIO_saveObject(DataIO& dio, const boost::tuples::cons<T1, T2>& t)
 
 
 } // namespace terark
-
-#endif // __terark_io_DataIO_Tuple_h__

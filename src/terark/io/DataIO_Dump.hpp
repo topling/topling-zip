@@ -1,10 +1,5 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_DataIO_Dump_h__
-#define __terark_io_DataIO_Dump_h__
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
+#pragma once
 
 namespace terark {
 
@@ -80,5 +75,3 @@ DATA_IO_SMART_PTR_DUMP_LOAD_SAVE(boost::shared_ptr)
 
 
 } // namespace terark
-
-#endif // __terark_io_DataIO_Dump_h__

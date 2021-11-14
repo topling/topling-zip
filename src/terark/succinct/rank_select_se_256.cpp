@@ -10,7 +10,7 @@ inline rank_select_se::RankCache::RankCache(uint32_t l1) {
     memset(lev2, 0, sizeof(lev2));
 }
 
-void rank_select_se::nullize_cache() {
+void rank_select_se::nullize_cache() noexcept {
     m_rank_cache = NULL;
     m_sel0_cache = NULL;
     m_sel1_cache = NULL; // now select1 is not accelerated
@@ -47,7 +47,7 @@ rank_select_se::rank_select_se(const rank_select_se& y)
     nullize_cache();
     this->reserve(y.m_capacity);
     this->m_size = y.m_size;
-    STDEXT_copy_n(y.m_words, y.m_capacity/WordBits, this->m_words);
+    std::copy_n(y.m_words, y.m_capacity/WordBits, this->m_words);
     if (y.m_rank_cache) {
         assert(m_size % WordBits == 0);
         m_rank_cache = (RankCache*)this->m_words
@@ -76,7 +76,6 @@ rank_select_se::operator=(const rank_select_se& y) {
     return *this;
 }
 
-#if defined(HSM_HAS_MOVE)
 rank_select_se::rank_select_se(rank_select_se&& y) noexcept {
     memcpy(this, &y, sizeof(*this));
     y.risk_release_ownership();
@@ -89,17 +88,16 @@ rank_select_se::operator=(rank_select_se&& y) noexcept {
     y.risk_release_ownership();
     return *this;
 }
-#endif
 
 rank_select_se::~rank_select_se() {
 }
 
-void rank_select_se::clear() {
+void rank_select_se::clear() noexcept {
     nullize_cache();
     febitvec::clear();
 }
 
-void rank_select_se::risk_release_ownership() {
+void rank_select_se::risk_release_ownership() noexcept {
     nullize_cache();
     febitvec::risk_release_ownership();
 }
@@ -125,7 +123,7 @@ void rank_select_se::risk_mmap_from(unsigned char* base, size_t length) {
         m_sel1_cache = select_index;
 }
 
-void rank_select_se::shrink_to_fit() {
+void rank_select_se::shrink_to_fit() noexcept {
     assert(NULL == m_rank_cache);
     assert(NULL == m_sel0_cache);
     assert(NULL == m_sel1_cache);
@@ -134,7 +132,7 @@ void rank_select_se::shrink_to_fit() {
     febitvec::shrink_to_fit();
 }
 
-void rank_select_se::swap(rank_select_se& y) {
+void rank_select_se::swap(rank_select_se& y) noexcept {
     febitvec::swap(y);
     std::swap(m_rank_cache, y.m_rank_cache);
     std::swap(m_sel0_cache, y.m_sel0_cache);
@@ -208,11 +206,7 @@ void rank_select_se::build_cache(bool speed_select0, bool speed_select1) {
     ((uint64_t*)(m_words + m_capacity/WordBits))[-1] = flags;
 }
 
-size_t rank_select_se::mem_size() const {
-    return m_capacity / 8;
-}
-
-size_t rank_select_se::select0(size_t Rank0) const {
+size_t rank_select_se::select0(size_t Rank0) const noexcept {
     GUARD_MAX_RANK(0, Rank0);
     size_t lo, hi;
     if (m_sel0_cache) { // get the very small [lo, hi) range
@@ -257,7 +251,7 @@ size_t rank_select_se::select0(size_t Rank0) const {
     }
 }
 
-size_t rank_select_se::select1(size_t Rank1) const {
+size_t rank_select_se::select1(size_t Rank1) const noexcept {
     GUARD_MAX_RANK(1, Rank1);
     size_t lo, hi;
     if (m_sel1_cache) { // get the very small [lo, hi) range

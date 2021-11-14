@@ -1,5 +1,4 @@
-#ifndef __terark_io_var_int_inline_h__
-#define __terark_io_var_int_inline_h__
+#pragma once
 
 #ifdef _MSC_VER
 #  define TERARK_FORCE_INLINE __forceinline
@@ -393,5 +392,3 @@ unsigned char* gg_save_var_uint61(unsigned char* p, uint64_t x)
 
 
 //} // namespace terark
-
-#endif // __terark_io_var_int_inline_h__

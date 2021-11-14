@@ -7,14 +7,8 @@
 	@author	Lei Peng
 	@{
 *********************************************************************/
-#ifndef __circular_queue_hpp_
-#define __circular_queue_hpp_
+#pragma once
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
-#endif
-
-//#include <vector>
 #include <boost/swap.hpp>
 #include <terark/util/throw.hpp>
 
@@ -567,11 +561,3 @@ public:
 };
 
 } // namespace terark
-
-
-#endif
-
-
-
-// @} end file circular_queue.hpp
-

@@ -45,6 +45,7 @@ FileStream::FileStream(fstring fpath, fstring mode)
 
 FileStream::FileStream(int fd, fstring mode)
 {
+    m_fp = NULL;
 	dopen(fd, mode);
 }
 
@@ -585,7 +586,7 @@ uint64_t FileStream::fdsize(int fd) {
 	}
 #else
 	long long ilen;
-	struct stat st;
+	struct stat st; // NOLINT
 	if (fstat(fd, &st) < 0) {
 		THROW_STD(invalid_argument, "fstat(fd=%d) = %s", fd, strerror(errno));
 	}
@@ -618,6 +619,122 @@ void FileStream::fdchsize(int fd, uint64_t newfsize) {
 			, fd, (long long)newfsize, strerror(errno));
 	}
 #endif
+}
+
+///////////////////////////////////////////////////////////////////////////
+void OsFileStream::ThrowOpenFileException(fstring fpath, int flags, int mode) {
+	std::string errMsg = strerror(errno);
+	string_appender<> oss;
+	oss << "flags=" << flags << ", mode=" << mode << ", errMsg: " << errMsg;
+	throw OpenFileException(fpath.c_str(), oss.c_str());
+}
+OsFileStream::OsFileStream(fstring fpath, int flags, int mode) {
+    m_fd = -1;
+    this->open(fpath, flags, mode);
+}
+OsFileStream::~OsFileStream() {
+    if (m_fd >= 0) {
+        ::close(m_fd);
+    }
+}
+void OsFileStream::open(fstring fpath, int flags, int mode) {
+    TERARK_VERIFY_LT(m_fd, 0);
+    m_fd = ::open(fpath.c_str(), flags, mode);
+    if (m_fd < 0) {
+        ThrowOpenFileException(fpath, flags, mode);
+    }
+}
+bool OsFileStream::xopen(fstring fpath, int flags, int mode) noexcept {
+    TERARK_VERIFY_LT(m_fd, 0);
+    m_fd = ::open(fpath.c_str(), flags, mode);
+    return m_fd >= 0;
+}
+void OsFileStream::close() {
+    TERARK_VERIFY_GE(m_fd, 0);
+    if (::close(m_fd) < 0) {
+        // very rarely happen
+        TERARK_THROW(IOException, "close(fd=%d)", m_fd);
+    }
+}
+void OsFileStream::attach(int fd) noexcept {
+    TERARK_VERIFY_LT(m_fd, 0);
+    m_fd = fd;
+}
+int OsFileStream::detach() noexcept {
+    TERARK_VERIFY_GE(m_fd, 0);
+    int fd = m_fd;
+    m_fd = -1;
+    return fd;
+}
+size_t OsFileStream::read(void* buf, size_t len) {
+    TERARK_ASSERT_GE(m_fd, 0);
+    auto n = ::read(m_fd, buf, len);
+    if (n < 0) {
+        TERARK_THROW(IOException, "read(fd=%d, len=%zd) = %zd", m_fd, len, n);
+    }
+    else if (len && 0 == n) {
+        m_eof = true;
+    }
+    return n;
+}
+size_t OsFileStream::write(const void* buf, size_t len) {
+    TERARK_ASSERT_GE(m_fd, 0);
+    auto n = ::write(m_fd, buf, len);
+    if (size_t(n) != len) {
+        TERARK_THROW(IOException, "write(fd=%d, len=%zd) = %zd", m_fd, len, n);
+    }
+    return n;
+}
+void OsFileStream::flush() {
+    // do nothing, do not call fsync or fdatasync
+    TERARK_ASSERT_GE(m_fd, 0);
+}
+void OsFileStream::rewind() {
+    TERARK_ASSERT_GE(m_fd, 0);
+    lseek(m_fd, 0, SEEK_SET);
+}
+void OsFileStream::seek(stream_offset_t offset, int origin) {
+    TERARK_ASSERT_GE(m_fd, 0);
+    lseek(m_fd, offset, origin);
+}
+void OsFileStream::seek(stream_position_t pos) {
+    TERARK_ASSERT_GE(m_fd, 0);
+    lseek(m_fd, pos, SEEK_SET);
+}
+stream_position_t OsFileStream::tell() const {
+    TERARK_ASSERT_GE(m_fd, 0);
+    return lseek(m_fd, 0, SEEK_CUR);
+}
+stream_position_t OsFileStream::size() const {
+    TERARK_ASSERT_GE(m_fd, 0);
+    struct stat st; // NOLINT
+    if (::fstat(m_fd, &st) < 0) {
+        TERARK_THROW(IOException, "fstat(fd=%d)", m_fd);
+    }
+    return stream_position_t(st.st_size);
+}
+size_t OsFileStream::pread(stream_position_t pos, void* buf, size_t len) {
+    TERARK_ASSERT_GE(m_fd, 0);
+    auto n = ::pread(m_fd, buf, len, pos);
+    if (n < 0) {
+        TERARK_THROW(IOException, "pread(fd=%d, pos=%lld, len=%zd) = %zd",
+                     m_fd, llong(pos), len, n);
+    }
+    return n;
+}
+size_t OsFileStream::pwrite(stream_position_t pos, const void* buf, size_t len) {
+    TERARK_ASSERT_GE(m_fd, 0);
+    auto n = ::pwrite(m_fd, buf, len, pos);
+    if (n < 0) {
+        TERARK_THROW(IOException, "pwrite(fd=%d, pos=%lld, len=%zd) = %zd",
+                     m_fd, llong(pos), len, n);
+    }
+    return n;
+}
+void OsFileStream::chsize(llong newfsize) const {
+    if (::ftruncate(m_fd, newfsize) < 0) {
+        TERARK_THROW(IOException, "ftruncate(fd=%d, size=%lld)", m_fd, newfsize);
+    }
 }
 
 } // namespace terark

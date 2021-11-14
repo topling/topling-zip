@@ -1,9 +1,7 @@
 /* vim: set tabstop=4 : */
-#ifndef __terark_io_byte_swap_h__
-#define __terark_io_byte_swap_h__
+#pragma once
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
-# pragma once
 # pragma warning(disable: 4127)
 #endif
 
@@ -12,6 +10,7 @@
 #include <boost/typeof/typeof.hpp>
 #include <boost/static_assert.hpp>
 #include <string.h> // for memcpy
+#include <utility> // std::pair
 
 namespace terark {
 
@@ -223,7 +222,3 @@ void bytewise_swap(T& a, T&b) {
 } // namespace terark
 
 //#include <boost/type_traits/detail/bool_trait_undef.hpp>
-
-#endif // __terark_io_byte_swap_h__
-
-

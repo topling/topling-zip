@@ -31,12 +31,19 @@ public:
     static BlobStore* load_from_user_memory(fstring dataMem);
     static BlobStore* load_from_user_memory(fstring dataMem, const Dictionary&);
 
+    struct Block {
+        fstring name;
+        fstring data;
+        Block(fstring n, fstring d) : name(n), data(d) {}
+        Block() {}
+    };
+
     virtual const char* name() const = 0;
-    virtual void get_meta_blocks(valvec<fstring>* blocks) const = 0;
-    virtual void get_data_blocks(valvec<fstring>* blocks) const = 0;
-    virtual void detach_meta_blocks(const valvec<fstring>& blocks) = 0;
-    valvec<fstring> get_meta_blocks() const;
-    valvec<fstring> get_data_blocks() const;
+    virtual void get_meta_blocks(valvec<Block>* blocks) const = 0;
+    virtual void get_data_blocks(valvec<Block>* blocks) const = 0;
+    virtual void detach_meta_blocks(const valvec<Block>& blocks) = 0;
+    valvec<Block> get_meta_blocks() const;
+    valvec<Block> get_data_blocks() const;
 
     BlobStore();
     ~BlobStore() override;
@@ -79,6 +86,11 @@ public:
         co->recData.erase_all();
         (this->*m_get_record_append_CacheOffsets)(recID, co);
     }
+    terark_forceinline
+    size_t get_zipped_size(size_t recID, CacheOffsets* co) const {
+        return (this->*m_get_zipped_size)(recID, co);
+    }
+
     virtual size_t lower_bound(size_t lo, size_t hi, fstring target, CacheOffsets* co) const;
     virtual size_t lower_bound(size_t lo, size_t hi, fstring target, valvec<byte_t>* recData) const;
     terark_forceinline
@@ -180,6 +192,9 @@ protected:
                         valvec<byte_t>* recData,
                         valvec<byte_t>* buf) const;
     pread_record_append_func_t m_pread_record_append;
+
+    typedef size_t (BlobStore::*get_zipped_size_func_t)(size_t recID, CacheOffsets*) const;
+    get_zipped_size_func_t m_get_zipped_size;
 
     void pread_record_append_default_impl(
                         LruReadonlyCache* cache,

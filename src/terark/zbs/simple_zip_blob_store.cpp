@@ -169,18 +169,18 @@ void SimpleZipBlobStore::save_mmap(function<void(const void*, size_t)> write) co
     buffer.ensureWrite(m_off_len.data(), m_off_len.mem_size());
 }
 
-void SimpleZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
+void SimpleZipBlobStore::get_meta_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_records.data(), m_records.mem_size());
-    blocks->emplace_back(m_off_len.data(), m_off_len.mem_size());
+	blocks->push_back({"L0-Index", {m_records.data(), (ptrdiff_t)m_records.mem_size()}});
+	blocks->push_back({"L1-Index", {m_off_len.data(), (ptrdiff_t)m_off_len.mem_size()}});
 }
 
-void SimpleZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
+void SimpleZipBlobStore::get_data_blocks(valvec<Block>* blocks) const {
     blocks->erase_all();
-    blocks->emplace_back(m_strpool.data(), m_strpool.used_mem_size());
+	blocks->push_back({"data", {m_strpool.data(), (ptrdiff_t)m_strpool.used_mem_size()}});
 }
 
-void SimpleZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+void SimpleZipBlobStore::detach_meta_blocks(const valvec<Block>& blocks) {
     THROW_STD(invalid_argument
         , "SimpleZipBlobStore detach_meta_blocks unsupported !");
 }

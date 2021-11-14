@@ -1,5 +1,4 @@
-#ifndef __penglei_valvec_hpp__
-#define __penglei_valvec_hpp__
+#pragma once
 
 #include <assert.h>
 #include <stddef.h>
@@ -62,7 +61,7 @@ protected:
 		n = c = 0;
 		if (count) { // for exception-safe
 			AutoMemory tmp(count);
-			STDEXT_uninitialized_copy_n(first, count, tmp.p);
+			std::uninitialized_copy_n(first, count, tmp.p);
 			p = tmp.p;
 			n = c = count;
 			tmp.p = NULL;
@@ -188,7 +187,6 @@ public:
         return *this;
     }
 
-#ifdef HSM_HAS_MOVE
     mmap_vec(mmap_vec&& y) {
         assert(this != &y);
 		assert(!is_object_overlap(this, &y));
@@ -209,7 +207,6 @@ public:
 		new(this)mmap_vec(y);
 		return *this;
 	}
-#endif // HSM_HAS_MOVE
 
     ~mmap_vec() { clear(); }
 
@@ -239,7 +236,7 @@ public:
 		assert(len >= 0);
 		erase_all();
         ensure_capacity(len);
-		STDEXT_uninitialized_copy_n(first, len, p);
+		std::uninitialized_copy_n(first, len, p);
 		n = len;
     }
     void assign(const std::pair<const T*, const T*>& rng) {
@@ -252,7 +249,7 @@ public:
 		assert(len >= 0);
 		erase_all();
         ensure_capacity(len);
-		STDEXT_uninitialized_copy_n(first, len, p);
+		std::uninitialized_copy_n(first, len, p);
 		n = len;
     }
 	template<class Container>
@@ -432,7 +429,7 @@ public:
             ensure_capacity(n+count);
 	//	for (ptrdiff_t i = n; i > pos; --i) memcpy(p+i, p+i-1, sizeof T);
 		memmove(p+pos+count, p+pos, sizeof(T)*(n-pos));
-		STDEXT_uninitialized_copy_n(iter, count, p+pos);
+		std::uninitialized_copy_n(iter, count, p+pos);
 		n += count;
 	}
 
@@ -471,7 +468,7 @@ public:
 		assert(len >= 0);
         size_t newsize = n + len;
         ensure_capacity(newsize);
-        STDEXT_uninitialized_copy_n(first, len, p+n);
+        std::uninitialized_copy_n(first, len, p+n);
         n = newsize;
 	}
 	template<class Iterator>
@@ -541,12 +538,7 @@ public:
 
 	T pop_val() {
 		assert(n > 0);
-#ifdef HSM_HAS_MOVE
 		T x(std::move(p[n-1]));
-#else
-		T x(p[n-1]);
-        p[n-1].~T();
-#endif
 		--n;
 		return x;
 	}
@@ -1155,6 +1147,3 @@ namespace std {
 	template<class T>
 	void swap(terark::mmap_vec<T>& x, terark::mmap_vec<T>& y) { x.swap(y); }
 }
-
-#endif
-

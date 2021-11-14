@@ -1,9 +1,7 @@
-#ifndef __penglei_bitmanip_h__
-#define __penglei_bitmanip_h__
+#pragma once
 
 #include <assert.h>
 #include <limits.h>
-//#include <boost/static_assert.hpp>
 #include "config.hpp"
 
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__+0 >= 4005 || defined(__clang__)
@@ -328,7 +326,3 @@ template<> class BitsToUint<32> { typedef unsigned int type; };
 template<> class BitsToUint<64> { typedef unsigned long long type; };
 
 } // namespace terark
-
-
-#endif
-
