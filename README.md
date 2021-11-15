@@ -1,5 +1,13 @@
 # 0. Disallow Bytedance Inc.
 All changes after 2021-06-01 is disallowed to be used by bytedance, see [LICENSE](LICENSE).
+# 1. Compile
+```bash
+ make -j {CPU_CORE_NUM} pkg
+```
+
+<br/>
+<br/>
+<br/>
 
 # 1. Introduction
 - TerarkZip is [TerarkDB](https://github.com/bytedance/terarkdb)'s submodule
