@@ -13,6 +13,9 @@ char* decode_00_0n(const char* ibeg, const char**ires, char* obeg, char* oend);
 TERARK_DLL_EXPORT
 const char* end_of_00_0n(const char* encoded);
 
+TERARK_DLL_EXPORT
+const char* end_of_00_0n(const char* beg, const char* end);
+
 // float encoding/decoding intentinally use unsigned char*
 TERARK_DLL_EXPORT
 unsigned char* encode_memcmp_float(float src, unsigned char* dst);

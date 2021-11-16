@@ -71,6 +71,23 @@ const char* end_of_00_0n(const char* encoded) {
   }
 }
 
+TERARK_DLL_EXPORT
+const char* end_of_00_0n(const char* encoded, const char* end) {
+  while (encoded < end) {
+    if (encoded[0])
+      encoded++;
+    else if (encoded + 1 < end) {
+      if (encoded[1]) // 0n
+        return encoded + 2;
+      else // 00
+        encoded += 2;
+    }
+    else
+      break;
+  }
+  return end;
+}
+
 static const int FLT_EXP_DIG = (sizeof(float )*8-FLT_MANT_DIG);
 static const int DBL_EXP_DIG = (sizeof(double)*8-DBL_MANT_DIG);
 
