@@ -289,7 +289,7 @@ zbs  := ${shared_zbs_d}  ${shared_zbs_r}  ${shared_zbs_a}  ${static_zbs_d}  ${st
 idx  := ${shared_idx_d}  ${shared_idx_r}  ${shared_idx_a}  ${static_idx_d}  ${static_idx_r}  ${static_idx_a}
 rpc  := ${shared_rpc_d}  ${shared_rpc_r}  ${shared_rpc_a}  ${static_rpc_d}  ${static_rpc_r}  ${static_rpc_a}
 
-ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs idx rpc tools samples oldsamples
+ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs idx rpc tools
 DBG_TARGETS = ${MAYBE_DBB_DBG} ${shared_core_d} ${shared_fsa_d} ${shared_zbs_d} ${shared_idx_d} ${shared_rpc_d}
 RLS_TARGETS = ${MAYBE_DBB_RLS} ${shared_core_r} ${shared_fsa_r} ${shared_zbs_r} ${shared_idx_r} ${shared_rpc_r}
 AFR_TARGETS = ${MAYBE_DBB_AFR} ${shared_core_a} ${shared_fsa_a} ${shared_zbs_a} ${shared_idx_a} ${shared_rpc_a}
@@ -602,22 +602,12 @@ ${BUILD_ROOT}/done.tools: ${fsa} ${zbs} \
 fuse: ${fsa} ${core}
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/fuse_proxy
 
-.PHONY : samples
-samples : ${BUILD_ROOT}/done.samples
-${BUILD_ROOT}/done.samples: ${core}	${fsa} $(wildcard samples/fsa/abstract_api/*.cpp)
-	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C samples/fsa/abstract_api
-	touch $@
-
-.PHONY : oldsamples
-oldsamples : ${fsa} ${core} $(wildcard test/fsa/*.cpp)
-	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C test/fsa
-
 TarBallBaseName := terark-fsa_all-${BUILD_NAME}
 TarBall := pkg/${TarBallBaseName}
 
 PKG_WITH_EXE ?= 1
 ifeq (${PKG_WITH_EXE},1)
-  PKG_EXE_TARGETS := ${BUILD_ROOT}/done.samples ${BUILD_ROOT}/done.tools
+  PKG_EXE_TARGETS := ${BUILD_ROOT}/done.tools
 endif
 
 .PHONY : pkg
@@ -702,13 +692,10 @@ endif
 endif # PKG_WITH_SRC
 ifeq (${PKG_WITH_EXE},1)
   ifeq "$(shell uname -r | grep -i Microsoft)" "0"
-	+$(MAKE) CHECK_TERARK_FSA_LIB_UPDATE=0 -C samples/fcgi
   endif
 	+$(MAKE) CHECK_TERARK_FSA_LIB_UPDATE=0 -C test/fsa ${rdir}/src/aho_corasick/aho_corasick.exe
-	mkdir -p ${TarBall}/samples/bin
 	mkdir -p ${TarBall}/zsrch/bin
 	mkdir -p ${TarBall}/zsrch/lib
-	mkdir -p ${TarBall}/zsrch/samples/bin
   ifneq (CYGWIN, ${UNAME_System})
 	#cp -H tools/log_search/rls/log_indexer.exe ${TarBall}/zsrch/bin
 	#cp -H tools/log_search/rls/log_realtime.exe ${TarBall}/zsrch/bin
@@ -717,26 +704,15 @@ ifeq (${PKG_WITH_EXE},1)
 	#cp -H tools/log_search/fields.regex        ${TarBall}/zsrch/
 	#cp -H tools/log_search/compile_regex.sh    ${TarBall}/zsrch/
   endif
-  ifeq "$(shell uname -r | grep -i Microsoft)" "0"
-	cp -H samples/fcgi/${rdir}/*.exe           ${TarBall}/zsrch/samples/bin
-  endif
 	cp -H tools/fsa/${rdir}/*.exe ${TarBall}/bin
 	cp -H tools/zbs/${rdir}/*.exe ${TarBall}/bin
 	#cp -H tools/fuse_proxy/${rdir}/*.exe ${TarBall}/bin
 	cp -H tools/regex/${rdir}/*.exe ${TarBall}/bin
 	cp -H tools/general/${rdir}/*.exe ${TarBall}/bin
-	cp -H samples/fsa/abstract_api/${rdir}/*.exe    ${TarBall}/samples/bin
-	cp -H test/fsa/${rdir}/src/aho_corasick/aho_corasick.exe     ${TarBall}/samples/bin/ac_bench.exe
 endif
 ifeq (${PKG_WITH_SRC},1)
 	mkdir -p ${TarBall}/include/terark/zsrch
-	mkdir -p ${TarBall}/samples/src/fsa
-	mkdir -p ${TarBall}/zsrch/samples/src
 	cp -H src/terark/zsrch/*.hpp            ${TarBall}/include/terark/zsrch
-	cp -H samples/fcgi/search.cpp           ${TarBall}/zsrch/samples/src
-	cp -H samples/fsa/abstract_api/*.cpp    ${TarBall}/samples/src/fsa
-	cp -H samples/fsa/abstract_api/Makefile ${TarBall}/samples/src/fsa
-	cp -H test/fsa/src/aho_corasick/aho_corasick.cpp ${TarBall}/samples/src/fsa/ac_bench.cpp
 endif # PKG_WITH_SRC
 ifeq (${PKG_WITH_DBG},1)
 	cp -a ${BUILD_ROOT}/lib_shared/libterark-{idx,fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib_shared
@@ -761,11 +737,6 @@ ${TarBall}.tgz: ${TarBall}
 
 .PHONY : fsa_sample_code
 fsa_sample_code : pkg/fsa_sample_code.tgz
-
-pkg/fsa_sample_code.tgz: $(wildcard samples/fsa/abstract_api/*.cpp)
-	mkdir -p pkg/fsa_sample_code
-	cp -f $^ pkg/fsa_sample_code
-	cd pkg; tar czf fsa_sample_code.tgz fsa_sample_code
 
 .PHONY: test
 .PHONY: test_dbg
