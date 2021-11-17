@@ -590,11 +590,9 @@ tools : ${BUILD_ROOT}/done.tools
 ${BUILD_ROOT}/done.tools: ${fsa} ${zbs} \
                           $(wildcard tools/zbs/*.cpp) \
                           $(wildcard tools/fsa/*.cpp) \
-                          $(wildcard tools/regex/*.cpp) \
                           $(wildcard tools/general/*.cpp)
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/zbs
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/fsa
-	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/regex
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/general
 	touch $@
 
@@ -693,7 +691,6 @@ endif # PKG_WITH_SRC
 ifeq (${PKG_WITH_EXE},1)
   ifeq "$(shell uname -r | grep -i Microsoft)" "0"
   endif
-	+$(MAKE) CHECK_TERARK_FSA_LIB_UPDATE=0 -C test/fsa ${rdir}/src/aho_corasick/aho_corasick.exe
 	mkdir -p ${TarBall}/zsrch/bin
 	mkdir -p ${TarBall}/zsrch/lib
   ifneq (CYGWIN, ${UNAME_System})
@@ -701,13 +698,10 @@ ifeq (${PKG_WITH_EXE},1)
 	#cp -H tools/log_search/rls/log_realtime.exe ${TarBall}/zsrch/bin
 	#cp -H tools/log_search/rls/default_log_parser.so ${TarBall}/zsrch/lib
 	#cp -H tools/log_search/default_log_parser.conf ${TarBall}/zsrch
-	#cp -H tools/log_search/fields.regex        ${TarBall}/zsrch/
-	#cp -H tools/log_search/compile_regex.sh    ${TarBall}/zsrch/
   endif
 	cp -H tools/fsa/${rdir}/*.exe ${TarBall}/bin
 	cp -H tools/zbs/${rdir}/*.exe ${TarBall}/bin
 	#cp -H tools/fuse_proxy/${rdir}/*.exe ${TarBall}/bin
-	cp -H tools/regex/${rdir}/*.exe ${TarBall}/bin
 	cp -H tools/general/${rdir}/*.exe ${TarBall}/bin
 endif
 ifeq (${PKG_WITH_SRC},1)
