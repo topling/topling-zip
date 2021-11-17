@@ -21,8 +21,9 @@ endif
 
 override INCS := -I${TERARK_HOME}/src ${INCS} ${BOOST_INC}
 #override CXXFLAGS += -pipe
-override CXXFLAGS += -g3
+override CXXFLAGS += -gdwarf-5 -g3
 override CXXFLAGS += -Wall -Wextra
+#override CXXFLAGS += -Wno-alloc-size-larger-than # unrecognize
 override CXXFLAGS += -Wno-unused-parameter
 override CXXFLAGS += -D_GNU_SOURCE
 override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
@@ -30,10 +31,10 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
 
 #override CXXFLAGS += -Wfatal-errors
-DBG_ASAN ?= -fsanitize=address
-AFR_ASAN ?= -fsanitize=address
-RLS_ASAN ?=
-AFR_FLAGS = -O1 ${AFR_ASAN}
+#DBG_ASAN ?= -fsanitize=address
+#AFR_ASAN ?= -fsanitize=address
+#RLS_ASAN ?=
+AFR_FLAGS = -Og ${AFR_ASAN}
 DBG_FLAGS = -O0 ${DBG_ASAN}
 RLS_FLAGS = -Ofast -DNDEBUG ${RLS_ASAN}
 
@@ -49,6 +50,8 @@ override LIBS += -lpthread
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
   override CXXFLAGS += -fcolor-diagnostics
+  LDFLAGS += -latomic
+  #$(error LDFLAGS = ${LDFLAGS})
 endif
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
@@ -95,7 +98,7 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   override CXXFLAGS += -time
 endif
 
-CXX_STD := -std=gnu++1y
+CXX_STD := -std=gnu++17
 
 override CXXFLAGS += ${CXX_STD}
 
@@ -160,6 +163,7 @@ ext_cxxflags_delay = $$(strip $$(shell sed -n 's,.*//Makefile\s*:\s*CXXFLAGS\s*:
 
 all : link
 link: ${ALL_BIN}
+	@echo ALL_BIN = ${ALL_BIN}
 	@mkdir -p dbg; cd dbg; \
 	for f in `find ../${DBG_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
 		ln -sf $$f .; \
@@ -217,14 +221,14 @@ ${EXE_BINS_R}: ${LIB_LIBS_R}
 endif
 
 ifneq (${DLL_SRCS},)
-${DLL_BINS_A} : LDFLAGS := ${AFR_ASAN}
-${DLL_BINS_D} : LDFLAGS := ${DBG_ASAN}
-${DLL_BINS_R} : LDFLAGS := ${RLS_ASAN}
+${DLL_BINS_A} : LDFLAGS := ${AFR_ASAN} ${LDFLAGS}
+${DLL_BINS_D} : LDFLAGS := ${DBG_ASAN} ${LDFLAGS}
+${DLL_BINS_R} : LDFLAGS := ${RLS_ASAN} ${LDFLAGS}
 endif
 
-${EXE_BINS_A} : LDFLAGS := ${AFR_ASAN}
-${EXE_BINS_D} : LDFLAGS := ${DBG_ASAN}
-${EXE_BINS_R} : LDFLAGS := ${RLS_ASAN}
+${EXE_BINS_A} : LDFLAGS := ${AFR_ASAN} ${LDFLAGS}
+${EXE_BINS_D} : LDFLAGS := ${DBG_ASAN} ${LDFLAGS}
+${EXE_BINS_R} : LDFLAGS := ${RLS_ASAN} ${LDFLAGS}
 
 ${EXE_BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
 ${EXE_BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
@@ -269,18 +273,18 @@ ${UNIT_TESTS_RLS} : %.test_rls : %
 define COMPILE_CXX
 ${2}/%.o : %.${1}
 	@echo file: $$< "->" $$@
-	@echo TERARK_INC=${TERARK_INC} BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	@echo TERARK_INC=$${TERARK_INC} BOOST_INC=$${BOOST_INC} BOOST_SUFFIX=$${BOOST_SUFFIX}
 	@mkdir -p $$(dir $$@)
-	${CXX} ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} ${ext_cxxflags_delay} $$< -o $$@ -c
+	$${CXX} $${CXX_STD} $${CPU} ${3} $${CXXFLAGS} $${INCS} ${ext_cxxflags_delay} $$< -o $$@ -c
 ${2}/%.s : %.${1}
 	@echo file: $$< "->" $$@
 	@mkdir -p $$(dir $$@)
-	${CXX} ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} ${ext_cxxflags_delay} $$< -o $$@ -S -fverbose-asm
+	$${CXX} $${CXX_STD} $${CPU} ${3} $${CXXFLAGS} $${INCS} ${ext_cxxflags_delay} $$< -o $$@ -S -fverbose-asm
 ${2}/%.dep : %.${1}
 	@echo file: $$< "->" $$@
-	@echo INCS = ${INCS}
+	@echo INCS = $${INCS}
 	@mkdir -p $$(dir $$@)
-	-${CXX} ${CXX_STD} ${3} -M -MT $$(basename $$@).o ${INCS} ${ext_cxxflags_delay} $$< > $$@
+	-$${CXX} $${CXX_STD} ${3} -M -MT $$(basename $$@).o $${INCS} ${ext_cxxflags_delay} $$< > $$@
 endef
 
 $(eval $(call COMPILE_CXX,cpp,${AFR_DIR},${AFR_FLAGS}))
@@ -293,7 +297,7 @@ $(eval $(call COMPILE_CXX,cxx,${RLS_DIR},${RLS_FLAGS}))
 
 %.exe : %.o
 	@echo Linking ... $@
-	${LD} ${LDFLAGS} -o $@ $< ${LIBS} $(ext_ldflags)
+	${LD} -o $@ $< ${LIBS} $(ext_ldflags) ${LDFLAGS}
 
 %${DLL_SUFFIX}: %.o
 	@echo "----------------------------------------------------------------------------------"
@@ -303,7 +307,7 @@ $(eval $(call COMPILE_CXX,cxx,${RLS_DIR},${RLS_FLAGS}))
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@rm -f $@
 	@rm -f $(subst -${COMPILER},, $@)
-	@${LD} -shared $(sort $(filter %.o,$^)) ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
+	@${LD} -shared $(sort $(filter %.o,$^)) ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS} ${LDFLAGS}
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
 endif

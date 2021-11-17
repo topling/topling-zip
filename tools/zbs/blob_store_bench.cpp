@@ -1,4 +1,4 @@
-#define _SCL_SECURE_NO_WARNINGS
+#define _SCL_SECURE_NO_WARNINGS // fuck vc
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_NONSTDC_NO_WARNINGS
 
@@ -110,7 +110,7 @@ GetoptDone:
 		while (line.getline(fp.self_or(stdin)) > 0) {
 			line.chomp();
 			if (!line.empty()) {
-				unsigned long recID = strtoul(line, NULL, 10);
+				unsigned long recID = strtoul(line.p, NULL, 10);
 				if (recID >= ds->num_records()) {
 					fprintf(stderr, "ERROR: invalid record id=%ld, discarded\n", long(recID));
 				} else {

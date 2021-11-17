@@ -414,7 +414,7 @@ GetoptDone:
     if (select_store == 'a' || select_store == 'd') {
         if (dictZipSampleRatio > 0) {
             dzb.reset(DictZipBlobStore::createZipBuilder(dzopt));
-            randomUpperBound = uint64_t(randomGen.max() * dictZipSampleRatio);
+            randomUpperBound = uint64_t(double(randomGen.max()) * dictZipSampleRatio);
         }
         else if (!preSample.empty()) {
             dzb.reset(DictZipBlobStore::createZipBuilder(dzopt));
