@@ -257,6 +257,8 @@ public:
 
     void mempool_tc_populate(size_t) override;
     void mempool_set_readonly();
+
+    size_t get_token_qlen() const noexcept override;
 };
 
 // Patricia is an interface

@@ -242,6 +242,7 @@ public:
     virtual const Stat& sync_stat() = 0;
     virtual size_t num_words() const = 0;
     virtual void mempool_tc_populate(size_t) = 0;
+    virtual size_t get_token_qlen() const noexcept = 0;
     ~Patricia();
 protected:
     Patricia();

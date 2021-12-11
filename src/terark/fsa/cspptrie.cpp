@@ -473,6 +473,11 @@ void PatriciaMem<Align>::mempool_set_readonly() {
   m_writing_concurrent_level = NoWriteReadOnly;
 }
 
+template<size_t Align>
+size_t PatriciaMem<Align>::get_token_qlen() const noexcept {
+    return m_token_qlen;
+}
+
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
 default: TERARK_DIE("Unknown == conLevel"); break;
