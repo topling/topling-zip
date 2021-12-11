@@ -2887,22 +2887,10 @@ void Patricia::TokenBase::dispose() {
                 }
             }
             else {
-                if (cas_strong(trie->m_head_lock, false, true)) {
-                    if (cas_weak(m_flags, flags, {DisposeDone, false})) {
-                        auto next = this->m_link.next;
-                        if (next) {
-                            this->m_link.next = next->m_link.next;
-                        }
-                        cas_unlock(trie->m_head_lock);
-                        delete this;
-                    }
-                    return;
-                }
-                else {
-                    if (cas_weak(m_flags, flags, {DisposeWait, false})) {
-                        return;
-                    }
-                }
+                TERARK_VERIFY(nullptr == this->m_link.next);
+                TERARK_VERIFY(cas_strong(m_flags, flags, {DisposeDone, false}));
+                delete this;
+                return;
             }
             break;
         case ReleaseWait:
@@ -3497,11 +3485,19 @@ void Patricia::TokenBase::idle() {
             break;
         } // switch
     }
-    trie->m_token_tail = NULL;
   SetQueueHead:
+    // 'this' is included in queue(counted in m_token_qlen)
+    // remove 'this' from queue(dec m_token_qlen)
+    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+    this->m_link.next = NULL;
+    if (NULL == curr) {
+        TERARK_VERIFY_EZ(trie->m_token_qlen);
+        trie->m_token_tail = &trie->m_dummy;
+    }
+    else {
+        TERARK_VERIFY(0 != trie->m_token_qlen);
+    }
     trie->m_dummy.m_link.next = curr;
-    TERARK_VERIFY_F((nullptr == curr) ^ (0 != trie->m_token_qlen),
-                    "curr: %p qlen: %d", curr, trie->m_token_qlen);
     cas_unlock(trie->m_head_lock);
     del_tokens(delptrs, delnum);
 }
