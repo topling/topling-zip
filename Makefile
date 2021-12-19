@@ -3,10 +3,13 @@ export SHELL=bash
 #AFR_ASAN ?= -fsanitize=address
 #RLS_ASAN ?=
 
-DBG_FLAGS ?= -O0 -D_DEBUG -gdwarf -g3 ${DBG_ASAN}
-RLS_FLAGS ?= -O3 -DNDEBUG -gdwarf -g3 ${RLS_ASAN}
+# default disable dwarf
+DBG_DWARF ?=
+
+DBG_FLAGS ?= -O0 -D_DEBUG ${DBG_DWARF} -g3 ${DBG_ASAN}
+RLS_FLAGS ?= -O3 -DNDEBUG ${DBG_DWARF} -g3 ${RLS_ASAN}
 # 'AFR' means Assert For Release
-AFR_FLAGS ?= -Og -gdwarf -g3 ${AFR_ASAN}
+AFR_FLAGS ?= -Og ${DBG_DWARF} -g3 ${AFR_ASAN}
 
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
 CMAKE_INSTALL_PREFIX ?= /usr
@@ -495,8 +498,8 @@ ${rdir}/boost-static/build.done:
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
-	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 -gdwarf -g3" \
-		                     -j8   cflags="-fPIC -gdwarf -g3" threading=multi link=static variant=release
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 ${DBG_DWARF} -g3" \
+		                     -j8   cflags="-fPIC ${DBG_DWARF} -g3" threading=multi link=static variant=release
 	touch $@
 ${rdir}/boost-shared/build.done:
 	@rm -rf $(dir $@)

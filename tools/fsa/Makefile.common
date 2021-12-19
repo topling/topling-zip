@@ -19,9 +19,12 @@ ifeq "$(origin LD)" "default"
   LD := ${CXX}
 endif
 
+# default disable dwarf
+DBG_DWARF ?=
+
 override INCS := -I${TERARK_HOME}/src ${INCS} ${BOOST_INC}
 #override CXXFLAGS += -pipe
-override CXXFLAGS += -gdwarf-5 -g3
+override CXXFLAGS += ${DBG_DWARF} -g3
 override CXXFLAGS += -Wall -Wextra
 #override CXXFLAGS += -Wno-alloc-size-larger-than # unrecognize
 override CXXFLAGS += -Wno-unused-parameter
