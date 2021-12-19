@@ -103,9 +103,9 @@ endif
 # icc or icpc
 ifeq "$(shell a=${COMPILER};echo $${a:0:2})" "ic"
   CXXFLAGS += -xHost -fasm-blocks
-  CPU = -xHost
+  CPU ?= -xHost
 else
-  CPU = -march=haswell
+  CPU ?= -march=haswell
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
     COMMON_C_FLAGS  += -fstrict-aliasing
