@@ -331,6 +331,8 @@ static const long csppDebugLevel = getEnvLong("PatriciaDebugLevel", 0);
             __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
     } while (0)
 
+#undef  WARN
+#define WARN(level, ...) PTrieLog(level, "WARN", __VA_ARGS__)
 #undef  INFO
 #define INFO(level, ...) PTrieLog(level, "INFO", __VA_ARGS__)
 #undef  DBUG
@@ -553,12 +555,17 @@ try
     case  SingleThreadShared: new(&m_mempool_lock_none)MemPool_LockNone<AlignSize>(MAX_STATE_SIZE + valsize); break;
     case     NoWriteReadOnly: memset(&m_mempool_lock_free, 0, sizeof(m_mempool_lock_free)); break; // do nothing
     }
-    bool use_hugepage = false;
+    HugePageEnum use_hugepage = HugePageEnum::kNone;
     if (!fpath.empty() && '?' == fpath[0]) {
         // indicate fpath is a config string
         if (const char* valstr = fpath.strstr("hugepage=")) {
             valstr += strlen("hugepage=");
-            use_hugepage = atoi(valstr) ? true : false;
+            int valval = atoi(valstr);
+            if (valval >= 0 && valval <= 2) {
+                use_hugepage = (HugePageEnum)valval;
+            } else {
+                WARN(1, "ignoring bad hugepage: ?%s", valstr);
+            }
         }
         fpath = "";
     }
@@ -609,7 +616,7 @@ catch (const std::exception&) {
 }
 
 template<size_t Align>
-void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, bool use_hugepage) {
+void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, HugePageEnum use_hugepage) {
     if (NoWriteReadOnly == m_mempool_concurrent_level) {
         // just for load_mmap later
         return;
@@ -619,11 +626,11 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, bool use_hugepage)
         maxMem = std::max(maxMem, intptr_t(512) << 10); // min 512K
         maxMem = std::min(maxMem, intptr_t( 16) << 30); // max  16G
         if (m_mempool_concurrent_level >= MultiWriteMultiRead) {
-            m_mempool_lock_free.reserve(maxMem);
+            m_mempool_lock_free.reserve(maxMem); // always hugepage
         }
         else {
     AllowRealloc:
-            if (maxMem < intptr_t(hugepage_size)) {
+            if (maxMem < intptr_t(hugepage_size) || HugePageEnum::kNone == use_hugepage) {
                 m_mempool.reserve(maxMem);
             } else {
                 use_hugepage_resize_no_init(m_mempool.get_valvec(), maxMem);
@@ -653,12 +660,19 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, bool use_hugepage)
         byte_t* mem = (byte_t*)mmap(NULL, maxMem,
             PROT_READ|PROT_WRITE,
             MAP_PRIVATE|
-            (use_hugepage ? MAP_HUGETLB : 0)|
+            (HugePageEnum::kMmap == use_hugepage ? MAP_HUGETLB : 0)|
             MAP_ANONYMOUS|MAP_UNINITIALIZED|MAP_NORESERVE,
             -1, 0);
         TERARK_VERIFY_F(MAP_FAILED != mem,
             "mmap(size = %zd) = %s\n", maxMem, strerror(errno));
+        if (HugePageEnum::kTransparent == use_hugepage) {
+            if (madvise(mem, maxMem, MADV_HUGEPAGE) != 0) {
+fprintf(stderr, "WARN: %s: madvise(MADV_HUGEPAGE, size=%zd[0x%zX]) = %s\n",
+        BOOST_CURRENT_FUNCTION, maxMem, maxMem, strerror(errno));
+            }
+        }
 #endif
+        m_mempool_lock_free.m_mmap_hugepage = HugePageEnum::kMmap == use_hugepage;
         m_mempool.risk_set_data(mem);
         m_mempool.risk_set_capacity(maxMem);
     }

@@ -164,7 +164,8 @@ protected:
 
     void reclaim_head();
 
-    void alloc_mempool_space(intptr_t maxMem, bool use_hugepage);
+    enum class HugePageEnum { kNone = 0, kMmap = 1, kTransparent = 2 };
+    void alloc_mempool_space(intptr_t maxMem, HugePageEnum);
 
     template<ConcurrentLevel>
     void revoke_expired_nodes();

@@ -7,6 +7,10 @@
 #include <boost/integer/static_log2.hpp>
 #include <boost/mpl/if.hpp>
 #include <mutex>
+#if defined(_MSC_VER)
+#else
+#include <sys/mman.h>
+#endif
 
 #if defined(__SANITIZE_ADDRESS__)
   #include <sanitizer/asan_interface.h>
@@ -501,6 +505,8 @@ public:
 
     std::function<TCMemPoolOneThread<AlignSize>*(ThreadCacheMemPool*)> m_new_tc;
 
+    bool m_mmap_hugepage = false;
+
           mem& get_data_byte_vec()       { return *this; }
     const mem& get_data_byte_vec() const { return *this; }
 
@@ -616,6 +622,38 @@ public:
             }
             assert(oldn + chunk_len <= cap);
         } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
+
+      #if defined(_MSC_VER)
+        size_t beg = pow2_align_down(size_t(base + oldn), 4096);
+        size_t end = pow2_align_up(size_t(base + oldn + chunk_len), 4096);
+        size_t len = end - beg;
+        if (!VirtualAlloc((void*)beg, end, MEM_COMMIT, PAGE_READWRITE)) {
+            double numMiB = double(len) / (1<<20);
+            TERARK_DIE("VirtualAlloc(ptr=%zX, len=%fMiB, COMMIT) = %d",
+                       beg, numMiB, GetLastError());
+        }
+      #else
+        if (m_mmap_hugepage) {
+            TERARK_VERIFY_AL(size_t(base), ArenaSize);
+            size_t beg = pow2_align_down(size_t(base + oldn), ArenaSize);
+            size_t end = pow2_align_up(size_t(base + oldn + chunk_len), ArenaSize);
+            size_t len = end - beg;
+            while (mlock((void*)beg, len) != 0) {
+                int err = errno;
+                if (ENOMEM == err) {
+                    TERARK_DIE("ENOMEM: m_mmap_hugepage is true but vm.nr_hugepages is insufficient");
+                    break;
+                }
+                else if (EAGAIN == err) {
+                    continue; // try again
+                }
+                else {
+                    double numMiB = double(len) / (1<<20);
+                    TERARK_DIE("mlock(ptr=%zX, len=%fMiB) = %m", beg, numMiB);
+                }
+            }
+        }
+      #endif
 
         tc->set_hot_area(base, oldn, chunk_len);
         return true;
