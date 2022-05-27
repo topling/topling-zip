@@ -477,22 +477,22 @@ CombinableExtractor(Extractor1&& ex1) {
 ///@note '.' or '->' before field is required
 ///@note TERARK_GET() is identity operator
 #define TERARK_GET(...) terark::CombinableExtractor( \
-  [](const auto&x)->decltype(auto){return(x __VA_ARGS__);})
+  [](const auto&__x_)->decltype(auto){return(__x_ __VA_ARGS__);})
 
 
-#define TERARK_FIELD_O_0() x
-#define TERARK_FIELD_P_0() x
-#define TERARK_FIELD_O_1(field) x.field
-#define TERARK_FIELD_P_1(field) x->field
+#define TERARK_FIELD_O_0() __x_
+#define TERARK_FIELD_P_0() __x_
+#define TERARK_FIELD_O_1(field) __x_.field
+#define TERARK_FIELD_P_1(field) __x_->field
 
 ///@param __VA_ARGS__ can NOT be 'template some_member_func<1,2,3>()'
 ///@note decltype(auto) is required, () on return is required
 ///@note TERARK_FIELD() is identity operator
 ///@note '.' or '->' can not before field name
-#define TERARK_FIELD(...) [](const auto&x)->decltype(auto) { \
+#define TERARK_FIELD(...) [](const auto&__x_)->decltype(auto) { \
   return (TERARK_PP_VA_NAME(TERARK_FIELD_O_,__VA_ARGS__)(__VA_ARGS__)); }
 
-#define TERARK_FIELD_P(...) [](const auto&x)->decltype(auto) { \
+#define TERARK_FIELD_P(...) [](const auto&__x_)->decltype(auto) { \
   return (TERARK_PP_VA_NAME(TERARK_FIELD_P_,__VA_ARGS__)(__VA_ARGS__)); }
 
 ///@{
@@ -500,10 +500,10 @@ CombinableExtractor(Extractor1&& ex1) {
 ///@param f field
 ///@param o order/operator, '<' or '>'
 #define TERARK_CMP1(d,f,o) \
-    if (x d f o y d f) return true; \
-    if (y d f o x d f) return false; \
+    if (__x_ d f o __y_ d f) return true; \
+    if (__y_ d f o __x_ d f) return false;
 
-#define TERARK_CMP_O_2(f,o)     return x.f o y.f;
+#define TERARK_CMP_O_2(f,o)     return __x_.f o __y_.f;
 #define TERARK_CMP_O_4(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_2(__VA_ARGS__)
 #define TERARK_CMP_O_6(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_4(__VA_ARGS__)
 #define TERARK_CMP_O_8(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_6(__VA_ARGS__)
@@ -524,7 +524,7 @@ CombinableExtractor(Extractor1&& ex1) {
 #define TERARK_CMP_O_C(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_A(__VA_ARGS__)
 #define TERARK_CMP_O_E(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_C(__VA_ARGS__)
 
-#define TERARK_CMP_P_2(f,o)     return x->f o y->f;
+#define TERARK_CMP_P_2(f,o)     return __x_->f o __y_->f;
 #define TERARK_CMP_P_4(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_2(__VA_ARGS__)
 #define TERARK_CMP_P_6(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_4(__VA_ARGS__)
 #define TERARK_CMP_P_8(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_6(__VA_ARGS__)
@@ -549,15 +549,15 @@ CombinableExtractor(Extractor1&& ex1) {
 ///@param __VA_ARGS__ at least 1 field
 ///@note max support 20 fields, sample usage: TERARK_CMP(f1,>,f2,<,f3,<)
 #define TERARK_CMP(...) \
- [](const auto& x, const auto& y) ->bool { \
+ [](const auto& __x_, const auto& __y_) ->bool { \
   TERARK_PP_VA_NAME(TERARK_CMP_O_,__VA_ARGS__)(__VA_ARGS__) }
 
 #define TERARK_CMP_P(...) \
- [](const auto& x, const auto& y) ->bool { \
+ [](const auto& __x_, const auto& __y_) ->bool { \
   TERARK_PP_VA_NAME(TERARK_CMP_P_,__VA_ARGS__)(__VA_ARGS__) }
 
-#define TERARK_EQUAL_MAP(c,f) if (!(x f == y f)) return false;
-#define TERARK_EQUAL_IMP(...) [](const auto& x, const auto& y) { \
+#define TERARK_EQUAL_MAP(c,f) if (!(__x_ f == __y_ f)) return false;
+#define TERARK_EQUAL_IMP(...) [](const auto& __x_, const auto& __y_) { \
   TERARK_PP_APPLY(TERARK_PP_JOIN, \
                   TERARK_PP_MAP(TERARK_EQUAL_MAP, ~, __VA_ARGS__)); \
   return true; }

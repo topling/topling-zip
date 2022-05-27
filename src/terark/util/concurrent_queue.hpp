@@ -263,6 +263,17 @@ public:
 		m_queue.push_back(value); // require this method
 		m_popCond.notify_one();
 	}
+	bool try_push_back(const value_type& value)
+	{
+		UniqueLock lock(m_mtx);
+		if (is_full(m_queue, m_maxSize)) {
+			return false;
+		} else {
+			m_queue.push_back(value); // require this method
+			m_popCond.notify_one();
+			return true;
+		}
+	}
 	void push_back_by_swap(value_type& value) {
 		UniqueLock lock(m_mtx);
 		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);

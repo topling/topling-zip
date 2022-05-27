@@ -586,8 +586,8 @@ public:
 	 @par 图示如下：
 	 @code
 
-     m_ways                                             this is guard value
-      ||                                                          ||
+	 m_ways                                             this is guard value
+	  ||                                                          ||
 	  ||                                                          ||
 	  \/                                                          \/
 	 -------> 0 way_iter_t [min_value.........................max_value]

@@ -448,4 +448,29 @@ vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
     return future;
 }
 
+///////////////////////////////////////////////////////////////////////////
+
+void process_mem_read(pid_t pid, void* data, size_t len, size_t r_addr) {
+  iovec local, remote;
+  local.iov_base = data;
+  local.iov_len = len;
+  remote.iov_base = (void*)r_addr;
+  remote.iov_len = len;
+  ssize_t n_read = process_vm_readv(pid, &local, 1, &remote, 1, 0);
+  if (size_t(n_read) != len) {
+    TERARK_DIE("process_read(%d, %p, %zd, %zd) = (n_read=%zd) : %m", pid, data, len, r_addr, n_read);
+  }
+}
+void process_mem_write(pid_t pid, const void* data, size_t len, size_t r_addr) {
+  iovec local, remote;
+  local.iov_base = (void*)data;
+  local.iov_len = len;
+  remote.iov_base = (void*)r_addr;
+  remote.iov_len = len;
+  ssize_t n_write = process_vm_writev(pid, &local, 1, &remote, 1, 0);
+  if (size_t(n_write) != len) {
+    TERARK_DIE("process_write(%d, %p, %zd, %zd) = (n_write=%zd) : %m", pid, data, len, r_addr, n_write);
+  }
+}
+
 } // namespace terark

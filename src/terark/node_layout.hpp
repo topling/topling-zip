@@ -116,6 +116,72 @@ struct FastCopy {
 	}
 };
 
+class BaseCtorDtorCopy {
+public:
+	template<class T>
+	void copy_cons(T* dst, T& src) {
+		m_copy_cons(dst, &src);
+	}
+	template<class T>
+	void copy_assign(T* dst, T& src) {
+		m_copy_assign(dst, &src);
+	}
+	template<class T>
+	void move_cons(T* dst, T& src) {
+		m_move_cons(dst, &src);
+	}
+	template<class T>
+	void move_assign(T* dst, T& src) {
+		m_move_assign(dst, &src);
+	}
+	template<class T>
+	void construct(T* obj) {
+		m_default_cons(obj);
+	}
+	template<class T>
+	void destruct(T* obj) {
+		m_destruct(obj);
+	}
+public:
+	void (*m_copy_cons)(void* dst, void* src) = nullptr;
+	void (*m_copy_assign)(void* dst, void* src) = nullptr;
+	void (*m_move_cons)(void* dst, void* src) = nullptr;
+	void (*m_move_assign)(void* dst, void* src) = nullptr;
+	void (*m_default_cons)(void*) = nullptr;
+	void (*m_destruct)(void*) = nullptr;
+};
+
+template<class T>
+class CtorDtorCopy : public BaseCtorDtorCopy {
+	static void f_copy_cons(void* dst, void* src) {
+		new(dst) T (*(T*)src);
+	}
+	static void f_copy_assign(void* dst, void* src) {
+		*(T*)(dst) = *(T*)src;
+	}
+	static void f_move_cons(void* dst, void* src) {
+		new(dst) T (std::move(*(T*)src));
+	}
+	static void f_move_assign(void* dst, void* src) {
+		*(T*)(dst) = std::move(*(T*)src);
+	}
+	static void f_default_cons(void* obj) {
+		new(obj) T ();
+	}
+	static void f_destruct(void* obj) {
+		((T*)obj)->~T();
+	}
+public:
+	CtorDtorCopy() {
+		m_copy_cons   = &f_copy_cons;
+		m_copy_assign = &f_copy_assign;
+		m_move_cons   = &f_move_cons;
+		m_move_assign = &f_move_assign;
+		m_default_cons = &f_default_cons;
+		m_destruct = &f_destruct;
+	}
+};
+
 struct ValueInline {
 	enum { is_value_out = 0 };
 

@@ -12,6 +12,7 @@
 #include <memory>
 #include <utility>
 #include <future>
+#include <sys/uio.h> // linux process_vm_readv/process_vm_writev
 
 namespace terark {
 
@@ -90,5 +91,47 @@ TERARK_DLL_EXPORT
 std::future<std::string>
 vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
           fstring tmpFilePrefix = "");
+
+void process_mem_read(pid_t pid, void* data, size_t len, size_t r_addr);
+void process_mem_write(pid_t pid, const void* data, size_t len, size_t r_addr);
+
+inline void process_mem_read(pid_t pid, void* data, size_t len) {
+    // in such case pid is a child process fork'ed by me
+    process_mem_read(pid, data, len, size_t(data));
+}
+inline void process_mem_write(pid_t pid, const void* data, size_t len) {
+    // in such case pid is a child process fork'ed by me
+    process_mem_write(pid, data, len, size_t(data));
+}
+
+template<class... ArgList>
+void process_obj_read(pid_t pid, ArgList&... args) {
+    struct iovec iov[] = {{&args,sizeof(args)}...};
+    size_t to_read = 0;
+    for (size_t i = 0; i < sizeof...(ArgList); ++i) {
+        to_read += iov[i].iov_len;
+    }
+    ssize_t n_read = process_vm_readv(pid, iov, sizeof...(ArgList),
+                                      iov, sizeof...(ArgList), 0);
+    if (size_t(n_read) != to_read) {
+        TERARK_DIE("process_obj_read(pid=%d, to_read=%zd, n_read=%zd) = %m",
+                   pid, to_read, n_read);
+    }
+}
+
+template<class... ArgList>
+void process_obj_write(pid_t pid, const ArgList&... args) {
+    struct iovec iov[] = {{(void*)&args,sizeof(args)}...};
+    size_t to_write = 0;
+    for (size_t i = 0; i < sizeof...(ArgList); ++i) {
+        to_write += iov[i].iov_len;
+    }
+    ssize_t n_write = process_vm_writev(pid, iov, sizeof...(ArgList),
+                                        iov, sizeof...(ArgList), 0);
+    if (size_t(n_write) != to_write) {
+        TERARK_DIE("process_obj_write(pid=%d, to_write=%zd, n_write=%zd) = %m",
+                   pid, to_write, n_write);
+    }
+}
 
 } // namespace terark
