@@ -21,6 +21,7 @@ BlobStore::BlobStore() {
     m_numRecords = size_t(-1);
     m_unzipSize = uint64_t(-1);
     m_mmap_aio = false;
+    m_prefetch_multi_pages = false;
     m_get_record_append = NULL;
     m_get_record_append_CacheOffsets = NULL;
     m_fspread_record_append = NULL;

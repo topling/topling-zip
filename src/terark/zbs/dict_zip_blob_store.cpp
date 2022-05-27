@@ -2608,16 +2608,51 @@ static inline void CopyForward(const byte* src, byte* op, size_t len) {
   #define small_memcpy(dst, src, len) CopyForward
 #endif
 
+static const size_t one_page = 4096;
+struct AutoLockUnlockMem {
+    void maybe_mlock(const void* p, size_t n) {
+        size_t lo = pow2_align_down(size_t(p), one_page);
+        size_t hi = pow2_align_up(size_t(p) + len, one_page);
+        ptr = (void*)lo;
+        len = hi - lo;
+        if (len > one_page)
+            mlock(ptr, len);
+    }
+    ~AutoLockUnlockMem() {
+        if (len > one_page)
+            munlock(ptr, len);
+    }
+    void*  ptr = nullptr;
+    size_t len = 0;
+};
+/*
+static inline
+void prefetch_more_than_one_page(const byte_t* data, size_t len) {
+  #if defined(MADV_WILLNEED)
+    size_t lo = pow2_align_down(size_t(data), one_page);
+    size_t hi = pow2_align_up(size_t(data) + len, one_page);
+    if (hi - lo > one_page) {
+        madvise((void*)lo, hi - lo, MADV_WILLNEED);
+    }
+  #endif
+}
+*/
+
 template<bool ZipOffset, int CheckSumLevel,
          DictZipBlobStore::EntropyAlgo Entropy,
          int EntropyInterLeave>
 terark_flatten void
 DictZipBlobStore::get_record_append_tpl(size_t recId, valvec<byte_t>* recData)
 const {
-    auto readRaw = [this](size_t offset, size_t length) {
+    AutoLockUnlockMem rng;
+    auto readRaw = [this,&rng](size_t offset, size_t length) {
         auto base = (const byte_t*)this->m_mmapBase;
-        if (this->m_mmap_aio) {
+        if (this->m_mmap_aio && false) { // disable this branch
             fiber_aio_need(base + offset, length);
+        }
+        else if (this->m_prefetch_multi_pages && false) {
+            rng.maybe_mlock(base + offset, length);
+            //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;
     };
@@ -2631,10 +2666,15 @@ template<int CheckSumLevel,
 terark_flatten void
 DictZipBlobStore::get_record_append_CacheOffsets_tpl(size_t recId, CacheOffsets* co)
 const {
-    auto readRaw = [this](size_t offset, size_t length) {
+    AutoLockUnlockMem rng;
+    auto readRaw = [this,&rng](size_t offset, size_t length) {
         auto base = (const byte_t*)this->m_mmapBase;
-        if (this->m_mmap_aio) {
+        if (this->m_mmap_aio && false) { // disable this branch
             fiber_aio_need(base + offset, length);
+        }
+        else if (this->m_prefetch_multi_pages && false) {
+            rng.maybe_mlock(base + offset, length);
+            //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;
     };

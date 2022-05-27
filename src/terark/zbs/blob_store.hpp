@@ -160,6 +160,9 @@ public:
     bool is_mmap_aio() const { return m_mmap_aio; }
     void set_mmap_aio(bool mmap_aio) { m_mmap_aio = mmap_aio; }
 
+    bool is_prefetch_multi_pages() const { return m_prefetch_multi_pages; }
+    void set_prefetch_multi_pages(bool val) { m_prefetch_multi_pages = val; }
+
     virtual Dictionary get_dict() const = 0;
     virtual fstring get_mmap() const = 0;
     virtual void init_from_memory(fstring dataMem, Dictionary dict) = 0;
@@ -168,6 +171,7 @@ protected:
     size_t      m_numRecords;
     uint64_t    m_unzipSize;
     bool        m_mmap_aio;
+    bool        m_prefetch_multi_pages;
 
     typedef void (BlobStore::*get_record_append_func_t)(size_t recID, valvec<byte_t>* recData) const;
     get_record_append_func_t m_get_record_append;

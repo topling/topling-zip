@@ -100,10 +100,12 @@ DoUnzipFuncName(const byte_t* pos, const byte_t* end, UnzipOutBuf* recData,
 
 #if UnzipUseThreading
     size_t b = *pos++;
+    TERARK_ASSERT_GE(end - pos, 0);
     goto *JumpTarget;
 #else
     do {
         size_t b = *pos++;
+        TERARK_ASSERT_GE(end - pos, 0);
         switch (DzTypeValue) {
 #endif
 
@@ -114,6 +116,7 @@ JumpLabel(Literal):
         CheckOutputCapacity();
         small_memcpy(output, pos, len);
         pos += len;
+        TERARK_ASSERT_GE(end - pos, 0);
         JumpToNext();
     }
 JumpLabel(Global):
@@ -129,6 +132,7 @@ JumpLabel(Global):
         assert(offset < tg_dicLen);
         _mm_prefetch((char const*)dic + offset, _MM_HINT_T0);
         pos += gOffsetBytes;
+        TERARK_ASSERT_GE(end - pos, 0);
         if (terark_likely(len < gShortLenMask)) {
             len += gMinLen;
         }
@@ -170,6 +174,7 @@ JumpLabel(Far1Short):
         size_t len = (b >> 3) + 2;
         size_t distance = 2 + *pos++;
         assert(distance <= DbgRecDataSize - oldsize);
+        TERARK_ASSERT_GE(end - pos, 0);
         DzType_Trace("%zd Far1Short %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         CopyForward(output - distance, output, len);
@@ -183,6 +188,7 @@ JumpLabel(Far2Short):
         DzType_Trace("%zd Far2Short %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         pos += 2;
+        TERARK_ASSERT_GE(end - pos, 0);
         small_memcpy(output, output - distance, len); // distance >= 258
         JumpToNext();
     }
@@ -201,6 +207,7 @@ JumpLabel(Far2Long):
         DzType_Trace("%zd Far2Long %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         pos += 2;
+        TERARK_ASSERT_GE(end - pos, 0);
         CopyForward(output - distance, output, len);
         JumpToNext();
     }
@@ -219,6 +226,7 @@ JumpLabel(Far3Long):
         DzType_Trace("%zd Far3Long %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         pos += 3;
+        TERARK_ASSERT_GE(end - pos, 0);
         CopyForward(output - distance, output, len);
         JumpToNext();
     }
@@ -233,6 +241,7 @@ case 8 + (int)DzType::Literal:
         small_memcpy(output - last_gLength, dic + last_gDicOffset, last_gLength);
         last_gLength = 0;
         pos += len;
+        TERARK_ASSERT_GE(end - pos, 0);
         JumpToNext();
     }
 case 8 + (int)DzType::Global:
@@ -248,6 +257,7 @@ case 8 + (int)DzType::Global:
         assert(offset < tg_dicLen);
         _mm_prefetch((char const*)dic + offset, _MM_HINT_T0);
         pos += gOffsetBytes;
+        TERARK_ASSERT_GE(end - pos, 0);
         if (terark_likely(len < gShortLenMask)) {
             len += gMinLen;
         }
@@ -290,6 +300,7 @@ case 8 + (int)DzType::Far1Short:
         size_t len = (b >> 3) + 2;
         size_t distance = 2 + *pos++;
         assert(distance <= DbgRecDataSize - oldsize);
+        TERARK_ASSERT_GE(end - pos, 0);
         DzType_Trace("%zd Far1Short %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         small_memcpy(output - last_gLength, dic + last_gDicOffset, last_gLength);
@@ -305,6 +316,7 @@ case 8 + (int)DzType::Far2Short:
         DzType_Trace("%zd Far2Short %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         pos += 2;
+        TERARK_ASSERT_GE(end - pos, 0);
         if (terark_likely(distance >= last_gLength + len)) {
             // has no dependency, copy local first
             small_memcpy(output, output - distance, len); // distance >= 258
@@ -331,6 +343,7 @@ case 8 + (int)DzType::Far2Long:
         DzType_Trace("%zd Far2Long %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         pos += 2;
+        TERARK_ASSERT_GE(end - pos, 0);
         if (terark_likely(distance >= last_gLength + len)) {
             // has no dependency, copy local first
             small_memcpy(output, output - distance, len);
@@ -357,6 +370,7 @@ case 8 + (int)DzType::Far3Long:
         DzType_Trace("%zd Far3Long %zd %zd\n", DbgRecDataSize, distance, len);
         CheckOutputCapacity();
         pos += 3;
+        TERARK_ASSERT_GE(end - pos, 0);
         small_memcpy(output - last_gLength, dic + last_gDicOffset, last_gLength);
         last_gLength = 0;
         CopyForward(output - distance, output, len);
