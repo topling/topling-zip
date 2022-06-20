@@ -228,6 +228,8 @@ struct basic_fstring {
 	uc_t operator[](ptrdiff_t i)const{assert(i>=0);assert(i<n);assert(p);return p[i];}
 	uc_t        uch(ptrdiff_t i)const{assert(i>=0);assert(i<n);assert(p);return p[i];}
 
+	size_t length() const { return n; }
+
 	bool empty() const { return 0 == n; }
 	void chomp();
 	void trim();

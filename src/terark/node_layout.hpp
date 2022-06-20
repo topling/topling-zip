@@ -532,6 +532,13 @@ void node_layout_copy_cons(
 
 template<class T> void default_cons(T* p) { new(p)T(); }
 
+template<class T> class DefaultConsFuncType {
+public:
+	void operator()(void* mem) const { new(mem)T(); }
+};
+template<class T>
+DefaultConsFuncType<T> DefaultConsFunc() { return DefaultConsFuncType<T>(); }
+
 template<class T> class CopyConsFuncType {
 	const T* src;
 public:
@@ -547,7 +554,9 @@ public:
 template<class T>
 CopyConsFuncType<T> CopyConsFunc(const T& s) { return CopyConsFuncType<T>(s); }
 template<class T>
-MoveConsFuncType<T> MoveConsFunc(T&& s) { return MoveConsFuncType<T>(s); }
+MoveConsFuncType<T> MoveConsFunc(T&& s) {
+	return MoveConsFuncType<T>(std::move(s));
+}
 
 } // namespace terark
 

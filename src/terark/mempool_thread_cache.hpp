@@ -33,7 +33,6 @@ namespace terark {
 
 #define TERARK_MPTC_USE_SKIPLIST
 
-template<int AlignSize> class TCMemPoolTlsHolder; // forward declare
 template<int AlignSize> class ThreadCacheMemPool; // forward declare
 template<int AlignSize>
 class TCMemPoolOneThread : boost::noncopyable {
@@ -83,7 +82,7 @@ public:
     virtual ~TCMemPoolOneThread() {
     }
 
-    TCMemPoolTlsHolder<AlignSize>* tls_owner() const;
+    ThreadCacheMemPool<AlignSize>* tls_owner() const { return m_mempool; }
 
   #if defined(__GNUC__)
     unsigned int m_rand_seed = 1;
@@ -455,14 +454,6 @@ public:
     virtual void reuse() {}
 };
 
-template<int AlignSize>
-class TCMemPoolTlsHolder :
-    public instance_tls_owner<TCMemPoolTlsHolder<AlignSize>,
-                              TCMemPoolOneThread<AlignSize> > {
-public:
-    void reuse(TCMemPoolOneThread<AlignSize>* t) { t->reuse(); }
-};
-
 /// mempool which alloc mem block identified by
 /// integer offset(relative address), not pointers(absolute address)
 /// integer offset could be 32bit even in 64bit hardware.
@@ -472,8 +463,26 @@ public:
 ///
 /// when memory exhausted, valvec can realloc memory without memcpy
 /// @see valvec
+class ThreadCacheMemPoolBase : public valvec<byte_t>, boost::noncopyable {
+protected:
+    size_t  fragment_size; // for compatible with MemPool_Lock(Free|None|Mutex)
+};
 template<int AlignSize>
-class ThreadCacheMemPool : public valvec<byte_t>, boost::noncopyable {
+class ThreadCacheMemPool : protected ThreadCacheMemPoolBase,
+       protected instance_tls_owner<ThreadCacheMemPool<AlignSize>,
+                                    TCMemPoolOneThread<AlignSize> >
+{
+    using TLS =  instance_tls_owner<ThreadCacheMemPool<AlignSize>,
+                                    TCMemPoolOneThread<AlignSize> >;
+    friend class instance_tls_owner<ThreadCacheMemPool<AlignSize>,
+                                    TCMemPoolOneThread<AlignSize> >;
+    friend class TCMemPoolOneThread<AlignSize>;
+    void reuse(TCMemPoolOneThread<AlignSize>* t) {
+        t->reuse();
+        as_atomic(fragment_size).fetch_add(t->m_frag_inc, std::memory_order_relaxed);
+        t->m_frag_inc = 0;
+    }
+
     ThreadCacheMemPool(const ThreadCacheMemPool&) = delete;
     ThreadCacheMemPool(ThreadCacheMemPool&&) = delete;
     ThreadCacheMemPool& operator=(const ThreadCacheMemPool&) = delete;
@@ -485,10 +494,8 @@ class ThreadCacheMemPool : public valvec<byte_t>, boost::noncopyable {
     typedef typename TCMemPoolOneThread<AlignSize>::link_t link_t;
 
 protected:
-    size_t  fragment_size; // for compatible with MemPool_Lock(Free|None|Mutex)
 
     typedef valvec<unsigned char> mem;
-    TCMemPoolTlsHolder<AlignSize> m_tls;
     size_t        m_fastbin_max_size;
 
 public:
@@ -498,6 +505,8 @@ public:
     using mem::risk_set_data;
     using mem::risk_set_capacity;
     using mem::risk_release_ownership;
+
+    using TLS::for_each_tls;
 
     size_t frag_size() const { return fragment_size; }
 
@@ -525,10 +534,48 @@ public:
     }
 
     void sync_frag_size() {
-        m_tls.for_each_tls([this](TCMemPoolOneThread<AlignSize>* tc) {
+        this->for_each_tls([this](TCMemPoolOneThread<AlignSize>* tc) {
             this->fragment_size += tc->m_frag_inc;
             tc->m_frag_inc = 0;
         });
+    }
+
+    // when calling this function, there should not be any other concurrent
+    // thread accessing this mempool's meta data.
+    // after this function call, this->fragment_size includs hot area free size
+    void sync_frag_size_full() {
+        this->fragment_size = 0;
+        this->for_each_tls([this](TCMemPoolOneThread<AlignSize>* tc) {
+            size_t hot_len = tc->m_hot_end - tc->m_hot_pos;
+            this->fragment_size += tc->fragment_size + hot_len;
+        });
+    }
+
+    // the frag_size including hot area of each thread cache and
+    // fragments in freelists
+    size_t slow_get_free_size() const {
+        size_t sz = 0;
+        this->for_each_tls([this,&sz](TCMemPoolOneThread<AlignSize>* tc) {
+            size_t hot_end, hot_pos;
+            do {
+                hot_end = tc->m_hot_end;
+                hot_pos = tc->m_hot_pos;
+                // other threads may updating hot_pos and hot_end which
+                // cause race condition and make hot_pos > hot_end
+            } while (terark_unlikely(hot_pos > hot_end));
+            sz += hot_end - hot_pos;
+            sz += tc->fragment_size;
+        });
+        return sz;
+    }
+
+    size_t get_cur_tls_free_size() const {
+        auto tc = this->get_tls_or_null();
+        if (nullptr == tc) {
+            return 0;
+        }
+        size_t hot_len = tc->m_hot_end - tc->m_hot_pos;
+        return tc->fragment_size + hot_len;
     }
 
     void destroy_and_clean() {
@@ -537,7 +584,7 @@ public:
 
     void get_fastbin(valvec<size_t>* fast) const {
         fast->resize_fill(m_fastbin_max_size/AlignSize, 0);
-        m_tls.for_each_tls([fast](TCMemPoolOneThread<AlignSize>* tc) {
+        this->for_each_tls([fast](TCMemPoolOneThread<AlignSize>* tc) {
             auto _p = tc->m_freelist_head.data();
             auto _n = tc->m_freelist_head.size();
             size_t* fastptr = fast->data();
@@ -550,7 +597,7 @@ public:
     size_t get_huge_stat(size_t* huge_memsize) const {
         size_t huge_size_sum = 0;
         size_t huge_node_cnt = 0;
-        m_tls.for_each_tls([&](TCMemPoolOneThread<AlignSize>* tc) {
+        this->for_each_tls([&](TCMemPoolOneThread<AlignSize>* tc) {
             huge_size_sum += tc->huge_size_sum;
             huge_node_cnt += tc->huge_node_cnt;
         });
@@ -665,15 +712,13 @@ public:
     }
 
     TCMemPoolOneThread<AlignSize>* tls() {
-        return m_tls.get_tls(bind(&m_new_tc, this));
+        return this->get_tls(bind(&m_new_tc, this));
     }
-
-    TCMemPoolTlsHolder<AlignSize>& alltls() { return m_tls; }
 
     // param request must be aligned by AlignSize
     size_t alloc(size_t request) {
         assert(request > 0);
-        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
+        auto tc = this->get_tls(bind(&m_new_tc, this));
         if (terark_unlikely(nullptr == tc)) {
             return size_t(-1); // fail
         }
@@ -704,7 +749,7 @@ public:
     size_t alloc3(size_t oldpos, size_t oldlen, size_t newlen) {
         assert(newlen > 0);
         assert(oldlen > 0);
-        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
+        auto tc = this->get_tls(bind(&m_new_tc, this));
         return alloc3(oldpos, oldlen, newlen, tc);
     }
     size_t alloc3(size_t oldpos, size_t oldlen, size_t newlen,
@@ -732,7 +777,7 @@ public:
         assert(len > 0);
         assert(pos < mem::n);
         assert(pos % AlignSize == 0);
-        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
+        auto tc = this->get_tls(bind(&m_new_tc, this));
         sfree(pos, len, tc);
     }
     terark_forceinline
@@ -766,17 +811,12 @@ public:
             assert(oldn + chunk_len <= cap);
         } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
 
-        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
+        auto tc = this->get_tls(bind(&m_new_tc, this));
         tc->set_hot_area(base, oldn, chunk_len);
         //tc->populate_hot_area(base, ArenaSize);
         tc->populate_hot_area(base, 4*1024);
     }
 };
-
-template<int AlignSize>
-inline
-TCMemPoolTlsHolder<AlignSize>*
-TCMemPoolOneThread<AlignSize>::tls_owner() const { return &m_mempool->m_tls; }
 
 } // namespace terark
 

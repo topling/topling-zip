@@ -1508,6 +1508,18 @@ lower_bound_ex_a(const Container& a, const Key& key, KeyExtractor keyEx, Comp co
 	typedef typename Container::const_iterator RanIt;
 	return lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a.begin(), 0, a.size(), key, keyEx, comp);
 }
+template<class Range, class Key, class KeyExtractor>
+auto // requires c++14
+lower_bound_ex_r(const Range& a, const Key& key, KeyExtractor keyEx) noexcept {
+	typedef decltype(a.begin()) RanIt;
+	return a.begin() + lower_bound_ex_n<RanIt, Key, KeyExtractor>(a.begin(), 0, a.size(), key, keyEx);
+}
+template<class Range, class Key, class KeyExtractor, class Comp>
+auto // requires c++14
+lower_bound_ex_r(const Range& a, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
+	typedef decltype(a.begin()) RanIt;
+	return a.begin() + lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a.begin(), 0, a.size(), key, keyEx, comp);
+}
 template<class RanIt, class Key, class KeyExtractor>
 RanIt
 lower_bound_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {

@@ -1022,6 +1022,34 @@ public:
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
 
+	std::pair<iterator, bool>
+	emplace(fstring key, const Value& val) {
+		std::pair<size_t, bool> ib = insert_i(key, val);
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+	std::pair<iterator, bool>
+	emplace(fstring key, Value&& val) {
+		std::pair<size_t, bool> ib = insert_i(key, std::move(val));
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+
+	template<class ValueParam>
+	std::pair<iterator, bool>
+	try_emplace(fstring key, const ValueParam& vp) {
+		std::pair<size_t, bool> ib = lazy_insert_i(key, [&](void* mem) {
+			new(mem)Value(vp);
+		});
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+	template<class ValueParam>
+	std::pair<iterator, bool>
+	try_emplace(fstring key, ValueParam&& vp) {
+		std::pair<size_t, bool> ib = lazy_insert_i(key, [&](void* mem) {
+			new(mem)Value(std::move(vp));
+		});
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+
 	      iterator find(fstring key)       { return       iterator(this, find_i(key)); }
 	const_iterator find(fstring key) const { return const_iterator(this, find_i(key)); }
 	      iterator find(const char* key, size_t len)       { return find(fstring(key, len)); }
@@ -1370,6 +1398,10 @@ public:
 	std::pair<size_t, bool>
 	insert_i(const fstring key, const Value& val) {
 		return lazy_insert_i(key, CopyConsFunc(val));
+	}
+	std::pair<size_t, bool>
+	insert_i(const fstring key, Value&& val) {
+		return lazy_insert_i(key, MoveConsFunc(std::move(val)));
 	}
 	std::pair<size_t, bool>
 	insert_i(const fstring key) {

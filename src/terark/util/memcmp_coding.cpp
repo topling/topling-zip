@@ -109,7 +109,7 @@ unsigned char* encode_memcmp_real(Real nr, unsigned char* dst) {
       ui |= Uint(1) << (Bits - 1);
       ui += Uint(1) << (Bits - 1 - ExpDigit);
     }
-    unaligned_save(dst, VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(ui));
+    unaligned_save(dst, BIG_ENDIAN_OF(ui));
   }
   return dst + sizeof(Real);
 }

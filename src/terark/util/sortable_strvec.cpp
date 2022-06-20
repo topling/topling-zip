@@ -1094,13 +1094,17 @@ void FixedLenStrVec::reverse_keys() {
 
 #if defined(_MSC_VER) || defined(__APPLE__)
 static int CmpFixLenStr(void* ctx, const void* x, const void* y)
-#else
-static int CmpFixLenStr(const void* x, const void* y, void* ctx)
-#endif
 {
     size_t fixlen = (size_t)(ctx);
     return memcmp(x, y, fixlen);
 }
+#else
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+typedef int(*gnu_qsort_r_cmp_fun_t)(const void*, const void*, void*);
+// memcmp arg order is same as gnu_qsort_r_cmp_fun_t, they are compatible
+// on calling conversion
+#define CmpFixLenStr (gnu_qsort_r_cmp_fun_t)memcmp
+#endif
 
 void FixedLenStrVec::sort() {
     assert(m_fixlen * m_size == m_strpool.size());

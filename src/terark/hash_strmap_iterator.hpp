@@ -8,7 +8,7 @@ public:
 	struct value_type {
 		typedef const fstring first_type;
 		typedef mapped_type   second_type;
-		fstring      first;
+		const fstring first;
 		mapped_type& second;
 		operator std::pair<const fstring, mapped_type>() const {
 		  return std::pair<const fstring, mapped_type>(first, second);
