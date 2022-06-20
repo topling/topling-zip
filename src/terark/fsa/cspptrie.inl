@@ -217,12 +217,16 @@ public:
     size_t mem_capacity() const { return m_mempool.capacity(); }
     size_t mem_size_inline() const { return m_mempool.size(); }
     size_t mem_size() const override final { return m_mempool.size(); }
+    size_t slow_get_free_size() const;
+    size_t get_cur_tls_free_size() const;
+
     void shrink_to_fit();
 
     static const size_t mem_alloc_fail = size_t(-1) / AlignSize;
 
     size_t new_root(size_t valsize);
     size_t mem_alloc(size_t size);
+    size_t mem_alloc3(size_t oldpos, size_t oldsize, size_t newsize);
     void mem_free(size_t loc, size_t size);
     void* mem_get(size_t loc) {
         assert(loc < total_states());

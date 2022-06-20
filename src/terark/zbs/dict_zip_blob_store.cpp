@@ -2610,16 +2610,17 @@ static inline void CopyForward(const byte* src, byte* op, size_t len) {
 
 static const size_t one_page = 4096;
 struct AutoLockUnlockMem {
-    void maybe_mlock(const void* p, size_t n) {
+    void maybe_mlock(const void* p, size_t n, size_t min_pages) {
         size_t lo = pow2_align_down(size_t(p), one_page);
-        size_t hi = pow2_align_up(size_t(p) + len, one_page);
-        ptr = (void*)lo;
+        size_t hi = pow2_align_up(size_t(p) + n, one_page);
         len = hi - lo;
-        if (len > one_page)
+        if (len >= min_pages) {
+            ptr = (void*)lo;
             mlock(ptr, len);
+        }
     }
     ~AutoLockUnlockMem() {
-        if (len > one_page)
+        if (ptr)
             munlock(ptr, len);
     }
     void*  ptr = nullptr;
@@ -2650,8 +2651,8 @@ const {
         if (this->m_mmap_aio && false) { // disable this branch
             fiber_aio_need(base + offset, length);
         }
-        else if (this->m_prefetch_multi_pages && false) {
-            rng.maybe_mlock(base + offset, length);
+        else if (m_min_prefetch_pages >= 2) {
+            rng.maybe_mlock(base + offset, length, m_min_prefetch_pages);
             //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;
@@ -2672,8 +2673,8 @@ const {
         if (this->m_mmap_aio && false) { // disable this branch
             fiber_aio_need(base + offset, length);
         }
-        else if (this->m_prefetch_multi_pages && false) {
-            rng.maybe_mlock(base + offset, length);
+        else if (m_min_prefetch_pages >= 2) {
+            rng.maybe_mlock(base + offset, length, m_min_prefetch_pages);
             //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;

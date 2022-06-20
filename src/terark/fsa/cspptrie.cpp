@@ -429,7 +429,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       thread_nth++;
     };
     m_counter_mutex.lock();
-    m_mempool_lock_free.alltls().for_each_tls(sync);
+    m_mempool_lock_free.for_each_tls(sync);
     m_counter_mutex.unlock();
     m_mempool_lock_free.sync_frag_size();
     if (csppDebugLevel >= 1 && m_n_words) {
@@ -471,8 +471,12 @@ void PatriciaMem<Align>::mempool_set_readonly() {
     m_mempool.risk_set_capacity(m_mempool.size());
 #endif
   }
+  auto conLevel = m_writing_concurrent_level;
   m_insert = (insert_func_t)&PatriciaMem::insert_readonly_throw;
   m_writing_concurrent_level = NoWriteReadOnly;
+  if (MultiWriteMultiRead == conLevel) {
+      m_mempool_lock_free.sync_frag_size_full();
+  }
 }
 
 template<size_t Align>
@@ -823,7 +827,7 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
     case MultiWriteMultiRead:
         m_mempool_lock_free.get_fastbin(&ms->fastbin);
         const_cast<ThreadCacheMemPool<AlignSize>&>(m_mempool_lock_free).
-          alltls().for_each_tls([=](TCMemPoolOneThread<AlignSize>* tc) {
+          for_each_tls([=](TCMemPoolOneThread<AlignSize>* tc) {
             auto lzf = static_cast<LazyFreeListTLS*>(tc);
             get_lzf(lzf);
           });
@@ -845,6 +849,25 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
         break;
     case     NoWriteReadOnly: break; // do nothing
     }
+}
+
+template<size_t Align>
+size_t PatriciaMem<Align>::slow_get_free_size() const {
+    if (MultiWriteMultiRead == m_mempool_concurrent_level) {
+        // this is slow and not very accurate because there may be
+        // some other threads are allocating or updating the memory
+        // stats concurrently.
+        return m_mempool_lock_free.slow_get_free_size();
+    }
+    return m_mempool.frag_size();
+}
+
+template<size_t Align>
+size_t PatriciaMem<Align>::get_cur_tls_free_size() const {
+    if (MultiWriteMultiRead == m_mempool_concurrent_level) {
+        return m_mempool_lock_free.get_cur_tls_free_size();
+    }
+    return 0;
 }
 
 template<size_t Align>
@@ -2696,6 +2719,13 @@ size_t PatriciaMem<Align>::mem_alloc(size_t size) {
 }
 
 template<size_t Align>
+size_t PatriciaMem<Align>::mem_alloc3(size_t oldpos, size_t oldsize, size_t newsize) {
+    TERARK_VERIFY(SingleThreadStrict == m_writing_concurrent_level);
+    size_t pos = m_mempool_lock_none.alloc3(oldpos * AlignSize, oldsize, newsize);
+    return pos / AlignSize;
+}
+
+template<size_t Align>
 size_t PatriciaMem<Align>::alloc_aux(size_t size) {
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list(m_writing_concurrent_level));
     switch (m_writing_concurrent_level) {
@@ -3127,6 +3157,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
 }
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
+    TERARK_ASSERT_EQ(ThisThreadID(), m_thread_id);
     auto trie = static_cast<MainPatricia*>(trie1);
     int retry = 0;
     size_t delnum = 0;
@@ -3524,7 +3555,6 @@ void Patricia::TokenBase::idle() {
 void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
-    TERARK_ASSERT_EQ(ThisThreadID(), m_thread_id);
     assert(AcquireDone == m_flags.state || AcquireIdle == m_flags.state);
     if (conLevel >= SingleThreadShared || trie->m_token_qlen) {
         TERARK_ASSERT_LE(m_link.verseq, trie->m_token_tail->m_link.verseq);

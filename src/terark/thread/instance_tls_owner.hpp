@@ -237,6 +237,7 @@ public:
         decltype(fun((TlsMember*)NULL))* dispatch = NULL;
         return for_each_tls_aux(fun, dispatch);
     }
+    TlsMember* get_tls_or_null() const { return m_tls_ptr.get().ptr; }
     TlsMember* get_tls() const {
         TlsPtr& tls = m_tls_ptr.get();
         if (tls.ptr)

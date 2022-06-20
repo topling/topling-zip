@@ -155,7 +155,7 @@ inline uint64_t ReadBigEndianUint64(const byte_t* beg, size_t len) {
   } c;
   c.value = 0;  // this is fix for gcc-4.8 union init bug
   memcpy(c.bytes + (8 - len), beg, len);
-  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(c.value);
+  return NATIVE_OF_BIG_ENDIAN(c.value);
 }
 inline uint64_t ReadBigEndianUint64(const byte_t* beg, const byte_t* end) {
   assert(end - beg <= 8);
@@ -169,16 +169,16 @@ inline uint64_t ReadBigEndianUint64(fstring data) {
 inline
 uint64_t ReadBigEndianUint64Aligned(const byte_t* beg, size_t len) {
   assert(8 == len); TERARK_UNUSED_VAR(len);
-  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(*(const uint64_t*)beg);
+  return NATIVE_OF_BIG_ENDIAN(*(const uint64_t*)beg);
 }
 inline
 uint64_t ReadBigEndianUint64Aligned(const byte_t* beg, const byte_t* end) {
   assert(end - beg == 8); TERARK_UNUSED_VAR(end);
-  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(*(const uint64_t*)beg);
+  return NATIVE_OF_BIG_ENDIAN(*(const uint64_t*)beg);
 }
 inline uint64_t ReadBigEndianUint64Aligned(fstring data) {
   assert(data.size() == 8);
-  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(*(const uint64_t*)data.p);
+  return NATIVE_OF_BIG_ENDIAN(*(const uint64_t*)data.p);
 }
 
 inline void SaveAsBigEndianUint64(byte_t* beg, size_t len, uint64_t value) {
@@ -187,7 +187,7 @@ inline void SaveAsBigEndianUint64(byte_t* beg, size_t len, uint64_t value) {
     byte_t bytes[8];
     uint64_t value;
   } c;
-  c.value = VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(value);
+  c.value = BIG_ENDIAN_OF(value);
   memcpy(beg, c.bytes + (8 - len), len);
 }
 

@@ -151,7 +151,9 @@ public:
     using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
     class SingleWriterToken : public WriterToken {
     public:
-        ~SingleWriterToken() = default;
+        ~SingleWriterToken() {
+            this->m_flags.state = DisposeDone;
+        }
     };
     class TERARK_DLL_EXPORT Iterator : public ReaderToken, public ADFA_LexIterator {
     protected:
