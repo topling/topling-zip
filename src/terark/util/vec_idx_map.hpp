@@ -9,7 +9,7 @@ namespace terark {
 
 // Key is unsigned integer as index
 template<class Key, class Value>
-class VecorIndexMap {
+class VectorIndexMap {
   static_assert(std::is_unsigned<Key>::value);
   static constexpr Key nil = std::numeric_limits<Key>::max();
   struct Holder {
@@ -42,7 +42,7 @@ public:
   class const_iterator {
    #define IterClass const_iterator
     using PVec = const vec_t*;
-    using QIter = typename vec_t::iterator;
+    using QIter = typename vec_t::const_iterator;
     using QElem = const value_type;
   public:
     const_iterator(iterator iter) : m_vec(iter.m_vec), m_iter(iter.m_iter) {}
@@ -50,7 +50,7 @@ public:
    #undef IterClass
   };
 
-  explicit VecorIndexMap(size_t cap = 8) {
+  explicit VectorIndexMap(size_t cap = 8) {
     m_vec.reserve(cap);
   }
 
@@ -87,15 +87,41 @@ public:
     }
     return iterator(&m_vec);
   }
-  Value& operator[](size_t key) {
+  Value& operator[](const Key key) {
     do_lazy_insert_i(key, DefaultConsFunc<Value>());
     return AsKV(&m_vec[key])->second;
+  }
+  const Value& at(const Key key) const {
+    if (key < m_vec.size() && m_vec[key].key != nil) {
+      TERARK_ASSERT_EQ(m_vec[key].key, key);
+      return AsKV(&m_vec[key])->second;
+    }
+    throw std::out_of_range("key does not exists");
+  }
+  Value& at(const Key key) {
+    if (key < m_vec.size() && m_vec[key].key != nil) {
+      TERARK_ASSERT_EQ(m_vec[key].key, key);
+      return AsKV(&m_vec[key])->second;
+    }
+    throw std::out_of_range("key does not exists");
   }
   std::pair<iterator, bool> insert(const value_type& kv) {
     return emplace(kv.first, kv.second);
   }
   std::pair<iterator, bool> insert(value_type&& kv) {
     return emplace(kv.first, std::move(kv.second));
+  }
+  template<class KV2>
+  std::pair<iterator, bool> emplace(const KV2& kv) {
+    const Key key = kv.first;
+    bool ok = do_lazy_insert_i(key, CopyConsFunc<Value>(kv.second));
+    return std::make_pair(iterator(&m_vec, m_vec.begin() + key), ok);
+  }
+  template<class KV2>
+  std::pair<iterator, bool> emplace(KV2&& kv) {
+    const Key key = kv.first;
+    bool ok = do_lazy_insert_i(key, MoveConsFunc<Value>(std::move(kv.second)));
+    return std::make_pair(iterator(&m_vec, m_vec.begin() + key), ok);
   }
   template<class V2>
   std::pair<iterator, bool> emplace(const Key key, const V2& v) {
@@ -146,6 +172,23 @@ public:
     TERARK_ASSERT_EQ(m_vec[key].key, key);
     do_erase(key);
   }
+  void clear() {
+    size_t num = m_vec.size();
+    if (!std::is_trivially_destructible<Value>::value) {
+      for (size_t idx = 0; idx < num; idx++) {
+        if (m_vec[idx].key != nil) {
+          TERARK_ASSERT_EQ(m_vec[idx].key, idx);
+          AsKV(&m_vec[idx])->second.~Value();
+        }
+      }
+    }
+    m_vec.clear();
+    m_delcnt = 0;
+  }
+  void swap(VectorIndexMap& y) {
+    m_vec.swap(y.m_vec);
+    std::swap(m_delcnt, y.m_delcnt);
+  }
   size_t size() const noexcept { return m_vec.size() - m_delcnt; }
   void reserve(size_t cap) { m_vec.reserve(cap); }
 
@@ -171,3 +214,13 @@ protected:
 };
 
 } // namespace terark
+
+namespace std {
+
+template<class Key, class Value>
+void swap(terark::VectorIndexMap<Key, Value>& x,
+          terark::VectorIndexMap<Key, Value>& y) {
+  x.swap(y);
+}
+
+} // namespace std

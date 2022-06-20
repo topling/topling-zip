@@ -1,5 +1,5 @@
 private:
-  friend class VecorIndexMap;
+  friend class VectorIndexMap;
   PVec  m_vec;
   QIter m_iter;
   IterClass(PVec vec, QIter iter) noexcept : m_vec(vec), m_iter(iter) {
@@ -37,7 +37,7 @@ public:
   IterClass operator++(int) noexcept {
     assert(m_iter >= m_vec->begin());
     assert(m_iter < m_vec->end());
-    auto tmp = m_iter; ++m_iter; return tmp;
+    auto tmp = *this; ++*this; return tmp;
   }
   IterClass& operator--() noexcept {
     assert(m_iter <= m_vec->end());
@@ -51,7 +51,7 @@ public:
   IterClass operator--(int) noexcept {
     assert(m_iter <= m_vec->end());
     assert(m_iter > m_vec->begin());
-    auto tmp = m_iter; --m_iter; return tmp;
+    auto tmp = *this; --*this; return tmp;
   }
   QElem* operator->() const noexcept {
     TERARK_ASSERT_EQ(m_iter->key, m_iter - m_vec->begin());
