@@ -15,21 +15,17 @@ protected:
         TlsMember* ptr;
         TlsPtr() : ptr(NULL) {}
         ~TlsPtr() {
-            TlsMember* t = as_atomic(ptr).load(std::memory_order_relaxed);
+            TlsMember* t = as_atomic(ptr).exchange(nullptr, std::memory_order_relaxed);
             if (nullptr == t)
                 return;
-            if (!as_atomic(ptr).compare_exchange_strong(t, nullptr)) {
-                assert(NULL == ptr);
-                return;
-            }
-            assert(NULL == t->m_next_free);
+            assert(NULL == t->m_next_free); // is in use
             auto owner0 = t->tls_owner();
             auto owner = static_cast<Owner*>(owner0);
             assert(NULL != owner0);
             assert(dynamic_cast<Owner*>(owner0) == owner);
             if (!owner->m_is_dying) { // is called by thread die
                 // put into free list, to be reused by another thread
-                owner->reuse(t);
+                owner->clean_for_reuse(t);
                 push_head(owner, t);
             }
             else {
@@ -88,6 +84,7 @@ protected:
                 m_free_cnt--;
                 m_tls_mtx.unlock();
                 pto->m_next_free = NULL;
+                static_cast<const Owner*>(this)->init_for_reuse(pto);
                 tls.ptr = pto;
                 return pto;
             }
@@ -213,7 +210,7 @@ public:
             delete p;
         }
     }
-    inline void reuse(TlsMember* /*tls*/) {}
+    inline void clean_for_reuse(TlsMember* /*tls*/) {}
     void init_fixed_cap(size_t cap) {
         assert(cap > 0);
         assert(m_tls_vec.size() == 0);

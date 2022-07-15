@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <boost/noncopyable.hpp>
 #include <terark/valvec.hpp>
-#include <terark/util/throw.hpp>
+#include <terark/util/atomic.hpp>
 
 namespace terark {
 
@@ -44,6 +44,7 @@ class instance_tls : boost::noncopyable {
     // 4. non-busy slot must be <null>(default cons'ed), and will not be
     //    used by user code
     // 5. destructor will always be called on all slots
+    static const uint32_t dead = uint32_t(-3); // for debug track
     static const uint32_t busy = uint32_t(-2); // for debug track
     static const uint32_t tail = uint32_t(-1);
 public:
@@ -59,11 +60,11 @@ public:
             s_id_list.push_back(uint32_t(busy));
         }
         else { // fail
-            THROW_STD(logic_error, "too many object instance");
+            TERARK_DIE("too many object instance, max = %u", Rows*Cols);
         }
     }
     ~instance_tls() {
-        size_t id = m_id;
+        size_t id = as_atomic(m_id).exchange(dead, std::memory_order_relaxed);
         size_t i = id / Cols;
         size_t j = id % Cols;
       s_mutex.lock();
@@ -74,7 +75,7 @@ public:
             }
             p = p->next;
         }
-        assert(busy == s_id_list[m_id]);
+        TERARK_VERIFY_EQ(busy, s_id_list[id]);
         s_id_list[id] = s_id_head;
         s_id_head = uint32_t(id);
       s_mutex.unlock();
@@ -106,7 +107,7 @@ private:
         else {
             pMatrix.reset(new Matrix());
           s_mutex.lock();
-            pMatrix->insert_to_list_no_lock();
+            pMatrix->insert_to_list_in_lock();
             pMatrix->A[i] = pOneRow;
           s_mutex.unlock();
         }
@@ -135,7 +136,7 @@ private:
         using MatrixLink::next;
         using MatrixLink::prev;
         T* A[Rows]; // use 2-level direct access
-        void insert_to_list_no_lock() {
+        void insert_to_list_in_lock() {
             next = &s_matrix_head;
             prev =  s_matrix_head.prev;
             s_matrix_head.prev->next = this;
@@ -161,7 +162,7 @@ private:
         }
     };
     static MatrixLink s_matrix_head;
-    static thread_local std::unique_ptr<Matrix> tls_matrix;
+    static thread_local std::unique_ptr<Matrix> tls_matrix TERARK_STATIC_TLS;
 };
 
 template<class T, uint32_t Rows, uint32_t Cols>

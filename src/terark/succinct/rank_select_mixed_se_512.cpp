@@ -17,8 +17,8 @@ rank_select_mixed_se_512::rank_select_mixed_se_512(size_t n, bool val0, bool val
     m_capacity = ((n + LineBits - 1) & ~(LineBits - 1)) * 2;
     m_size[0] = m_size[1] = n;
     m_words = (bm_uint_t*)malloc(m_capacity / 8);
-    if (NULL == m_words)
-        throw std::bad_alloc();
+    TERARK_VERIFY_F(nullptr != m_words, "malloc(%zd)", m_capacity / 8);
+    //memset(m_words, 0, m_capacity / 8); // not needed
     get<0>().set(0, n, val0);
     get<1>().set(0, n, val1);
     nullize_cache();

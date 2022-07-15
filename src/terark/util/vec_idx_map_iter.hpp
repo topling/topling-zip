@@ -23,13 +23,14 @@ public:
   using size_type = size_t;
   using reference = QElem&;
   using pointer = QElem*;
+  using iterator_category = std::bidirectional_iterator_tag;
 
   IterClass() noexcept : m_vec(nullptr) {}
   IterClass& operator++() noexcept {
     assert(m_iter >= m_vec->begin());
     assert(m_iter < m_vec->end());
     // must at a valid element
-    TERARK_ASSERT_EQ(m_iter->key, m_iter - m_vec->begin());
+    TERARK_ASSERT_EQ(m_iter->key, Key(m_iter - m_vec->begin()));
     // skip nil(invalid elements)
     do ++m_iter; while (m_iter < m_vec->end() && nil == m_iter->key);
     return *this;
@@ -45,7 +46,7 @@ public:
     // skip nil(invalid elements)
     do --m_iter; while (m_iter > m_vec->begin() && m_iter->key == nil);
     // must reach to a valid element
-    TERARK_ASSERT_EQ(m_iter->key, m_iter - m_vec->begin());
+    TERARK_ASSERT_EQ(m_iter->key, Key(m_iter - m_vec->begin()));
     return *this;
   }
   IterClass operator--(int) noexcept {
@@ -54,11 +55,11 @@ public:
     auto tmp = *this; --*this; return tmp;
   }
   QElem* operator->() const noexcept {
-    TERARK_ASSERT_EQ(m_iter->key, m_iter - m_vec->begin());
+    TERARK_ASSERT_EQ(m_iter->key, Key(m_iter - m_vec->begin()));
     return AsKV(&*m_iter);
   }
   QElem& operator* () const noexcept {
-    TERARK_ASSERT_EQ(m_iter->key, m_iter - m_vec->begin());
+    TERARK_ASSERT_EQ(m_iter->key, Key(m_iter - m_vec->begin()));
     return *AsKV(&*m_iter);
   }
   friend bool operator==(IterClass x, IterClass y) noexcept {

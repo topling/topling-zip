@@ -473,6 +473,10 @@ inline std::string operator+(std::string&& x, fstring y) { return x.append(   y.
 inline std::string operator+(fstring x, std::string&& y) { return y.insert(0, x.p, x.n); }
 #endif
 
+#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 10001
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wstringop-overread"
+#endif
 inline bool operator==(fstring x, fstring y) {
     if (x.n != y.n)
         return false;
@@ -490,6 +494,10 @@ inline bool operator< (fstring x, fstring y) {
 inline bool operator> (fstring x, fstring y) { return  (y < x); }
 inline bool operator<=(fstring x, fstring y) { return !(y < x); }
 inline bool operator>=(fstring x, fstring y) { return !(x < y); }
+
+#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 10001
+#  pragma GCC diagnostic pop
+#endif
 
 TERARK_DLL_EXPORT std::ostream& operator<<(std::ostream& os, fstring s);
 

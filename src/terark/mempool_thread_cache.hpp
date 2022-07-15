@@ -451,7 +451,11 @@ public:
         }
     }
 
-    virtual void reuse() {}
+    // called on current thread exit
+    virtual void clean_for_reuse() {}
+
+    // called after a previous thread call clean_for_reuse
+    virtual void init_for_reuse() {}
 };
 
 /// mempool which alloc mem block identified by
@@ -477,10 +481,13 @@ class ThreadCacheMemPool : protected ThreadCacheMemPoolBase,
     friend class instance_tls_owner<ThreadCacheMemPool<AlignSize>,
                                     TCMemPoolOneThread<AlignSize> >;
     friend class TCMemPoolOneThread<AlignSize>;
-    void reuse(TCMemPoolOneThread<AlignSize>* t) {
-        t->reuse();
+    void clean_for_reuse(TCMemPoolOneThread<AlignSize>* t) {
+        t->clean_for_reuse();
         as_atomic(fragment_size).fetch_add(t->m_frag_inc, std::memory_order_relaxed);
         t->m_frag_inc = 0;
+    }
+    void init_for_reuse(TCMemPoolOneThread<AlignSize>* t) const {
+        t->init_for_reuse();
     }
 
     ThreadCacheMemPool(const ThreadCacheMemPool&) = delete;
@@ -497,6 +504,7 @@ protected:
 
     typedef valvec<unsigned char> mem;
     size_t        m_fastbin_max_size;
+    size_t        m_chunk_size = ArenaSize;
 
 public:
     using mem::data;
@@ -515,6 +523,12 @@ public:
     std::function<TCMemPoolOneThread<AlignSize>*(ThreadCacheMemPool*)> m_new_tc;
 
     bool m_mmap_hugepage = false;
+
+    void set_chunk_size(size_t sz) {
+        TERARK_VERIFY_F((sz & (sz-1)) == 0, "%zd(%#zX)", sz, sz);
+        m_chunk_size = sz;
+    }
+    size_t get_chunk_size() const { return m_chunk_size; }
 
           mem& get_data_byte_vec()       { return *this; }
     const mem& get_data_byte_vec() const { return *this; }
@@ -649,16 +663,16 @@ public:
     // should not throw
     terark_no_inline
     bool chunk_alloc(TCMemPoolOneThread<AlignSize>* tc, size_t request) {
-        size_t  chunk_len; // = pow2_align_up(request, ArenaSize);
+        size_t  chunk_len; // = pow2_align_up(request, m_chunk_size);
         size_t  cap  = mem::c;
         size_t  oldn; // = mem::n;
         byte_t* base = mem::p;
         do {
-            chunk_len = pow2_align_up(request, ArenaSize);
+            chunk_len = pow2_align_up(request, m_chunk_size);
             oldn = mem::n;
             size_t endpos = size_t(base + oldn);
-            if (terark_unlikely(endpos % ArenaSize != 0)) {
-                chunk_len += ArenaSize - endpos % ArenaSize;
+            if (terark_unlikely((endpos & (m_chunk_size-1)) != 0)) {
+                chunk_len += m_chunk_size - (endpos & (m_chunk_size-1));
             }
             if (terark_unlikely(oldn + chunk_len > cap)) {
                 if (oldn + request > cap) {
@@ -682,8 +696,8 @@ public:
       #else
         if (m_mmap_hugepage) {
             TERARK_VERIFY_AL(size_t(base), ArenaSize);
-            size_t beg = pow2_align_down(size_t(base + oldn), ArenaSize);
-            size_t end = pow2_align_up(size_t(base + oldn + chunk_len), ArenaSize);
+            size_t beg = pow2_align_down(size_t(base + oldn), m_chunk_size);
+            size_t end = pow2_align_up(size_t(base + oldn + chunk_len), m_chunk_size);
             size_t len = end - beg;
             while (mlock((void*)beg, len) != 0) {
                 int err = errno;
@@ -794,16 +808,16 @@ public:
     }
 
     void tc_populate(size_t sz) {
-        size_t  chunk_len; // = pow2_align_down(sz, ArenaSize);
+        size_t  chunk_len; // = pow2_align_down(sz, m_chunk_size);
         size_t  cap  = mem::c;
         size_t  oldn; // = mem::n;
         byte_t* base = mem::p;
         do {
-            chunk_len = pow2_align_down(sz, ArenaSize);
+            chunk_len = pow2_align_down(sz, m_chunk_size);
             oldn = mem::n;
             size_t endpos = size_t(base + oldn);
-            if (terark_unlikely(endpos % ArenaSize != 0)) {
-                chunk_len += ArenaSize - endpos % ArenaSize;
+            if (terark_unlikely(endpos % m_chunk_size != 0)) {
+                chunk_len += m_chunk_size - (endpos & (m_chunk_size-1));
             }
             if (terark_unlikely(oldn + chunk_len > cap)) {
                 chunk_len = cap - oldn;
@@ -813,7 +827,7 @@ public:
 
         auto tc = this->get_tls(bind(&m_new_tc, this));
         tc->set_hot_area(base, oldn, chunk_len);
-        //tc->populate_hot_area(base, ArenaSize);
+        //tc->populate_hot_area(base, m_chunk_size);
         tc->populate_hot_area(base, 4*1024);
     }
 };

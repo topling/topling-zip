@@ -30,6 +30,7 @@
 
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wclass-memaccess" // which version support?
   #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 
@@ -117,6 +118,7 @@ protected:
 	LinkTp  freelist_size;
     LinkTp  freelist_freq;
 	bool    is_sorted;
+	bool    m_enable_auto_gc; // will not keep stable index(on elem erased)
 
 private:
 	void init() {
@@ -138,6 +140,7 @@ private:
 
 		load_factor = 0.8;
 		is_sorted = true;
+		m_enable_auto_gc = false;
 	}
 
 	void relink_impl(bool bFillHash) {
@@ -289,7 +292,7 @@ public:
 		if (NULL == bucket) {
 			m_nl.free();
 			init();
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", sizeof(LinkTp) * y.nBucket);
 		}
 		if (intptr_t(y.pHash) == hash_cache_disabled) {
 			pHash = (HashTp*)(hash_cache_disabled);
@@ -299,7 +302,7 @@ public:
 			if (NULL == pHash) {
 				free(bucket);
 				m_nl.free();
-				throw std::bad_alloc();
+				TERARK_DIE("malloc(%zd)", sizeof(HashTp) * nElem);
 			}
 			memcpy(pHash, y.pHash, sizeof(HashTp) * nElem);
 		}
@@ -397,7 +400,7 @@ public:
 			else {
 				HashTp* ph = (HashTp*)malloc(sizeof(HashTp) * maxElem);
 				if (NULL == ph) {
-					throw std::bad_alloc();
+					TERARK_DIE("malloc(%zd)", sizeof(HashTp) * maxElem);
 				}
 				if (0 == freelist_size) {
 					for (size_t i = 0, n = nElem; i < n; ++i)
@@ -461,7 +464,7 @@ public:
 			if (intptr_t(pHash) != hash_cache_disabled) {
 				HashTp* ph = (HashTp*)realloc(pHash, sizeof(HashTp) * cap);
 				if (NULL == ph)
-					throw std::bad_alloc();
+					TERARK_DIE("malloc(%zd)", sizeof(HashTp) * cap);
 				pHash = ph;
 			}
 			if (freelist_size)
@@ -553,6 +556,9 @@ public:
 	      fast_reverse_iterator  fast_rend()       { return       fast_reverse_iterator(fast_begin()); }
 	const_fast_reverse_iterator  fast_rend() const { return const_fast_reverse_iterator(fast_begin()); }
 	const_fast_reverse_iterator fast_crend() const { return const_fast_reverse_iterator(fast_begin()); }
+
+	      iterator  iter_of(size_t idx)       { return       iterator(this, idx); }
+	const_iterator  iter_of(size_t idx) const { return const_iterator(this, idx); }
 
 	template<class CompatibleObject>
 	std::pair<iterator, bool> insert(const CompatibleObject& obj) {
@@ -704,6 +710,12 @@ private:
 		return n - i; // erased elements count
 	}
 
+	// when auto gc is enabled, elem index is not stable!
+	// since we have deleted configurable freelist, newer elem inserted on
+	// hole slot will have smaller index.
+	void enable_auto_gc(bool enable = true) { m_enable_auto_gc = enable; }
+	bool is_auto_gc_enabled() const { return m_enable_auto_gc; }
+
 public:
 	//@{
 	//@brief erase_if
@@ -753,6 +765,7 @@ public:
 		return erased;
 	}
 	// if return non-zero, all permanent id/index are invalidated
+	terark_no_inline
 	size_t revoke_deleted() {
 		if (freelist_size) {
 			size_t erased = revoke_deleted_no_relink();
@@ -768,18 +781,13 @@ public:
 	bool freelist_is_empty() const { return 0 == freelist_size; }
 
 	template<class CompatibleObject>
-	struct InplaceNewElem {
-		void operator()(void* mem) const { new(mem) Elem(*pObj); }
-		const CompatibleObject* pObj;
-	};
-	template<class CompatibleObject>
 	std::pair<size_t, bool> insert_i(const CompatibleObject& obj) {
 		key_param_pass_t key = MyKeyExtractor(obj);
-		return lazy_insert_elem_i(key, InplaceNewElem<CompatibleObject>{&obj});
+		return lazy_insert_elem_i(key, CopyConsFunc<CompatibleObject>(obj));
 	}
 	std::pair<size_t, bool> insert_i(const Elem& obj) {
 		key_param_pass_t key = MyKeyExtractor(obj);
-		return lazy_insert_elem_i(key, InplaceNewElem<Elem>{&obj});
+		return lazy_insert_elem_i(key, CopyConsFunc<Elem>(obj));
 	}
 	template<class ConsElem>
 	std::pair<size_t, bool>
@@ -1006,6 +1014,9 @@ private:
 		freelist_size++;
         freelist_freq++; // never decrease
 		freelist_head = LinkTp(slot);
+		if (terark_unlikely(m_enable_auto_gc && freelist_size > nElem/2)) {
+			revoke_deleted();
+		}
 	}
 
 public:
@@ -1145,7 +1156,7 @@ protected:
 		if (NULL == pHash) {
 			pHash = (HashTp*)malloc(sizeof(HashTp)*size.t);
 			if (NULL == pHash)
-				throw std::bad_alloc();
+				TERARK_DIE("realloc(%zd)", sizeof(HashTp)*size.t);
 		}
 		m_nl.reserve(0, size.t);
 		size_t i = 0, n = size.t;
@@ -1186,10 +1197,13 @@ protected:
 		dio >> Size;
 		this->clear();
 		this->reserve(Size.t);
-		Elem e;
 		for (size_t i = 0, n = Size.t; i < n; ++i) {
-			this->insert_i(e);
+			Elem& e = m_nl.data(i); // uninitialized
+			new(&e)Elem(); // default cons
+			dio >> e;
 		}
+		this->nElem = Size.t; // set size
+		this->relink_fill();
 	}
 	template<class DataIO> void dio_save(DataIO& dio) const {
 		dio << typename DataIO::my_var_uint64_t(this->size());

@@ -17,6 +17,11 @@
 #error must define byte endian
 #endif
 
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
+
 namespace terark {
 
 class TerarkContext;
@@ -392,3 +397,7 @@ inline uint16_t load_uint16_from_bits(const void* data, size_t skip) {
 }
 
 }
+
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic pop
+#endif

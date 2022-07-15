@@ -539,23 +539,25 @@ public:
 template<class T>
 DefaultConsFuncType<T> DefaultConsFunc() { return DefaultConsFuncType<T>(); }
 
-template<class T> class CopyConsFuncType {
-	const T* src;
+template<class Dest, class Src> class CopyConsFuncType {
+	const Src* src;
 public:
-	explicit CopyConsFuncType(const T& s) : src(&s) {}
-	void operator()(void* mem) const { new(mem)T(*src); }
+	explicit CopyConsFuncType(const Src& s) : src(&s) {}
+	void operator()(void* mem) const { new(mem)Dest(*src); }
 };
-template<class T> class MoveConsFuncType {
-	T* src;
+template<class Dest, class Src> class MoveConsFuncType {
+	Src* src;
 public:
-	explicit MoveConsFuncType(T&& s) : src(&s) {}
-	void operator()(void* mem) const { new(mem)T(std::move(*src)); }
+	explicit MoveConsFuncType(Src&& s) : src(&s) {}
+	void operator()(void* mem) const { new(mem)Dest(std::move(*src)); }
 };
-template<class T>
-CopyConsFuncType<T> CopyConsFunc(const T& s) { return CopyConsFuncType<T>(s); }
-template<class T>
-MoveConsFuncType<T> MoveConsFunc(T&& s) {
-	return MoveConsFuncType<T>(std::move(s));
+template<class Dest, class Src>
+CopyConsFuncType<Dest, Src> CopyConsFunc(const Src& s) {
+	return CopyConsFuncType<Dest, Src>(s);
+}
+template<class Dest, class Src>
+MoveConsFuncType<Dest, Src> MoveConsFunc(Src&& s) {
+	return MoveConsFuncType<Dest, Src>(std::move(s));
 }
 
 } // namespace terark

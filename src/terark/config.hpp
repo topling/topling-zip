@@ -55,6 +55,7 @@
 #  define terark_used_static_obj __attribute__((used))
 #  define terark_no_inline     __attribute__((noinline))
 #  define terark_forceinline     inline __attribute__((always_inline))
+#  define terark_pure_func     __attribute__((pure))
 
 #else
 
@@ -78,6 +79,7 @@
 #  define terark_unlikely(x)  x
 #  define terark_warn_unused_result
 #  define terark_flatten
+#  define terark_pure_func
 
 #endif
 
@@ -140,6 +142,12 @@
     #define TERARK_WEAK_SYMBOL __attribute__((weak))
 #else
     #define TERARK_WEAK_SYMBOL
+#endif
+
+#if defined(__GNUC__)
+#define TERARK_STATIC_TLS __attribute__((tls_model("initial-exec")))
+#else
+#define TERARK_STATIC_TLS
 #endif
 
 #define TERARK_UNUSED_VAR(x) (void)(x)

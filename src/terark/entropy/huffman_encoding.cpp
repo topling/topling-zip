@@ -775,7 +775,7 @@ EntropyBits encoder_o1::bitwise_encode_xN(fstring record, TerarkContext* context
         if (w3 == 3) if (i[w3] - e[w3] > diff) { assert(remain >= 3); HuffmanEncPutSymbol(&huf[w3], syms_[i[w3] == e[w3] ? 256 : data[i[w3] - 1]][data[i[w3]]]); HuffmanEncRenorm(&huf[w3], &writer); --i[w3]; }
         if (w2 == 2) if (i[w2] - e[w2] > diff) { assert(remain >= 2); HuffmanEncPutSymbol(&huf[w2], syms_[i[w2] == e[w2] ? 256 : data[i[w2] - 1]][data[i[w2]]]); HuffmanEncRenorm(&huf[w2], &writer); --i[w2]; }
         if (w1 == 1) if (i[w1] - e[w1] > diff) { assert(remain >= 1); HuffmanEncPutSymbol(&huf[w1], syms_[i[w1] == e[w1] ? 256 : data[i[w1] - 1]][data[i[w1]]]); HuffmanEncRenorm(&huf[w1], &writer); --i[w1]; }
-        if (w0 == 0) if (i[w0] - e[w0] > diff) { assert(remain >= 0); HuffmanEncPutSymbol(&huf[w0], syms_[i[w0] == e[w0] ? 256 : data[i[w0] - 1]][data[i[w0]]]); HuffmanEncRenorm(&huf[w0], &writer); --i[w0]; }
+        if (w0 == 0) if (i[w0] - e[w0] > diff) {                      HuffmanEncPutSymbol(&huf[w0], syms_[i[w0] == e[w0] ? 256 : data[i[w0] - 1]][data[i[w0]]]); HuffmanEncRenorm(&huf[w0], &writer); --i[w0]; }
 
         while (i[0] >= e[0]) {
             HuffmanEncSymbol s[N];
@@ -1514,7 +1514,7 @@ bool decoder_o1::bitwise_decode_xN(const EntropyBits& data, valvec<byte_t>* reco
             if (w5 == 5) d[w5] = (~ptr_value[w5] + 1) % 8;
             if (w6 == 6) d[w6] = (~ptr_value[w6] + 1) % 8;
             if (w7 == 7) d[w7] = (~ptr_value[w7] + 1) % 8;
-                
+
             uint32_t u32value[N];
 
             if (w0 == 0) u32value[w0] = *(uint32_t*)((ptr_value[w0] + d[w0]) / 8);
@@ -1525,7 +1525,7 @@ bool decoder_o1::bitwise_decode_xN(const EntropyBits& data, valvec<byte_t>* reco
             if (w5 == 5) u32value[w5] = *(uint32_t*)((ptr_value[w5] + d[w5]) / 8);
             if (w6 == 6) u32value[w6] = *(uint32_t*)((ptr_value[w6] + d[w6]) / 8);
             if (w7 == 7) u32value[w7] = *(uint32_t*)((ptr_value[w7] + d[w7]) / 8);
-                
+
             uint16_t read_bits[N];
 #ifdef __BMI2__
             if (w0 == 0) read_bits[w0] = uint16_t(_bextr_u32(u32value[w0], 32 - d[w0] - b[w0], b[w0]));

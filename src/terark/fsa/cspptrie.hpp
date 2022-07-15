@@ -40,6 +40,7 @@ public:
         OneWriteMultiRead,   // 3
         MultiWriteMultiRead  // 4
     );
+    class TERARK_DLL_EXPORT TokenBase;
 protected:
     TERARK_ENUM_PLAIN_INCLASS(TokenState, byte_t,
         ReleaseDone,
@@ -50,20 +51,21 @@ protected:
         DisposeWait,
         DisposeDone
     );
+    class TokenPtrVec;
     struct TokenFlags {
         // state and is_head must be set simultaneously as atomic
         TokenState  state;
         byte_t      is_head;
     };
     static_assert(sizeof(TokenFlags) == 2, "sizeof(TokenFlags) == 2");
-    class TERARK_DLL_EXPORT TokenBase;
     struct alignas(16) LinkType {
         TokenBase* next;
         ullong     verseq;
     };
-
+public:
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
+        friend class TokenPtrVec;
     protected:
         Patricia*     m_trie;
         void*         m_value;
@@ -76,15 +78,17 @@ protected:
             TokenFlags    m_flags;
         };
         void enqueue(Patricia*);
-        bool dequeue(Patricia*, TokenBase* delptrs[], size_t* pDelnum);
+        bool dequeue(Patricia*, TokenPtrVec*);
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
         void mt_update(Patricia*);
-        static void del_tokens(TokenBase* ptrs[], size_t num);
+        void init_tls(Patricia*) noexcept;
         TokenBase();
         virtual ~TokenBase();
     public:
         virtual void idle();
+        bool lookup(fstring);
+        void acquire(Patricia*);
         void release();
         void dispose(); ///< delete lazy
         bool is_valid() const {
@@ -113,15 +117,12 @@ protected:
         }
     };
 
-public:
     class TERARK_DLL_EXPORT ReaderToken : public TokenBase {
         TERARK_friend_class_Patricia;
     protected:
         virtual ~ReaderToken();
     public:
         ReaderToken();
-        void acquire(Patricia*);
-        bool lookup(fstring);
     };
     using ReaderTokenPtr = std::unique_ptr<ReaderToken, DisposeAsDelete>;
     class SingleReaderToken : public TokenBase {
@@ -144,9 +145,7 @@ public:
         virtual ~WriterToken();
     public:
         WriterToken();
-        void acquire(Patricia*);
         bool insert(fstring key, void* value);
-        bool lookup(fstring);
     };
     using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
     class SingleWriterToken : public WriterToken {
@@ -214,6 +213,7 @@ public:
         }
         else {
             token.reset(new WriterTokenType());
+            token->init_tls(this);
         }
         return static_cast<WriterTokenType*>(token.get());
     }
@@ -226,6 +226,7 @@ public:
         }
         else {
             token.reset(New());
+            token->init_tls(this);
         }
         return static_cast<PtrType>(token.get());
     }
@@ -258,18 +259,13 @@ protected:
 };
 
 terark_forceinline
-bool Patricia::ReaderToken::lookup(fstring key) {
+bool Patricia::TokenBase::lookup(fstring key) {
     return m_trie->lookup(key, this);
 }
 
 terark_forceinline
 bool Patricia::WriterToken::insert(fstring key, void* value) {
     return m_trie->insert(key, value, this);
-}
-
-terark_forceinline
-bool Patricia::WriterToken::lookup(fstring key) {
-    return m_trie->lookup(key, this);
 }
 
 } // namespace terark

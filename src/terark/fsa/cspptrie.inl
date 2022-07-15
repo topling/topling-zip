@@ -2,6 +2,9 @@
 #if __clang__
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Warray-bounds"
+#elif defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
 #if defined(TERARK_WITH_TBB)
   // to prevent incompatible object layout:
@@ -120,7 +123,8 @@ protected:
     };
     struct ReaderTokenTLS_Holder
         : instance_tls_owner<ReaderTokenTLS_Holder, ReaderTokenTLS_Object> {
-        void reuse(ReaderTokenTLS_Object* token);
+        void clean_for_reuse(ReaderTokenTLS_Object* token);
+        void init_for_reuse(ReaderTokenTLS_Object* token) const;
     };
     union {
         ReaderTokenTLS_Holder m_reader_token_sgl_tls;
@@ -153,6 +157,7 @@ protected:
     uint32_t   m_token_qlen;
     bool       m_head_lock;
     bool       m_head_is_idle;
+    mutable size_t m_live_iter_num;
 
 //  std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
@@ -219,6 +224,12 @@ public:
     size_t mem_size() const override final { return m_mempool.size(); }
     size_t slow_get_free_size() const;
     size_t get_cur_tls_free_size() const;
+    size_t live_iter_num() const { return m_live_iter_num; }
+    void risk_set_live_iter_num(size_t num) {
+        // toplingdb CSPP_WBWI destruct MainPatricia inplace without
+        // delete all iterators, this needs set m_live_iter_num
+        m_live_iter_num = num;
+    }
 
     void shrink_to_fit();
 
@@ -676,6 +687,9 @@ public:
         return AlignSize * (skip + n_children) + pow2_align_up(zlen, AlignSize);
     }
 
+    // for debug purpose
+    void dump_token_list() const;
+
 	typedef MainPatricia MyType;
 
 #if defined(TerarkFSA_HighPrivate)
@@ -722,5 +736,7 @@ PatriciaMem<Align>::ReaderTokenTLS_Object::tls_owner() const {
 
 #if __clang__
 # pragma clang diagnostic pop
+#elif defined(__GNUC__)
+# pragma GCC diagnostic pop
 #endif
 

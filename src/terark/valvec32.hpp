@@ -1,44 +1,20 @@
 #pragma once
-
-#include <assert.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <algorithm>
-#include <iterator>
-#include <memory>
-#include <stdexcept>
-#include <utility>
-
-#include <terark/util/function.hpp>
-
-/// begin sed gen valvec32
+// generated from valvec.hpp by sed-gen-valvec32.bash
+#include "valvec.hpp"
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wclass-memaccess" // which version support?
 #endif
-/// end sed gen valvec32
 
 namespace terark {
 
-struct valvec_no_init {
-	template<class Vec>
-	void operator()(Vec& v, size_t n) const { v.resize_no_init(n); }
-};
-struct valvec_reserve {
-	template<class Vec>
-	void operator()(Vec& v, size_t n) const { v.reserve(n); }
-};
-
-/// begin sed gen valvec32
 /// DONT DELETE OR CHANGE THIS LINE
 
 /// similary with std::vector, but:
 ///   1. use realloc to enlarge/shrink memory, this has avoid memcpy when
 ///      realloc is implemented by mremap for large chunk of memory;
 ///      mainstream realloc are implemented in this way
-///   2. valvec also avoid calling copy-cons/move-cons when enlarge the valvec
+///   2. valvec32 also avoid calling copy-cons/move-cons when enlarge the valvec32
 ///@Note
 ///  1. T must be memmove-able, std::list,map,set... are not memmove-able,
 ///     some std::string with short string optimization is not memmove-able,
@@ -46,7 +22,7 @@ struct valvec_reserve {
 ///  2. std::vector, ... are memmove-able, they could be the T, I'm not 100% sure,
 ///     since the g++-5.3's std::string has trapped me once
 template<class T>
-class valvec {
+class valvec32 {
 protected:
 	struct AutoMemory { // for exception-safe
 		T* p;
@@ -58,8 +34,8 @@ protected:
 	};
 
     T*     p;
-    size_t n;
-    size_t c; // capacity
+    uint32_t n;
+    uint32_t c; // capacity
 
 	template<class InputIter>
 	void construct(InputIter first, ptrdiff_t count) {
@@ -135,12 +111,12 @@ public:
     const_reverse_iterator crbegin() const { return const_reverse_iterator(p + n); }
     const_reverse_iterator crend()   const { return const_reverse_iterator(p); }
 
-    valvec() {
+    valvec32() {
         p = NULL;
         n = c = 0;
     }
 
-    valvec(size_t sz, param_type val) {
+    valvec32(size_t sz, param_type val) {
         if (sz) {
 			AutoMemory tmp(sz);
             std::uninitialized_fill_n(tmp.p, sz, val);
@@ -152,7 +128,7 @@ public:
             n = c = 0;
         }
     }
-    explicit valvec(size_t sz) {
+    explicit valvec32(size_t sz) {
         if (sz) {
 			AutoMemory tmp(sz);
             always_uninitialized_default_construct_n(tmp.p, sz);
@@ -167,7 +143,7 @@ public:
 
 	// size = capacity = sz, memory is not initialized/constructed
 	terark_no_inline
-	valvec(size_t sz, valvec_no_init) {
+	valvec32(size_t sz, valvec_no_init) {
 		p = NULL;
 		n = c = 0;
 		if (sz) {
@@ -180,7 +156,7 @@ public:
 	}
 	// size = 0, capacity = sz
 	terark_no_inline
-	valvec(size_t sz, valvec_reserve) {
+	valvec32(size_t sz, valvec_reserve) {
 		p = NULL;
 		n = c = 0;
 		if (sz) {
@@ -194,35 +170,35 @@ public:
 
 	template<class AnyIter>
 	explicit
-	valvec(const std::pair<AnyIter, AnyIter>& rng
+	valvec32(const std::pair<AnyIter, AnyIter>& rng
 		 , typename boost::enable_if<is_iterator<AnyIter>,int>::type = 1) {
 		construct(rng.first, rng.second, typename std::iterator_traits<AnyIter>::iterator_category());
 	}
 	explicit
-	valvec(const std::pair<const T*, const T*>& rng) {
+	valvec32(const std::pair<const T*, const T*>& rng) {
 		construct(rng.first, rng.second - rng.first);
 	}
-	valvec(const T* first, const T* last) { construct(first, last-first); }
-	valvec(const T* first, ptrdiff_t len) { construct(first, len); }
+	valvec32(const T* first, const T* last) { construct(first, last-first); }
+	valvec32(const T* first, ptrdiff_t len) { construct(first, len); }
 	template<class AnyIter>
-	valvec(AnyIter first, AnyIter last
+	valvec32(AnyIter first, AnyIter last
 		, typename boost::enable_if<is_iterator<AnyIter>, int>::type = 1) {
 		construct(first, last, typename std::iterator_traits<AnyIter>::iterator_category());
 	}
 	template<class InputIter>
-	valvec(InputIter first, ptrdiff_t count
+	valvec32(InputIter first, ptrdiff_t count
 		, typename boost::enable_if<is_iterator<InputIter>, int>::type = 1) 	{
 		assert(count >= 0);
 		construct(first, count);
 	}
 
-	valvec(const valvec& y) {
+	valvec32(const valvec32& y) {
         assert(this != &y);
 		assert(!is_object_overlap(this, &y));
 		construct(y.p, y.n);
     }
 
-    valvec& operator=(const valvec& y) {
+    valvec32& operator=(const valvec32& y) {
         if (&y == this)
             return *this;
 		assert(!is_object_overlap(this, &y));
@@ -230,7 +206,7 @@ public:
         return *this;
     }
 
-    valvec(valvec&& y) noexcept {
+    valvec32(valvec32&& y) noexcept {
         assert(this != &y);
 		assert(!is_object_overlap(this, &y));
 		p = y.p;
@@ -241,17 +217,17 @@ public:
 		y.c = 0;
 	}
 
-	valvec& operator=(valvec&& y) noexcept {
+	valvec32& operator=(valvec32&& y) noexcept {
         assert(this != &y);
         if (&y == this)
             return *this;
 		assert(!is_object_overlap(this, &y));
 		this->clear();
-		new(this)valvec(y);
+		new(this)valvec32(y);
 		return *this;
 	}
 
-    ~valvec() { clear(); }
+    ~valvec32() { clear(); }
 
     void fill(param_type x) {
         std::fill_n(p, n, x);
@@ -625,7 +601,7 @@ public:
 	void insert(size_t pos, param_type x) {
 		assert(pos <= n);
 		if (pos > n) {
-			throw std::out_of_range("valvec::insert");
+			throw std::out_of_range("valvec32::insert");
 		}
         ensure_capacity(n+1);
 	//	for (ptrdiff_t i = n; i > pos; --i) memcpy(p+i, p+i-1, sizeof T);
@@ -639,7 +615,7 @@ public:
 	void insert(size_t pos, InputIter iter, size_t count) {
 		assert(pos <= n);
 		if (pos > n) {
-			throw std::out_of_range("valvec::insert");
+			throw std::out_of_range("valvec32::insert");
 		}
         ensure_capacity(n+count);
 	//	for (ptrdiff_t i = n; i > pos; --i) memcpy(p+i, p+i-1, sizeof T);
@@ -778,7 +754,7 @@ public:
         n = newsize;
     }
 
-// use valvec as stack ...
+// use valvec32 as stack ...
 //
 	void pop_n(size_t num) noexcept {
 		assert(num <= this->n);
@@ -791,12 +767,12 @@ public:
 
 	const T& top() const {
         if (0 == n)
-            throw std::logic_error("valvec::top() const, valec is empty");
+            throw std::logic_error("valvec32::top() const, valec is empty");
 		return p[n-1];
 	}
 	T& top() {
         if (0 == n)
-            throw std::logic_error("valvec::top(), valec is empty");
+            throw std::logic_error("valvec32::top(), valec is empty");
 		return p[n-1];
 	}
 
@@ -810,7 +786,7 @@ public:
     void unchecked_push() { unchecked_push_back(); }
     void unchecked_push(param_type x) { unchecked_push_back(x); }
 
-// end use valvec as stack
+// end use valvec32 as stack
 
     const T& operator[](size_t i) const {
         assert(i < n);
@@ -823,12 +799,12 @@ public:
     }
 
     const T& at(size_t i) const {
-        if (i >= n) throw std::out_of_range("valvec::at");
+        if (i >= n) throw std::out_of_range("valvec32::at");
         return p[i];
     }
 
     T& at(size_t i) {
-        if (i >= n) throw std::out_of_range("valvec::at");
+        if (i >= n) throw std::out_of_range("valvec32::at");
         return p[i];
     }
 
@@ -897,14 +873,14 @@ public:
         push_back(x);
     }
 
-    void operator+=(const valvec& y) {
+    void operator+=(const valvec32& y) {
         size_t newsize = n + y.size();
         ensure_capacity(newsize);
         std::uninitialized_copy(y.p, y.p + y.n, p+n);
         n = newsize;
     }
 
-    void swap(valvec& y) noexcept {
+    void swap(valvec32& y) noexcept {
         std::swap(p, y.p);
         std::swap(n, y.n);
         std::swap(c, y.c);
@@ -974,7 +950,7 @@ public:
 	}
 #endif
 
-	explicit valvec(std::initializer_list<T> list) {
+	explicit valvec32(std::initializer_list<T> list) {
 		construct(list.begin(), list.size());
 	}
 
@@ -1045,10 +1021,10 @@ public:
 	}
 
 /*
- * Now serialization valvec<T> has been builtin DataIO
+ * Now serialization valvec32<T> has been builtin DataIO
  *
 	template<class DataIO>
-	friend void DataIO_saveObject(DataIO& dio, const valvec& x) {
+	friend void DataIO_saveObject(DataIO& dio, const valvec32& x) {
 		typename DataIO::my_var_uint64_t size(x.n);
 		dio << size;
 		// complex object has not implemented yet!
@@ -1057,7 +1033,7 @@ public:
 	}
 
    	template<class DataIO>
-	friend void DataIO_loadObject(DataIO& dio, valvec& x) {
+	friend void DataIO_loadObject(DataIO& dio, valvec32& x) {
 		typename DataIO::my_var_uint64_t size;
 		dio >> size;
 		x.resize_no_init(size.t);
@@ -1068,7 +1044,7 @@ public:
 */
 
     template<class TLess, class TEqual>
-    static bool lessThan(const valvec& x, const valvec& y, TLess le, TEqual eq) {
+    static bool lessThan(const valvec32& x, const valvec32& y, TLess le, TEqual eq) {
         size_t n = std::min(x.n, y.n);
         for (size_t i = 0; i < n; ++i) {
             if (!eq(x.p[i], y.p[i]))
@@ -1077,7 +1053,7 @@ public:
         return x.n < y.n;
     }
     template<class TEqual>
-    static bool equalTo(const valvec& x, const valvec& y, TEqual eq) {
+    static bool equalTo(const valvec32& x, const valvec32& y, TEqual eq) {
         if (x.n != y.n)
             return false;
         for (size_t i = 0, n = x.n; i < n; ++i) {
@@ -1088,7 +1064,7 @@ public:
     }
     template<class TLess = std::less<T>, class TEqual = std::equal_to<T> >
     struct less : TLess, TEqual {
-        bool operator()(const valvec& x, const valvec& y) const {
+        bool operator()(const valvec32& x, const valvec32& y) const {
             return lessThan<TLess, TEqual>(x, y, *this, *this);
         }
         less() {}
@@ -1096,7 +1072,7 @@ public:
     };
     template<class TEqual = std::equal_to<T> >
     struct equal : TEqual {
-        bool operator()(const valvec& x, const valvec& y) const {
+        bool operator()(const valvec32& x, const valvec32& y) const {
             return equalTo<TEqual>(x, y, *this);
         }
         equal() {}
@@ -1105,665 +1081,48 @@ public:
 };
 
 template<class T>
-bool valvec_lessThan(const valvec<T>& x, const valvec<T>& y) {
-	return valvec<T>::lessThan(x, y, std::less<T>(), std::equal_to<T>());
+bool valvec_lessThan(const valvec32<T>& x, const valvec32<T>& y) {
+	return valvec32<T>::lessThan(x, y, std::less<T>(), std::equal_to<T>());
 }
 template<class T>
-bool valvec_equalTo(const valvec<T>& x, const valvec<T>& y) {
-	return valvec<T>::equalTo(x, y, std::equal_to<T>());
+bool valvec_equalTo(const valvec32<T>& x, const valvec32<T>& y) {
+	return valvec32<T>::equalTo(x, y, std::equal_to<T>());
 }
 
 template<class T>
-bool operator==(const valvec<T>& x, const valvec<T>& y) {
-	return valvec<T>::equalTo(x, y, std::equal_to<T>());
+bool operator==(const valvec32<T>& x, const valvec32<T>& y) {
+	return valvec32<T>::equalTo(x, y, std::equal_to<T>());
 }
 template<class T>
-bool operator!=(const valvec<T>& x, const valvec<T>& y) {
-	return !valvec<T>::equalTo(x, y, std::equal_to<T>());
+bool operator!=(const valvec32<T>& x, const valvec32<T>& y) {
+	return !valvec32<T>::equalTo(x, y, std::equal_to<T>());
 }
 template<class T>
-bool operator<(const valvec<T>& x, const valvec<T>& y) {
-	return valvec<T>::lessThan(x, y, std::less<T>(), std::equal_to<T>());
+bool operator<(const valvec32<T>& x, const valvec32<T>& y) {
+	return valvec32<T>::lessThan(x, y, std::less<T>(), std::equal_to<T>());
 }
 template<class T>
-bool operator>(const valvec<T>& x, const valvec<T>& y) {
-	return valvec<T>::lessThan(y, x, std::less<T>(), std::equal_to<T>());
+bool operator>(const valvec32<T>& x, const valvec32<T>& y) {
+	return valvec32<T>::lessThan(y, x, std::less<T>(), std::equal_to<T>());
 }
 template<class T>
-bool operator<=(const valvec<T>& x, const valvec<T>& y) {
-	return !valvec<T>::lessThan(y, x, std::less<T>(), std::equal_to<T>());
+bool operator<=(const valvec32<T>& x, const valvec32<T>& y) {
+	return !valvec32<T>::lessThan(y, x, std::less<T>(), std::equal_to<T>());
 }
 template<class T>
-bool operator>=(const valvec<T>& x, const valvec<T>& y) {
-	return !valvec<T>::lessThan(x, y, std::less<T>(), std::equal_to<T>());
+bool operator>=(const valvec32<T>& x, const valvec32<T>& y) {
+	return !valvec32<T>::lessThan(x, y, std::less<T>(), std::equal_to<T>());
 }
 
-/// end sed gen valvec32
-
-/// STL like algorithm with array/RanIt and size_t param
-
-template<class RanIt, class Key>
-size_t lower_bound_n(RanIt a, size_t low, size_t upp, const Key& key) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (a[mid] < key)
-			i = mid + 1;
-		else
-			j = mid;
-	}
-	return i;
-}
-template<class RanIt, class Key, class Comp>
-size_t lower_bound_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (comp(a[mid], key))
-			i = mid + 1;
-		else
-			j = mid;
-	}
-	return i;
-}
-
-template<class RanIt, class Key>
-size_t upper_bound_n(RanIt a, size_t low, size_t upp, const Key& key) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (key < a[mid])
-			j = mid;
-		else
-			i = mid + 1;
-	}
-	return i;
-}
-
-template<class RanIt, class Key, class Comp>
-size_t upper_bound_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (comp(key, a[mid]))
-			j = mid;
-		else
-			i = mid + 1;
-	}
-	return i;
-}
-
-template<class RanIt, class Key>
-std::pair<size_t, size_t>
-equal_range_n(RanIt a, size_t low, size_t upp, const Key& key) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (a[mid] < key)
-			i = mid + 1;
-		else if (key < a[mid])
-			j = mid;
-		else
-			return std::pair<size_t, size_t>(
-				lower_bound_n<RanIt, Key>(a, i, mid, key),
-				upper_bound_n<RanIt, Key>(a, mid + 1, upp, key));
-	}
-	return std::pair<size_t, size_t>(i, i);
-}
-
-template<class RanIt, class Key, class Comp>
-std::pair<size_t, size_t>
-equal_range_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (comp(a[mid], key))
-			i = mid + 1;
-		else if (comp(key, a[mid]))
-			j = mid;
-		else
-			return std::pair<size_t, size_t>(
-				lower_bound_n<RanIt, Key, Comp>(a, i, mid, key, comp),
-				upper_bound_n<RanIt, Key, Comp>(a, mid+1, j, key, comp));
-	}
-	return std::pair<size_t, size_t>(i, i);
-}
-
-template<class RanIt, class Key>
-bool
-binary_search_n(RanIt a, size_t low, size_t upp, const Key& key) noexcept {
-	assert(low <= upp);
-	size_t f = lower_bound_n<RanIt, Key>(a, low, upp, key);
-	return f < upp && !(key < a[f]);
-}
-template<class RanIt, class Key, class Comp>
-bool
-binary_search_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t f = lower_bound_n<RanIt, Key, Comp>(a, low, upp, key, comp);
-	return f < upp && !comp(key, a[f]);
-}
-
-template<class RanIt>
-void sort_n(RanIt a, size_t low, size_t upp) {
-	assert(low <= upp);
-	std::sort<RanIt>(a + low, a + upp);
-}
-template<class RanIt, class Comp>
-void sort_n(RanIt a, size_t low, size_t upp, Comp comp) {
-	assert(low <= upp);
-	std::sort<RanIt, Comp>(a + low, a + upp, comp);
-}
-
-template<class RanIt, class KeyExtractor>
-void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx) {
-	assert(first <= last);
-	std::sort(first, last, ExtractorLess(keyEx));
-}
-template<class RanIt, class KeyExtractor, class Comp>
-void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx, Comp cmp) {
-	assert(first <= last);
-	std::sort(first, last, ExtractorComparator(keyEx,cmp));
-}
-
-template<class RanIt, class KeyExtractor>
-void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx) {
-	assert(low <= upp);
-	std::sort(a+low, a+upp, ExtractorLess(keyEx));
-}
-template<class RanIt, class KeyExtractor, class Comp>
-void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx, Comp cmp) {
-	assert(low <= upp);
-	std::sort(a+low, a+upp, ExtractorComparator(keyEx,cmp));
-}
-
-template<class Container, class KeyExtractor>
-void sort_ex_a(Container& a, KeyExtractor keyEx) {
-	std::sort(std::begin(a), std::end(a), ExtractorLess(keyEx));
-}
-template<class Container, class KeyExtractor, class Comp>
-void sort_ex_a(Container& a, KeyExtractor keyEx, Comp cmp) {
-	std::sort(std::begin(a), std::end(a), ExtractorComparator(keyEx,cmp));
-}
-
-template<class RanIt, class Key>
-size_t lower_bound_0(RanIt a, size_t n, const Key& key) noexcept {
-	return lower_bound_n<RanIt, Key>(a, 0, n, key);
-}
-template<class RanIt, class Key, class Comp>
-size_t lower_bound_0(RanIt a, size_t n, const Key& key, Comp comp) noexcept {
-	return lower_bound_n<RanIt, Key, Comp>(a, 0, n, key, comp);
-}
-template<class Container, class Key>
-size_t lower_bound_a(const Container& a, const Key& key) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return lower_bound_n<RanIt, Key>(a.begin(), 0, a.size(), key);
-}
-template<class Container, class Key, class Comp>
-size_t lower_bound_a(const Container& a, const Key& key, Comp comp) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return lower_bound_n<RanIt, Key, Comp>(a.begin(), 0, a.size(), key, comp);
-}
-
-template<class RanIt, class Key>
-size_t upper_bound_0(RanIt a, size_t n, const Key& key) noexcept {
-	return upper_bound_n<RanIt, Key>(a, 0, n, key);
-}
-template<class RanIt, class Key, class Comp>
-size_t upper_bound_0(RanIt a, size_t n, const Key& key, Comp comp) noexcept {
-	return upper_bound_n<RanIt, Key, Comp>(a, 0, n, key, comp);
-}
-template<class Container, class Key>
-size_t upper_bound_a(const Container& a, const Key& key) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return upper_bound_n<RanIt, Key>(a.begin(), 0, a.size(), key);
-}
-template<class Container, class Key, class Comp>
-size_t upper_bound_a(const Container& a, const Key& key, Comp comp) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return upper_bound_n<RanIt, Key, Comp>(a.begin(), 0, a.size(), key, comp);
-}
-
-template<class RanIt, class Key>
-std::pair<size_t, size_t>
-equal_range_0(RanIt a, size_t n, const Key& key) noexcept {
-	return equal_range_n<RanIt, Key>(a, 0, n, key);
-}
-template<class RanIt, class Key, class Comp>
-std::pair<size_t, size_t>
-equal_range_0(RanIt a, size_t n, const Key& key, Comp comp) noexcept {
-	return equal_range_n<RanIt, Key, Comp>(a, 0, n, key, comp);
-}
-template<class Container, class Key>
-std::pair<size_t, size_t>
-equal_range_a(const Container& a, const Key& key) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return equal_range_n<RanIt, Key>(a.begin(), 0, a.size(), key);
-}
-template<class Container, class Key, class Comp>
-std::pair<size_t, size_t>
-equal_range_a(const Container& a, const Key& key, Comp comp) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return equal_range_n<RanIt, Key, Comp>(a.begin(), 0, a.size(), key, comp);
-}
-
-template<class RanIt, class Key>
-bool
-binary_search_0(RanIt a, size_t n, const Key& key) noexcept {
-	return binary_search_n<RanIt, Key>(a, 0, n, key);
-}
-template<class RanIt, class Key, class Comp>
-bool
-binary_search_0(RanIt a, size_t n, const Key& key, Comp comp) noexcept {
-	return binary_search_n<RanIt, Key, Comp>(a, 0, n, key, comp);
-}
-
-template<class Range, class Key>
-bool
-binary_search_a(const Range& a, const Key& key) noexcept {
-	return binary_search_n(a.begin(), 0, a.size(), key);
-}
-template<class Range, class Key, class Comp>
-bool
-binary_search_a(const Range& a, const Key& key, Comp comp) noexcept {
-	return binary_search_n(a.begin(), 0, a.size(), key, comp);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-template<class RanIt, class Key, class KeyExtractor>
-size_t
-lower_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (keyEx(a[mid]) < key)
-			i = mid + 1;
-		else
-			j = mid;
-	}
-	return i;
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-size_t
-lower_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (comp(keyEx(a[mid]), key))
-			i = mid + 1;
-		else
-			j = mid;
-	}
-	return i;
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-size_t
-upper_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (key < keyEx(a[mid]))
-			j = mid;
-		else
-			i = mid + 1;
-	}
-	return i;
-}
-
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-size_t
-upper_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (comp(key, keyEx(a[mid])))
-			j = mid;
-		else
-			i = mid + 1;
-	}
-	return i;
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-std::pair<size_t, size_t>
-equal_range_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (keyEx(a[mid]) < key)
-			i = mid + 1;
-		else if (key < keyEx(a[mid]))
-			j = mid;
-		else
-			return std::pair<size_t, size_t>(
-				lower_bound_ex_n<RanIt, Key, KeyExtractor>(a, i, mid, key, keyEx),
-				upper_bound_ex_n<RanIt, Key, KeyExtractor>(a, mid+1, upp, key, keyEx));
-	}
-	return std::pair<size_t, size_t>(i, i);
-}
-
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-std::pair<size_t, size_t>
-equal_range_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t i = low, j = upp;
-	while (i < j) {
-		size_t mid = (i + j) / 2;
-		if (comp(keyEx(a[mid]), key))
-			i = mid + 1;
-		else if (comp(key, keyEx(a[mid])))
-			j = mid;
-		else
-			return std::pair<size_t, size_t>(
-				lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, i, mid, key, keyEx, comp),
-				upper_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, mid+1, j, key, keyEx, comp));
-	}
-	return std::pair<size_t, size_t>(i, i);
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-bool
-binary_search_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(low <= upp);
-	size_t f = lower_bound_ex_n<RanIt, Key, KeyExtractor>(a, low, upp, key, keyEx);
-	return f < upp && !(key < keyEx(a[f]));
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-bool
-binary_search_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(low <= upp);
-	size_t f = lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, low, upp, key, keyEx, comp);
-	return f < upp && !comp(key, keyEx(a[f]));
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-size_t
-lower_bound_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	return lower_bound_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-size_t
-lower_bound_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-}
-template<class Container, class Key, class KeyExtractor>
-size_t
-lower_bound_ex_a(const Container& a, const Key& key, KeyExtractor keyEx) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return lower_bound_ex_n<RanIt, Key, KeyExtractor>(a.begin(), 0, a.size(), key, keyEx);
-}
-template<class Container, class Key, class KeyExtractor, class Comp>
-size_t
-lower_bound_ex_a(const Container& a, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a.begin(), 0, a.size(), key, keyEx, comp);
-}
-template<class Range, class Key, class KeyExtractor>
-auto // requires c++14
-lower_bound_ex_r(const Range& a, const Key& key, KeyExtractor keyEx) noexcept {
-	typedef decltype(a.begin()) RanIt;
-	return a.begin() + lower_bound_ex_n<RanIt, Key, KeyExtractor>(a.begin(), 0, a.size(), key, keyEx);
-}
-template<class Range, class Key, class KeyExtractor, class Comp>
-auto // requires c++14
-lower_bound_ex_r(const Range& a, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	typedef decltype(a.begin()) RanIt;
-	return a.begin() + lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a.begin(), 0, a.size(), key, keyEx, comp);
-}
-template<class RanIt, class Key, class KeyExtractor>
-RanIt
-lower_bound_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	return a + lower_bound_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor>
-RanIt
-lower_bound_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(!(end < beg));
-	return beg + lower_bound_ex_n<RanIt, Key, KeyExtractor>(beg, 0, end - beg, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-RanIt
-lower_bound_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return a + lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-RanIt
-lower_bound_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(!(end < beg));
-	return beg + lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(beg, 0, end - beg, key, keyEx, comp);
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-size_t
-upper_bound_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	return upper_bound_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-size_t
-upper_bound_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return upper_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-}
-template<class Container, class Key, class KeyExtractor>
-size_t
-upper_bound_ex_a(const Container& a, const Key& key, KeyExtractor keyEx) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return upper_bound_ex_n<RanIt, Key, KeyExtractor>(a.begin(), 0, a.size(), key, keyEx);
-}
-template<class Container, class Key, class KeyExtractor, class Comp>
-size_t
-upper_bound_ex_a(const Container& a, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return upper_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a.begin(), 0, a.size(), key, keyEx, comp);
-}
-template<class RanIt, class Key, class KeyExtractor>
-RanIt
-upper_bound_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	return a + upper_bound_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor>
-RanIt
-upper_bound_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(!(end < beg));
-	return beg + upper_bound_ex_n<RanIt, Key, KeyExtractor>(beg, 0, end - beg, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-RanIt
-upper_bound_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return a + upper_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-RanIt
-upper_bound_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(!(end < beg));
-	return beg + upper_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(beg, 0, end - beg, key, keyEx, comp);
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-std::pair<size_t, size_t>
-equal_range_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	return equal_range_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-std::pair<size_t, size_t>
-equal_range_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return equal_range_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-}
-template<class Container, class Key, class KeyExtractor>
-std::pair<size_t, size_t>
-equal_range_ex_a(const Container& a, const Key& key, KeyExtractor keyEx) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return equal_range_ex_n<RanIt, Key, KeyExtractor>(a.begin(), 0, a.size(), key, keyEx);
-}
-template<class Container, class Key, class KeyExtractor, class Comp>
-std::pair<size_t, size_t>
-equal_range_ex_a(const Container& a, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	typedef typename Container::const_iterator RanIt;
-	return equal_range_ex_n<RanIt, Key, KeyExtractor, Comp>(a.begin(), 0, a.size(), key, keyEx, comp);
-}
-template<class RanIt, class Key, class KeyExtractor>
-std::pair<RanIt, RanIt>
-equal_range_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	std::pair<size_t, size_t>
-	r = equal_range_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-	return std::pair<RanIt, RanIt>(a + r.first, a + r.second);
-}
-template<class RanIt, class Key, class KeyExtractor>
-std::pair<RanIt, RanIt>
-equal_range_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(!(end < beg));
-	std::pair<size_t, size_t>
-	r = equal_range_ex_n<RanIt, Key, KeyExtractor>(beg, 0, end - beg, key, keyEx);
-	return std::pair<RanIt, RanIt>(beg + r.first, beg + r.second);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-std::pair<RanIt, RanIt>
-equal_range_ex(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	std::pair<size_t, size_t>
-	r = equal_range_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-	return std::pair<RanIt, RanIt>(a + r.first, a + r.second);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-std::pair<RanIt, RanIt>
-equal_range_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(!(end < beg));
-	std::pair<size_t, size_t>
-	r = equal_range_ex_n<RanIt, Key, KeyExtractor, Comp>(beg, 0, end - beg, key, keyEx, comp);
-	return std::pair<RanIt, RanIt>(beg + r.first, beg + r.second);
-}
-
-template<class RanIt, class Key, class KeyExtractor>
-bool
-binary_search_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx) noexcept {
-	return binary_search_ex_n<RanIt, Key, KeyExtractor>(a, 0, n, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-bool
-binary_search_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return binary_search_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
-}
-template<class Range, class Key, class KeyExtractor>
-bool
-binary_search_ex_a(const Range& a, const Key& key, KeyExtractor keyEx) noexcept {
-	return binary_search_ex_n(a.begin(), 0, a.size(), key, keyEx);
-}
-template<class Range, class Key, class KeyExtractor, class Comp>
-bool
-binary_search_ex_a(const Range& a, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	return binary_search_ex_n(a.begin(), 0, a.size(), key, keyEx, comp);
-}
-template<class RanIt, class Key, class KeyExtractor>
-bool
-binary_search_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx) noexcept {
-	assert(!(end < beg));
-	return binary_search_ex_n<RanIt, Key, KeyExtractor>(beg, 0, end - beg, key, keyEx);
-}
-template<class RanIt, class Key, class KeyExtractor, class Comp>
-bool
-binary_search_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx, Comp comp) noexcept {
-	assert(!(end < beg));
-	return binary_search_ex_n<RanIt, Key, KeyExtractor, Comp>(beg, 0, end - beg, key, keyEx, comp);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-
-template<class RanIt>
-void sort_0(RanIt a, size_t n) {
-	sort_n<RanIt>(a, 0, n);
-}
-template<class RanIt, class Comp>
-void sort_0(RanIt a, size_t n, Comp comp) {
-	sort_n<RanIt, Comp>(a, 0, n, comp);
-}
-template<class Container>
-void sort_a(Container& a) {
-	std::sort(std::begin(a), std::end(a));
-}
-template<class Container, class Comp>
-void sort_a(Container& a, Comp comp) {
-	std::sort(std::begin(a), std::end(a), comp);
-}
-
-template<class RanIt>
-void reverse_n(RanIt a, size_t low, size_t upp) noexcept {
-	std::reverse<RanIt>(a + low, a + upp);
-}
-template<class RanIt>
-void reverse_0(RanIt a, size_t n) {
-	std::reverse<RanIt>(a + 0, a + n);
-}
-template<class Container>
-void reverse_a(Container& a) noexcept {
-	std::reverse(a.begin(), a.end());
-}
-template<class Container>
-void reverse_a(Container& a, size_t low, size_t upp) noexcept {
-	assert(low <= upp);
-	assert(upp <= a.size());
-	std::reverse(a.begin() + low, a.begin() + upp);
-}
-
-template<class RanIt>
-size_t unique_n(RanIt a, size_t low, size_t upp) noexcept {
-	assert(low <= upp);
-	return std::unique<RanIt>(a + low, a + upp) - a;
-}
-template<class RanIt>
-size_t unique_0(RanIt a, size_t n) noexcept {
-	return std::unique<RanIt>(a + 0, a + n) - a;
-}
-template<class Container>
-size_t unique_a(Container& a) noexcept {
-	return std::unique(a.begin(), a.end()) - a.begin();
-}
-template<class Container, class Equal>
-size_t unique_a(Container& a, Equal eq) noexcept {
-	return std::unique(a.begin(), a.end(), eq) - a.begin();
-}
-template<class Container>
-size_t unique_a(Container& a, size_t low, size_t upp) noexcept {
-	assert(low <= upp);
-	assert(upp <= a.size());
-	return std::unique(a.begin() + low, a.begin() + upp) - low - a.begin();
-}
-template<class Container, class Equal>
-size_t unique_a(Container& a, Equal eq, size_t low, size_t upp) noexcept {
-	assert(low <= upp);
-	assert(upp <= a.size());
-	return std::unique(a.begin() + low, a.begin() + upp, eq) - low - a.begin();
-}
-
-template<class Container, class KeyExtractor>
-size_t unique_ex_a(Container& a, KeyExtractor ex) noexcept {
-	return std::unique(a.begin(), a.end(), ExtractorEqual(ex)) - a.begin();
-}
-template<class Container, class KeyExtractor, class Equal>
-size_t unique_ex_a(Container& a, KeyExtractor ex, Equal eq) noexcept {
-	return std::unique(a.begin(), a.end(), ExtractorComparator(ex, eq)) - a.begin();
-}
 
 } // namespace terark
 
-/// begin sed gen valvec32
-
 namespace std {
 	template<class T>
-	void swap(terark::valvec<T>& x, terark::valvec<T>& y) noexcept { x.swap(y); }
+	void swap(terark::valvec32<T>& x, terark::valvec32<T>& y) noexcept { x.swap(y); }
 }
 
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic pop
 #endif
 
-/// end sed gen valvec32

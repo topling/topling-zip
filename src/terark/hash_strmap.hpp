@@ -13,6 +13,11 @@
 # error must define byte endian
 #endif
 
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wclass-memaccess" // which version support?
+#endif
+
 // http://software.intel.com/en-us/articles/memcpy-performance
 //  This link mentioned memcpy may be optimized by hardware, Whether aligned or unaligned:
 //    hardware implementations which automatically switch into wide move modes
@@ -241,7 +246,7 @@ private:
 
 	void reserve_nodes_impl(size_t cap, SafeCopy, ValueInline) {
 		Node* pn = (Node*)malloc(allnodes_size(cap));
-		if (NULL == pn) throw std::bad_alloc();
+		if (NULL == pn) TERARK_DIE("malloc(%zd)", allnodes_size(cap));
 		if (pNodes) {
 			Node* oldpn = pNodes;
 			if (nDeleted) {
@@ -266,10 +271,10 @@ private:
 	}
 	void reserve_nodes_impl(size_t cap, SafeCopy, ValueOut) {
 		Node* pn = (Node*)realloc(pNodes, allnodes_size(cap));
-		if (NULL == pn) throw std::bad_alloc();
+		if (NULL == pn) TERARK_DIE("realloc(%zd)", allnodes_size(cap));
 		if (!is_value_empty) {
 			Value* pv = (Value*)malloc(sizeof(Value) * cap);
-			if (NULL == pv) throw std::bad_alloc();
+			if (NULL == pv) TERARK_DIE("malloc(%zd)", sizeof(Value) * cap);
 			if (values) {
 				Value* oldpv = values;
 				if (nDeleted) {
@@ -293,7 +298,7 @@ private:
 	// This is the normal case:
 	void reserve_nodes_impl(size_t cap, FastCopy, ValueInline) {
 		Node* pn = (Node*)realloc(pNodes, allnodes_size(cap));
-		if (NULL == pn) throw std::bad_alloc();
+		if (NULL == pn) TERARK_DIE("realloc(%zd)", allnodes_size(cap));
 		if (NULL == pNodes) {
 			pn[0].offset = 0;
 			pn[0].link = tail; // guard for next_i
@@ -302,12 +307,12 @@ private:
 	}
 	void reserve_nodes_impl(size_t cap, FastCopy, ValueOut) {
 		Node* pn = (Node*)realloc(pNodes, allnodes_size(cap));
-		if (NULL == pn) throw std::bad_alloc();
+		if (NULL == pn) TERARK_DIE("realloc(%zd)", allnodes_size(cap));
 		if (!is_value_empty) {
 			Value* pv = (Value*)realloc(values, sizeof(Value) * cap);
 			if (NULL == pv) {
 				pNodes = pn; // maxNodes unchanged
-				throw std::bad_alloc();
+				TERARK_DIE("realloc(%zd)", sizeof(Value) * cap);
 			}
 			values = pv;
 		}
@@ -504,13 +509,13 @@ public:
 		}
 		bucket = (LinkTp*)malloc(sizeof(LinkTp) * y.nBucket);
 		if (NULL == bucket) {
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", sizeof(LinkTp) * y.nBucket);
 		}
 		pNodes = (Node*)malloc(allnodes_size(nNodes));
 		if (NULL == pNodes) {
 			free(bucket);
 			init(); // reset to safe state
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", allnodes_size(nNodes));
 		}
 		if (intptr_t(y.pHash) == hash_cache_disabled) {
 			pHash = (HashTp*)(hash_cache_disabled);
@@ -521,7 +526,7 @@ public:
 				free(pNodes);
 				free(bucket);
 				init(); // reset to safe state
-				throw std::bad_alloc();
+				TERARK_DIE("malloc(%zd)", sizeof(HashTp) * nNodes);
 			}
 		}
 		strpool = (char*)malloc(y.lenpool);
@@ -530,7 +535,7 @@ public:
 			free(pNodes);
 			free(bucket);
 			init(); // reset to safe state
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", y.lenpool);
 		}
 		if (ValuePlace::is_value_out &&	!is_value_empty) {
 			values = (Value*)malloc(sizeof(Value) * nNodes);
@@ -540,7 +545,7 @@ public:
 				free(pNodes);
 				free(bucket);
 				init(); // reset to safe state
-				throw std::bad_alloc();
+				TERARK_DIE("malloc(%zd)", sizeof(Value) * nNodes);
 			}
 		}
 		if (freelist_disabled != fastleng) {
@@ -552,7 +557,7 @@ public:
 				free(pNodes);
 				free(bucket);
 				init(); // reset to safe state
-				throw std::bad_alloc();
+				TERARK_DIE("malloc(%zd)", sizeof(FreeList) * fastleng);
 			}
 			memcpy(fastlist, y.fastlist, sizeof(FreeList) * fastleng);
 		}
@@ -849,7 +854,7 @@ public:
 		TERARK_VERIFY_GE(poolcap, lenpool);
 		char* ps = (char*)realloc(strpool, poolcap);
 		if (NULL == ps)
-			throw std::bad_alloc();
+			TERARK_DIE("realloc(%zd)", poolcap);
 		strpool = ps;
 		maxpool = poolcap;
 	}
@@ -865,7 +870,7 @@ public:
 			if (intptr_t(pHash) != hash_cache_disabled) {
 				HashTp* ph = (HashTp*)realloc(pHash, sizeof(HashTp) * cap);
 				if (NULL == ph)
-					throw std::bad_alloc();
+					TERARK_DIE("realloc(%zd)", sizeof(HashTp) * cap);
 				pHash = ph;
 			}
 			reserve_nodes_impl(cap, CopyStrategy(), ValuePlace());
@@ -904,7 +909,7 @@ public:
 			else {
 				HashTp* ph = (HashTp*)malloc(sizeof(HashTp) * maxNodes);
 				if (NULL == ph) {
-					throw std::bad_alloc();
+					TERARK_DIE("malloc(%zd)", sizeof(HashTp) * maxNodes);
 				}
 				size_t  n = nNodes;
 				Node*  pn = pNodes;
@@ -1011,6 +1016,9 @@ public:
 	const_reverse_iterator  rend() const { return const_reverse_iterator(begin()); }
 	const_reverse_iterator crend() const { return const_reverse_iterator(begin()); }
 
+	      iterator  iter_of(size_t idx)       { return       iterator(this, idx); }
+	const_iterator  iter_of(size_t idx) const { return const_iterator(this, idx); }
+
 	std::pair<iterator, bool>
 	insert(const std::pair<const fstring, Value>& kv) {
 		std::pair<size_t, bool> ib = insert_i(kv);
@@ -1036,17 +1044,13 @@ public:
 	template<class ValueParam>
 	std::pair<iterator, bool>
 	try_emplace(fstring key, const ValueParam& vp) {
-		std::pair<size_t, bool> ib = lazy_insert_i(key, [&](void* mem) {
-			new(mem)Value(vp);
-		});
+		std::pair<size_t, bool> ib = lazy_insert_i(key, CopyConsFunc<Value>(vp));
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
 	template<class ValueParam>
 	std::pair<iterator, bool>
 	try_emplace(fstring key, ValueParam&& vp) {
-		std::pair<size_t, bool> ib = lazy_insert_i(key, [&](void* mem) {
-			new(mem)Value(std::move(vp));
-		});
+		std::pair<size_t, bool> ib = lazy_insert_i(key, MoveConsFunc<Value>(std::move(vp)));
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
 
@@ -1397,11 +1401,11 @@ public:
 
 	std::pair<size_t, bool>
 	insert_i(const fstring key, const Value& val) {
-		return lazy_insert_i(key, CopyConsFunc(val));
+		return lazy_insert_i(key, CopyConsFunc<Value>(val));
 	}
 	std::pair<size_t, bool>
 	insert_i(const fstring key, Value&& val) {
-		return lazy_insert_i(key, MoveConsFunc(std::move(val)));
+		return lazy_insert_i(key, MoveConsFunc<Value>(std::move(val)));
 	}
 	std::pair<size_t, bool>
 	insert_i(const fstring key) {
@@ -1605,7 +1609,7 @@ private:
 					if (freelist_disabled == fastleng && freepool >= real_len)
 						revoke_deleted();
 					else
-						throw std::bad_alloc();
+						TERARK_DIE("realloc(%zd)", newmax);
 				} else {
 					maxpool = newmax;
 					strpool = newpch;
@@ -1710,7 +1714,7 @@ public:
             fastleng = newlistLen;
         }
         newlist = t_realloc(newlist, newlistLen);
-        if (NULL == newlist) throw std::bad_alloc();
+        if (NULL == newlist) TERARK_DIE("realloc(%zd)", sizeof(FreeList)*newlistLen);
 		fastlist = newlist;
         if (freelist_disabled == fastleng) {
             std::fill_n(newlist, newlistLen, FreeList());
@@ -1971,7 +1975,7 @@ private:
 	KeyIndex* buildindex() {
 		KeyIndex* index = (KeyIndex*)malloc(sizeof(KeyIndex) * nNodes);
 		if (NULL == index) {
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", sizeof(KeyIndex) * nNodes);
 		}
 		Node* pn = pNodes;
 		char* ps = strpool;
@@ -1993,7 +1997,7 @@ private:
 	LinkTp* buildindex_by_int() {
 		LinkTp* p = (LinkTp*)malloc(sizeof(LinkTp) * nNodes);
 		if (NULL == p) {
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", sizeof(LinkTp) * nNodes);
 		}
 		for (size_t i = 0, n = nNodes; i < n; ++i)
 			p[i] = i;
@@ -2070,7 +2074,7 @@ private:
 	void rearrange_strpool() {
 		char* s2 = (char*)malloc(lenpool);
 		if (NULL == s2) {
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", lenpool);
 		}
 		size_t loffset = 0;
 		char* ps = strpool;
@@ -2108,7 +2112,7 @@ private:
 	KeyIndexWithPrefix*	sort_by_key_prefix_o(sort_by_index_yes, bool DoRearrange) {
 		KeyIndexWithPrefix* index = t_malloc<KeyIndexWithPrefix>(nNodes);
 		if (NULL == index) {
-			throw std::bad_alloc();
+			TERARK_DIE("malloc(%zd)", sizeof(KeyIndexWithPrefix) * nNodes);
 		}
 		Node* pn = pNodes;
 		char* ps = strpool;
@@ -2190,7 +2194,7 @@ private:
 		if (boost::is_same<CopyStrategy, FastCopy>::value) {
 			pNodes = pn;
 			pn = (Node*)realloc(pn, allnodes_size(maxNodes));
-			if (NULL == pn) throw std::bad_alloc();
+			if (NULL == pn) TERARK_DIE("realloc(%zd)", allnodes_size(maxNodes));
 			pNodes = pn;
 		} else
 			free(pnp); // malloc'ed
@@ -2969,3 +2973,7 @@ swap(terark::fast_hash_strmap<Key, Value, HashFunc, KeyEqual, ValuePlace, CopySt
 #endif
 
 } // namespace std
+
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+  #pragma GCC diagnostic pop
+#endif
