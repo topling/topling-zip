@@ -2,7 +2,6 @@
     #pragma GCC diagnostic ignored "-Winvalid-offsetof"
 #endif
 
-#include "blob_store_file_header.hpp"
 #include "dict_zip_blob_store.hpp"
 #include "suffix_array_dict.hpp"
 #include "xxhash_helper.hpp"
@@ -30,6 +29,7 @@
 #include <terark/util/fstrvec.hpp>
 #include <terark/util/small_memcpy.hpp>
 #include <terark/util/hugepage.hpp>
+#include <terark/util/vm_util.hpp>
 #include <random>
 #include <zstd/common/fse.h>
 #include <atomic>
@@ -2608,51 +2608,20 @@ static inline void CopyForward(const byte* src, byte* op, size_t len) {
   #define small_memcpy(dst, src, len) CopyForward
 #endif
 
-static const size_t one_page = 4096;
-struct AutoLockUnlockMem {
-    void maybe_mlock(const void* p, size_t n, size_t min_pages) {
-        size_t lo = pow2_align_down(size_t(p), one_page);
-        size_t hi = pow2_align_up(size_t(p) + n, one_page);
-        len = hi - lo;
-        if (len >= min_pages) {
-            ptr = (void*)lo;
-            mlock(ptr, len);
-        }
-    }
-    ~AutoLockUnlockMem() {
-        if (ptr)
-            munlock(ptr, len);
-    }
-    void*  ptr = nullptr;
-    size_t len = 0;
-};
-/*
-static inline
-void prefetch_more_than_one_page(const byte_t* data, size_t len) {
-  #if defined(MADV_WILLNEED)
-    size_t lo = pow2_align_down(size_t(data), one_page);
-    size_t hi = pow2_align_up(size_t(data) + len, one_page);
-    if (hi - lo > one_page) {
-        madvise((void*)lo, hi - lo, MADV_WILLNEED);
-    }
-  #endif
-}
-*/
-
 template<bool ZipOffset, int CheckSumLevel,
          DictZipBlobStore::EntropyAlgo Entropy,
          int EntropyInterLeave>
 terark_flatten void
 DictZipBlobStore::get_record_append_tpl(size_t recId, valvec<byte_t>* recData)
 const {
-    AutoLockUnlockMem rng;
+    AutoPrefaultMem rng;
     auto readRaw = [this,&rng](size_t offset, size_t length) {
         auto base = (const byte_t*)this->m_mmapBase;
         if (this->m_mmap_aio && false) { // disable this branch
             fiber_aio_need(base + offset, length);
         }
-        else if (m_min_prefetch_pages >= 2) {
-            rng.maybe_mlock(base + offset, length, m_min_prefetch_pages);
+        else if (m_min_prefetch_pages >= g_min_prefault_pages) {
+            rng.maybe_prefault(base + offset, length, m_min_prefetch_pages);
             //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;
@@ -2667,14 +2636,14 @@ template<int CheckSumLevel,
 terark_flatten void
 DictZipBlobStore::get_record_append_CacheOffsets_tpl(size_t recId, CacheOffsets* co)
 const {
-    AutoLockUnlockMem rng;
+    AutoPrefaultMem rng;
     auto readRaw = [this,&rng](size_t offset, size_t length) {
         auto base = (const byte_t*)this->m_mmapBase;
         if (this->m_mmap_aio && false) { // disable this branch
             fiber_aio_need(base + offset, length);
         }
-        else if (m_min_prefetch_pages >= 2) {
-            rng.maybe_mlock(base + offset, length, m_min_prefetch_pages);
+        else if (m_min_prefetch_pages >= g_min_prefault_pages) {
+            rng.maybe_prefault(base + offset, length, m_min_prefetch_pages);
             //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;

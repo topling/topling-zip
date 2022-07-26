@@ -6,6 +6,7 @@
 #include <terark/thread/fiber_aio.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/checksum_exception.hpp>
+#include <terark/util/vm_util.hpp>
 #include <terark/zbs/xxhash_helper.hpp>
 #include <terark/io/StreamBuffer.hpp>
 #include "blob_store_file_header.hpp"
@@ -228,7 +229,11 @@ const {
 	assert(offset0 <= offset1);
     const byte_t* pData = basePtr + offset0;
     size_t        nData = offset1 - offset0;
-    if (this->m_mmap_aio) {
+    AutoPrefaultMem rng;
+    if (m_min_prefetch_pages >= g_min_prefault_pages) {
+        rng.maybe_prefault(pData, nData, m_min_prefetch_pages);
+    }
+    else if (this->m_mmap_aio && false) {
         fiber_aio_need(pData, nData);
     }
     if (2 == m_checksumLevel) {
@@ -372,12 +377,12 @@ void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dict
 	m_checksumLevel = mmapBase->checksumLevel;
 	m_checksumType = mmapBase->checksumType;
 	m_fixedLen = int32_t(mmapBase->fixedLen); // signed extention
-        m_fixedLenWithoutCRC =
-            (2 == m_checksumLevel
-                 ? m_fixedLen - (kCRC16C == m_checksumType ? sizeof(uint16_t)
-                                                           : sizeof(uint32_t))
-                 : m_fixedLen);
-        m_fixedNum = mmapBase->fixedNum;
+    m_fixedLenWithoutCRC =
+        (2 == m_checksumLevel
+                ? m_fixedLen - (kCRC16C == m_checksumType ? sizeof(uint16_t)
+                                                          : sizeof(uint32_t))
+                : m_fixedLen);
+    m_fixedNum = mmapBase->fixedNum;
 	if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
 		XXHash64 hash(g_dmbsnark_seed);
 		hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
