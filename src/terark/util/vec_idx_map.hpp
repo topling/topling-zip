@@ -2,9 +2,8 @@
 #include <type_traits>
 #include <limits>
 #include <new>
-#include <vector>
-#include <terark/stdtypes.hpp>
 #include <terark/node_layout.hpp>
+#include <terark/valvec.hpp>
 
 namespace terark {
 
@@ -22,7 +21,7 @@ public:
   // this pair.first is redundant with respect to most optimal principle,
   // just for compatible with generic map, and use nil of pair.first for
   // valid/invalid flag
-  using vec_t = std::vector<Holder>;
+  using vec_t = valvec<Holder>;
   using value_type = std::pair<const Key, Value>;
   using key_type = Key;
   using mapped_type = Value;
@@ -30,8 +29,8 @@ public:
   static_assert(alignof (Holder) == alignof(value_type));
   static_assert(offsetof(Holder, value) == offsetof(value_type, second));
 
-  static       value_type* AsKV(      void* mem) { return reinterpret_cast<      value_type*>(mem); }
-  static const value_type* AsKV(const void* mem) { return reinterpret_cast<const value_type*>(mem); }
+  static       value_type* AsKV(      void* mem) terark_nonnull terark_returns_nonnull { return reinterpret_cast<      value_type*>(mem); }
+  static const value_type* AsKV(const void* mem) terark_nonnull terark_returns_nonnull { return reinterpret_cast<const value_type*>(mem); }
   class iterator {
    #define IterClass iterator
     using PVec = vec_t*;
@@ -75,6 +74,20 @@ public:
   const_reverse_iterator crbegin() const noexcept { return rbegin(); }
   const_reverse_iterator crend  () const noexcept { return rend  (); }
 
+  const Value* get_value_ptr(Key key) const noexcept {
+    if (key < m_vec.size() && m_vec[key].key != nil) {
+      TERARK_ASSERT_EQ(m_vec[key].key, key);
+      return &AsKV(&m_vec[key])->second;
+    }
+    return nullptr;
+  }
+  Value* get_value_ptr(Key key) noexcept {
+    if (key < m_vec.size() && m_vec[key].key != nil) {
+      TERARK_ASSERT_EQ(m_vec[key].key, key);
+      return &AsKV(&m_vec[key])->second;
+    }
+    return nullptr;
+  }
   const_iterator find(Key key) const noexcept {
     if (key < m_vec.size() && m_vec[key].key != nil) {
       TERARK_ASSERT_EQ(m_vec[key].key, key);
@@ -259,7 +272,7 @@ class VectorPtrMap {
   static_assert(sizeof(Key) <= sizeof(size_t));
 
 public:
-  using vec_t = std::vector<Ptr>;
+  using vec_t = valvec<Ptr>;
   using key_type = Key;
   using mapped_type = Ptr;
   typedef std::pair<const Key, Ptr> value_type;

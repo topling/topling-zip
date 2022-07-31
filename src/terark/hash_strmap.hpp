@@ -1084,6 +1084,32 @@ public:
 		return 0;
 	}
 
+	// copy of erase(key) with get the erased value
+	size_t erase(const fstring key, Value* erased) {
+		TERARK_ASSERT_GE(key.n, 0);
+		HashTp h = hash(key);
+		size_t i = size_t(h % nBucket);
+		LinkTp p, *p_ptr = &bucket[i];
+		while ((p = *p_ptr) != tail) {
+			const Node* y = &pNodes[p];
+			TERARK_ASSERT_LT(p, nNodes);
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+		// doesn't need to compare cached hash value, it almost always true
+			size_t ybeg = LOAD_OFFSET(y[0].offset);
+			size_t yend = LOAD_OFFSET(y[1].offset);
+			size_t ylen = yend - ybeg - extralen(yend);
+			if (equal(key, fstring(strpool + ybeg, ylen))) {
+				*erased = nth_value(p, ValuePlace());
+				*p_ptr = pNodes[p].link; // ulink_impl(p, h);
+				risk_slot_free(p);
+				return 1;
+			}
+			p_ptr = &pNodes[p].link;
+		}
+		return 0;
+	}
+
 	void erase(iterator iter) {
 		TERARK_ASSERT_EQ(iter.get_owner(), this);
 		TERARK_ASSERT_LT(iter.get_index(), nNodes);
@@ -1648,7 +1674,7 @@ public:
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
 		size_t myend = LOAD_OFFSET(pNodes[idx+1].offset);
 		size_t mylen = myend - mybeg;
-		if (nNodes-1 == idx) {
+		if (terark_unlikely(nNodes-1 == idx)) {
 			nNodes--;
 			pNodes[idx].link = tail; // guard for next_i
 			TERARK_ASSERT_GE(lenpool, mylen);

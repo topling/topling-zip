@@ -56,6 +56,8 @@
 #  define terark_no_inline     __attribute__((noinline))
 #  define terark_forceinline     inline __attribute__((always_inline))
 #  define terark_pure_func     __attribute__((pure))
+#  define terark_nonnull  __attribute__((nonnull))
+#  define terark_returns_nonnull  __attribute__((returns_nonnull))
 
 #else
 
@@ -101,6 +103,14 @@
 
 #if !defined(terark_used_static_obj)
 #  define terark_used_static_obj volatile
+#endif
+
+#if !defined(terark_nonnull)
+#  define terark_nonnull
+#endif
+
+#if !defined(terark_returns_nonnull)
+#  define terark_returns_nonnull
 #endif
 
 /* The ISO C99 standard specifies that in C++ implementations these

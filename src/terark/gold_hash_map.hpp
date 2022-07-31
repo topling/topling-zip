@@ -968,6 +968,26 @@ public:
 		return 0;
 	}
 
+	// erase and get the erasing element by get_val
+	template<class GetValue>
+	size_t erase(key_param_pass_t key, GetValue get_val) {
+		const HashTp h = HashTp(HashEqual::hash(key));
+		const HashTp i = h % nBucket;
+		LinkTp curv, *curp = &bucket[i];
+		while (tail != (curv = *curp)) {
+			TERARK_ASSERT_LT(curv, nElem);
+			TERARK_ASSERT_F(!is_deleted(curv), "%zd", size_t(curv));
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(curv)))) {
+				get_val(std::move(m_nl.data(curv)));
+				*curp = m_nl.link(curv); // delete the curv'th node from collision list
+				fast_slot_free(curv);
+				return 1;
+			}
+			curp = &m_nl.link(curv);
+		}
+		return 0;
+	}
+
 	size_t count(key_param_pass_t key) const {
 		return find_i(key) == nElem ? 0 : 1;
 	}
@@ -1382,6 +1402,13 @@ public:
 		TERARK_ASSERT_LE(idxEnd, this->nElem);
 		TERARK_ASSERT_NE(this->delmark, this->m_nl.link(this->nElem - idxEnd));
 		return this->m_nl.data(this->nElem - idxEnd).second;
+	}
+
+	using super::erase;
+	size_t erase(key_param_pass_t key, Value* erased) {
+		return super::erase(key, [erased](std::pair<Key, Value>&& kv) {
+			*erased = std::move(kv.second);
+		});
 	}
 
 // DataIO support
