@@ -412,9 +412,10 @@ unsigned int DataIO_load_check_version(Input& in, unsigned int curr_version, con
 #define DATA_IO_OPTIMIZE_VECTOR_LOAD_REG(Friend, Derived, Class)\
 	template<class DataIO, class Vector, class Bswap>\
 	Friend void DataIO_load_vector					\
-	(DataIO& dio, Class*, Vector& x, Bswap)			\
+	(DataIO& _dio_, Class* _dummy_, Vector& _vector_, Bswap) \
 	{												\
-		((Derived*)0)->load_vector(dio, x, Bswap());\
+		static_cast<Derived*>(_dummy_)->load_vector \
+			(_dio_, _vector_, Bswap());\
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -433,9 +434,10 @@ unsigned int DataIO_load_check_version(Input& in, unsigned int curr_version, con
 #define DATA_IO_OPTIMIZE_ARRAY__LOAD_REG(Friend, Derived, Class) \
 	template<class DataIO, class Bswap>				\
 	Friend void DataIO_load_array					\
-	(DataIO& dio, Class* a, size_t n, Bswap)		\
+	(DataIO& _dio_, Class* _array_, size_t _N_count, Bswap)	\
 	{												\
-	  ((Derived*)0)->load_array(dio, a, n, Bswap());\
+	  static_cast<Derived*>(_array_)->load_array	\
+		(_dio_, _array_, _N_count, Bswap());		\
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -75,7 +75,7 @@ public:
         // BlockSize can only be 64 or 128
         // offsets[BlockSize+1] store next block's first offset
 
-        void invalidate_offsets_cache() { blockId = size_t(-1); }
+        void invalidate_offsets_cache() noexcept { blockId = size_t(-1); }
     };
     terark_forceinline
     void get_record_append(size_t recID, CacheOffsets* co) const {
@@ -221,7 +221,7 @@ template<> struct BlobStoreRecBuffer<false> : valvec<byte_t> {
     const
     valvec<byte_t>& getRecData() const { return *this; }
     valvec<byte_t>& getRecData()       { return *this; }
-    void invalidate_offsets_cache() {} // do nothing
+    void invalidate_offsets_cache() noexcept {} // do nothing
 };
 
 } // namespace terark

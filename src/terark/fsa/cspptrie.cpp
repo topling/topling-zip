@@ -203,7 +203,7 @@ template<size_t Align>
 void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     if (conLevel >= MultiWriteMultiRead) {
     }
-    else {
+    else if (conLevel >= SingleThreadShared) {
         new(&m_lazy_free_list_sgl)LazyFreeList();
         new(&m_reader_token_sgl_tls)ReaderTokenTLS_Holder();
     }
@@ -247,9 +247,12 @@ PatriciaMem<Align>::tls_writer_token() {
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
         return lzf->m_writer_token;
     }
-    else {
+    else if (m_mempool_concurrent_level >= SingleThreadShared) {
         // not tls
         return m_writer_token_sgl;
+    }
+    else {
+        TERARK_DIE("Single thread mode, dont use this function");
     }
 }
 
@@ -293,9 +296,12 @@ Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() {
         assert(NULL != lzf->m_reader_token.get());
         tok = lzf->m_reader_token.get();
     }
-    else {
+    else if (m_mempool_concurrent_level >= OneWriteMultiRead) {
         tok = m_reader_token_sgl_tls.get_tls(
             []{ return new ReaderTokenTLS_Object; })->m_token.get();
+    }
+    else {
+        TERARK_DIE("Single thread mode, dont use this function");
     }
     return tok;
 }
@@ -809,7 +815,7 @@ void PatriciaMem<Align>::destroy() {
     if (conLevel >= MultiWriteMultiRead) {
         TERARK_VERIFY_EQ(m_writer_token_sgl.get(), nullptr);
     }
-    else {
+    else if (conLevel >= SingleThreadShared) {
         m_writer_token_sgl.reset();
         m_lazy_free_list_sgl.~LazyFreeList();
         m_reader_token_sgl_tls.~ReaderTokenTLS_Holder();
@@ -919,6 +925,10 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
         ms->frag_size = m_mempool_fixed_cap.frag_size();
         break;
     case  SingleThreadStrict:
+        m_mempool_lock_none.get_fastbin(&ms->fastbin);
+        ms->huge_cnt  = m_mempool_lock_none.get_huge_stat(&ms->huge_size);
+        ms->frag_size = m_mempool_lock_none.frag_size();
+        break;
     case  SingleThreadShared:
         m_mempool_lock_none.get_fastbin(&ms->fastbin);
         get_lzf(&m_lazy_free_list_sgl);
@@ -2492,6 +2502,9 @@ void PatriciaMem<Align>::revoke_expired_nodes() {
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel, class LazyList>
 void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, TokenBase* token) {
+    if (ConLevel < SingleThreadShared) {
+        return;
+    }
 static long g_lazy_free_debug_level =
     getEnvLong("Patricia_lazy_free_debug_level", 0);
 

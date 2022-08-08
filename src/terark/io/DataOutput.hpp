@@ -404,9 +404,10 @@ void DataIO_saveObject(Output& output, const std::pair<FirstT, SecondT>& x)
 #define DATA_IO_OPTIMIZE_VECTOR_SAVE_REG(Friend, Derived, Class)\
 	template<class DataIO, class Vector, class Bswap>\
 	Friend void DataIO_save_vector					\
-	(DataIO& dio, Class*, const Vector& x, Bswap)	\
+	(DataIO& _dio_, Class* _dummy_, const Vector& _vector_, Bswap) \
 	{												\
-	   ((Derived*)0)->save_vector(dio, x, Bswap()); \
+		static_cast<Derived*>(_dummy_)->            \
+			save_vector(_dio_, _vector_, Bswap());  \
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -425,9 +426,10 @@ void DataIO_saveObject(Output& output, const std::pair<FirstT, SecondT>& x)
 #define DATA_IO_OPTIMIZE_ARRAY__SAVE_REG(Friend, Derived, Class) \
 	template<class DataIO, class Bswap>				\
 	Friend void DataIO_save_array					\
-	(DataIO& dio, const Class* a, size_t n, Bswap)	\
+	(DataIO& _dio_, const Class* _array_, size_t _N_count, Bswap) \
 	{												\
-		((Derived*)0)->save_array(dio, a, n, Bswap());\
+	  static_cast<Derived*>(_array_)->save_array    \
+		(_dio_, _array_, _N_count, Bswap());        \
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

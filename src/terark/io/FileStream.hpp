@@ -46,12 +46,12 @@ public:
 public:
 	FileStream(fstring fpath, fstring mode);
 	FileStream(int fd, fstring mode);
-//	explicit FileStream(FILE* fp = 0) throw() : m_fp(fp) {}
-	FileStream() throw() : m_fp(0) {} // 不是我打开的文件，请显式 attach/detach
+//	explicit FileStream(FILE* fp = 0) noexcept : m_fp(fp) {}
+	FileStream() noexcept : m_fp(0) {} // 不是我打开的文件，请显式 attach/detach
 	~FileStream();
 
-	bool isOpen() const throw() { return 0 != m_fp; }
-	operator FILE*() const throw() { return m_fp; }
+	bool isOpen() const noexcept { return 0 != m_fp; }
+	operator FILE*() const noexcept { return m_fp; }
 
 	void open(fstring fpath, fstring mode);
 
@@ -60,18 +60,18 @@ public:
 
 	void dopen(int fd, fstring mode);
 
-	void close() throw();
+	void close() noexcept;
 
-	void attach(::FILE* fp) throw();
-	FILE* detach() throw();
+	void attach(::FILE* fp) noexcept;
+	FILE* detach() noexcept;
 
-	FILE* fp() const throw() { return m_fp; }
+	FILE* fp() const noexcept { return m_fp; }
 #ifdef __USE_MISC
-	bool eof() const throw() { return !!feof_unlocked(m_fp); }
-	int  getByte() throw() { return fgetc_unlocked(m_fp); }
+	bool eof() const noexcept override { return !!feof_unlocked(m_fp); }
+	int  getByte() noexcept { return fgetc_unlocked(m_fp); }
 #else
-	bool eof() const throw() { return !!feof(m_fp); }
-	int  getByte() throw() { return fgetc(m_fp); }
+	bool eof() const noexcept override { return !!feof(m_fp); }
+	int  getByte() noexcept { return fgetc(m_fp); }
 #endif
 	byte readByte();
 	void writeByte(byte b);
@@ -79,21 +79,21 @@ public:
 	void ensureRead(void* vbuf, size_t length);
 	void ensureWrite(const void* vbuf, size_t length);
 
-	size_t read(void* buf, size_t size) throw();
-	size_t write(const void* buf, size_t size) throw();
-	void flush();
+	size_t read(void* buf, size_t size) noexcept override;
+	size_t write(const void* buf, size_t size) noexcept override;
+	void flush() override;
 	void puts(fstring text);
 
-	void rewind();
-	void seek(stream_offset_t offset, int origin);
-	void seek(stream_position_t pos);
-	stream_position_t tell() const;
-	stream_position_t size() const;
+	void rewind() override;
+	void seek(stream_offset_t offset, int origin) override;
+	void seek(stream_position_t pos) override;
+	stream_position_t tell() const override;
+	stream_position_t size() const override;
 
 	size_t pread(stream_position_t pos, void* vbuf, size_t length);
 	size_t pwrite(stream_position_t pos, const void* vbuf, size_t length);
 
-	void disbuf() throw();
+	void disbuf() noexcept;
 
 #if defined(__GLIBC__) || defined(_MSC_VER) && _MSC_VER <= 1800
 public:
@@ -124,7 +124,7 @@ public:
 
 class TERARK_DLL_EXPORT NonOwnerFileStream : public FileStream {
 public:
-	explicit NonOwnerFileStream(FILE* fp) throw() { m_fp = fp; }
+	explicit NonOwnerFileStream(FILE* fp) noexcept { m_fp = fp; }
 	NonOwnerFileStream(const char* fpath, const char* mode) : FileStream(fpath, mode) {}
 	NonOwnerFileStream(int fd, const char* mode) : FileStream(fd, mode) {}
 	~NonOwnerFileStream();

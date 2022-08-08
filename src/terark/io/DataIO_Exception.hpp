@@ -19,9 +19,9 @@ protected:
 public:
 	explicit DataFormatException(const char* szMsg = "terark::DataFormatException");
 	explicit DataFormatException(const std::string& strMsg);
-	virtual ~DataFormatException() throw();
+	virtual ~DataFormatException();
 
-	const char* what() const throw() { return m_message.c_str(); }
+	const char* what() const noexcept override { return m_message.c_str(); }
 };
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
 #pragma warning(pop)

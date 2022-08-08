@@ -109,13 +109,13 @@ void FileStream::dopen(int fd, fstring mode)
 	set_close_on_exec(fileno(m_fp));
 }
 
-void FileStream::attach(::FILE* fp) throw()
+void FileStream::attach(::FILE* fp) noexcept
 {
 	assert(NULL == m_fp);
 	this->m_fp = fp;
 }
 
-FILE* FileStream::detach() throw()
+FILE* FileStream::detach() noexcept
 {
 	assert(m_fp);
 	FILE* temp = m_fp;
@@ -123,7 +123,7 @@ FILE* FileStream::detach() throw()
 	return temp;
 }
 
-void FileStream::close() throw()
+void FileStream::close() noexcept
 {
 	assert(m_fp);
 	fclose(m_fp);
@@ -190,13 +190,13 @@ stream_position_t FileStream::size() const
 #endif
 }
 
-size_t FileStream::read(void* buf, size_t size) throw()
+size_t FileStream::read(void* buf, size_t size) noexcept
 {
 	assert(m_fp);
 	return ::fread(buf, 1, size, m_fp);
 }
 
-size_t FileStream::write(const void* buf, size_t size) throw()
+size_t FileStream::write(const void* buf, size_t size) noexcept
 {
 	assert(m_fp);
 	return ::fwrite(buf, 1, size, m_fp);
@@ -494,7 +494,7 @@ void FileStream::write_string(fstring str, size_t len)
 
 #endif // _MSC_VER
 
-void FileStream::disbuf() throw()
+void FileStream::disbuf() noexcept
 {
 	assert(m_fp);
 	setvbuf(m_fp, NULL, _IONBF, 0);
