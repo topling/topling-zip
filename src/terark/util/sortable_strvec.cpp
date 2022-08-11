@@ -1228,6 +1228,7 @@ inline static bool SortAsUint(void* base, size_t num) {
 template<class Uint>
 inline static bool SortAsUint(void* base, size_t num, size_t valuelen) {
 	switch (valuelen) {
+	case  0: return SortAsUint<Uint,  0>(base, num);
 	case  4: return SortAsUint<Uint,  4>(base, num);
 	case  8: return SortAsUint<Uint,  8>(base, num);
 	case 12: return SortAsUint<Uint, 12>(base, num);
