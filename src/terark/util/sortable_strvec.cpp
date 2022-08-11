@@ -1180,7 +1180,15 @@ struct uint96_t {
 };
 #pragma pack(pop)
 static inline void byte_swap_in(uint128_t& x, boost::mpl::true_) {
+#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 11001
 	x = __builtin_bswap128(x);
+#else
+	static_assert(sizeof(std::pair<uint64_t, uint64_t>) == sizeof(uint128_t));
+	auto& y = (std::pair<uint64_t, uint64_t>&)(x);
+	std::swap(y.first, y.second);
+	byte_swap_in(y.first, boost::mpl::true_());
+	byte_swap_in(y.second, boost::mpl::true_());
+#endif
 }
 #endif // TERARK_HAS_UINT128
 
@@ -1281,14 +1289,7 @@ void FixedLenStrVec::clear() {
 size_t FixedLenStrVec::lower_bound_by_offset(size_t offset) const {
     assert(m_fixlen * m_size == m_strpool.size());
     assert(offset <= m_strpool.size());
-    size_t  fixlen = m_fixlen;
-    size_t  idx = offset / fixlen;
-    if (offset % fixlen == 0) {
-        return idx;
-    }
-    else {
-        return idx + 1;
-    }
+    return ceiled_div(offset, m_fixlen);
 }
 
 size_t FixedLenStrVec::upper_bound_by_offset(size_t offset) const {

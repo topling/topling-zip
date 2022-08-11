@@ -69,8 +69,7 @@ namespace terark {
 	};
 
 
-#if defined(CLOCK_MONOTONIC_RAW) || defined(CLOCK_MONOTONIC) \
- || defined(CLOCK_REALTIME)
+#if defined(CLOCK_MONOTONIC) || defined(CLOCK_REALTIME)
 // this is a very thin wrapper on clock_gettime, this wrapper
 // can be optimized out by compiler
 class qtime : public timespec { // Quick Time
@@ -81,9 +80,7 @@ public:
 		qtime t;
 		// for speed, intentional do not check clock_gettime return value,
 		// since clock_gettime should always success with such CLOCK_XXX.
-	#if defined(CLOCK_MONOTONIC_RAW)
-		clock_gettime(CLOCK_MONOTONIC_RAW, &t);
-	#elif defined(CLOCK_MONOTONIC)
+	#if defined(CLOCK_MONOTONIC)
 		clock_gettime(CLOCK_MONOTONIC, &t);
 	#elif defined(CLOCK_THREAD_CPUTIME_ID)
 		clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
