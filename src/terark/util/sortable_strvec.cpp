@@ -9,6 +9,8 @@
 #define parallel_sort __gnu_parallel::sort
 #endif
 
+#include <boost/predef/other/endian.h>
+
 // memcpy on gcc-4.9+ linux fails on some corner case
 //
 // this should be caused by glibc's memcpy is backward copy in a bad version,
@@ -847,6 +849,45 @@ void SortThinStrVec::sort() {
 	}
 }
 
+void SortThinStrVec::sort(size_t valuelen) {
+	const byte* pool = m_strpool.data();
+	double avgLen = double(m_strpool.size()+1) / double(m_index.size() + 1);
+	double minRadixSortStrLen = UINT32_MAX; // disable radix sort by default
+	if (const char* env = getenv("SortThinStrVec_minRadixSortStrLen")) {
+		minRadixSortStrLen = atof(env);
+	}
+	if (avgLen < minRadixSortStrLen) {
+		auto cmp = [pool,valuelen](const SEntry& x, const SEntry& y) {
+			TERARK_ASSERT_GE(x.length, valuelen);
+			TERARK_ASSERT_GE(y.length, valuelen);
+			fstring sx(pool + x.offset, x.length - valuelen);
+			fstring sy(pool + y.offset, y.length - valuelen);
+			return sx < sy;
+		};
+		if (getEnvBool("SortThinStrVec_useMergeSort", false)) {
+			std::stable_sort(m_index.begin(), m_index.end(), cmp);
+			return;
+		}
+#if defined(__GNUC__) && !defined(__CYGWIN__) && !defined(__clang__)
+		const size_t paralell_threshold = (16<<20);
+		if (m_index.size() > paralell_threshold &&
+			getEnvBool("SortThinStrVec_enableParallelSort", false))
+		{
+			parallel_sort(m_index.begin(), m_index.end(), cmp);
+		}
+		else
+#endif
+		std::sort(m_index.begin(), m_index.end(), cmp);
+	} else { // use radix sort
+		auto getChar = [pool](const SEntry& x,size_t i){return pool[x.offset+i];};
+		auto getSize = [valuelen](const SEntry& x) {
+			TERARK_ASSERT_GE(x.length, valuelen);
+			return x.length - valuelen;
+		};
+		radix_sort_tpl(m_index.data(), m_index.size(), getChar, getSize);
+	}
+}
+
 void SortThinStrVec::clear() {
 	m_strpool.risk_destroy(m_strpool_mem_type);
 	m_index.clear();
@@ -1111,7 +1152,99 @@ void FixedLenStrVec::sort() {
     sort_raw(m_strpool.data(), m_size, m_fixlen);
 }
 
+void FixedLenStrVec::sort(size_t valuelen) {
+    assert(m_fixlen * m_size == m_strpool.size());
+    sort_raw(m_strpool.data(), m_size, m_fixlen, valuelen);
+}
+
+#define TERARK_HAS_UINT128
+#if defined(TERARK_HAS_UINT128)
+using uint128_t = __uint128_t;
+#pragma pack(push, 4)
+struct uint96_t {
+	uint32_t a;
+	uint32_t b;
+	uint32_t c;
+	friend void byte_swap_in(uint96_t& x, boost::mpl::true_) {
+		uint32_t t = byte_swap(x.a);
+		x.a = byte_swap(x.c);
+		x.c = t;
+		x.b = byte_swap(x.b);
+	}
+	bool operator<(const uint96_t& right) const {
+		uint128_t x = 0, y = 0;
+		memcpy(&x, this  , sizeof(uint96_t));
+		memcpy(&y, &right, sizeof(uint96_t));
+		return x < y;
+	}
+};
+#pragma pack(pop)
+static inline void byte_swap_in(uint128_t& x, boost::mpl::true_) {
+	x = __builtin_bswap128(x);
+}
+#endif // TERARK_HAS_UINT128
+
+#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
+# error must define byte endian
+#endif
+#if BOOST_ENDIAN_LITTLE_BYTE
+	static constexpr bool g_is_little_endian = 1;
+#else
+	static constexpr bool g_is_little_endian = 0;
+#endif
+
+template<class Uint, size_t ValueLen>
+struct AppendValue {
+	bool operator<(const AppendValue& y) const { return key < y.key; }
+	Uint key;
+	byte_t val[ValueLen];
+};
+template<class Uint>
+struct AppendValue<Uint, 0> {
+	bool operator<(const AppendValue& y) const { return key < y.key; }
+	Uint key;
+};
+
+template<class Uint, size_t ValueLen>
+inline static bool SortAsUint(void* base, size_t num) {
+	if (sizeof(Uint) + ValueLen != sizeof(AppendValue<Uint, ValueLen>)) {
+		return false;
+	}
+	auto vec = (AppendValue<Uint, ValueLen>*)base;
+	if (g_is_little_endian) {
+		for (size_t i = 0; i < num; ++i)
+			byte_swap_in(vec[i].key, boost::mpl::true_());
+	}
+	if (0 == ValueLen) // to reduce code size, may be std::sort<uint32_t>
+		std::sort(&vec[0].key, &vec[num].key); // instantiation will be folded
+	else
+		std::sort(vec, vec + num);
+	if (g_is_little_endian) {
+		for (size_t i = 0; i < num; ++i)
+			byte_swap_in(vec[i].key, boost::mpl::true_());
+	}
+	return true;
+}
+template<class Uint>
+inline static bool SortAsUint(void* base, size_t num, size_t valuelen) {
+	switch (valuelen) {
+	case  4: return SortAsUint<Uint,  4>(base, num);
+	case  8: return SortAsUint<Uint,  8>(base, num);
+	case 12: return SortAsUint<Uint, 12>(base, num);
+	case 16: return SortAsUint<Uint, 16>(base, num);
+	case 24: return SortAsUint<Uint, 24>(base, num);
+	case 32: return SortAsUint<Uint, 32>(base, num);
+	}
+	return false;
+}
+
 void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen) {
+	return sort_raw(base, num, fixlen, 0);
+}
+// fixlen = keylen + valuelen, value is following key
+void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen, size_t valuelen) {
+	TERARK_VERIFY_GT(fixlen, valuelen);
+	size_t keylen = fixlen - valuelen;
 #ifdef _MSC_VER
     #define QSortCtx qsort_s
 #elif defined(__APPLE__)
@@ -1123,7 +1256,18 @@ void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen) {
 #else
     #define QSortCtx qsort_r
 #endif
-    QSortCtx(base, num, fixlen, CmpFixLenStr, (void*)(fixlen));
+	switch (keylen) {
+#define SortAsUintWith(Uint) \
+		if (SortAsUint<Uint>(base, num, valuelen)) return; else break
+	case  4: SortAsUintWith(uint32_t);
+	case  8: SortAsUintWith(uint64_t);
+#if defined(TERARK_HAS_UINT128)
+	case 12: SortAsUintWith(uint96_t);
+	case 16: SortAsUintWith(uint128_t);
+#endif
+	default: break;
+	}
+	QSortCtx(base, num, fixlen, CmpFixLenStr, (void*)(keylen));
 }
 
 void FixedLenStrVec::clear() {

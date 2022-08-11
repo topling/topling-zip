@@ -259,6 +259,7 @@ public:
 	void back_grow_no_init(size_t nGrow);
 	void reverse_keys();
 	void sort();
+	void sort(size_t valuelen); ///< except suffix valuelen
 	void sort_by_offset();
 	void clear();
 	void build_subkeys();
@@ -428,7 +429,9 @@ public:
     void pop_back();
     void reverse_keys();
     void sort();
+    void sort(size_t valuelen); ///< m_fixlen = keylen + valuelen
     static void sort_raw(void* base, size_t num, size_t fixlen);
+    static void sort_raw(void* base, size_t num, size_t fixlen, size_t valuelen);
     void clear();
     void optimize_func(); // optimize (lower|upper)_bound_fixed
     size_t lower_bound_by_offset(size_t offset) const;
