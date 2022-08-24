@@ -428,7 +428,7 @@ void DataIO_saveObject(Output& output, const std::pair<FirstT, SecondT>& x)
 	Friend void DataIO_save_array					\
 	(DataIO& _dio_, const Class* _array_, size_t _N_count, Bswap) \
 	{												\
-	  static_cast<Derived*>(_array_)->save_array    \
+	  static_cast<const Derived*>(_array_)->save_array\
 		(_dio_, _array_, _N_count, Bswap());        \
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

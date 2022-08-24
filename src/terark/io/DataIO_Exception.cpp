@@ -14,7 +14,7 @@ DataFormatException::DataFormatException(const std::string& strMsg)
 	: m_message(strMsg)
 { }
 
-DataFormatException::~DataFormatException() throw()
+DataFormatException::~DataFormatException()
 {}
 
 InvalidObjectException::InvalidObjectException(const char* szMsg)

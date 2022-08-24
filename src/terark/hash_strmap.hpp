@@ -1690,7 +1690,7 @@ public:
         //	if (!boost::has_trivial_destructor<Value>::value && en_sort_by_val == sort_flag)
         //    	sort_flag = en_unsorted;
         } else
-            put_to_freelist(idx);
+            put_to_freelist(LinkTp(idx));
 	}
 
 	// unlink from bucket and collision list, but keep the elem valid,

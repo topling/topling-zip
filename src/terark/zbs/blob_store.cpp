@@ -103,24 +103,36 @@ size_t BlobStore::lower_bound(size_t lo, size_t hi, fstring target,
   return recId;
 }
 
+#if 0
 static thread_local recycle_pool<valvec<byte_t> > tg_buf_pool;
+#endif
 
 void BlobStore::pread_record_append(LruReadonlyCache* cache,
                                     intptr_t fd, size_t baseOffset,
                                     size_t recID, valvec<byte_t>* recData)
 const {
+#if 0
     valvec<byte_t> buf = tg_buf_pool.get();
     pread_record_append(cache, fd, baseOffset, recID, recData, &buf);
     tg_buf_pool.put(std::move(buf));
+#else
+    valvec<byte_t> buf;
+    pread_record_append(cache, fd, baseOffset, recID, recData, &buf);
+#endif
 }
 
 void BlobStore::fspread_record_append(pread_func_t fspread, void* lambda,
                                       size_t baseOffset,
                                       size_t recID, valvec<byte_t>* recData)
 const {
+#if 0
     valvec<byte_t> buf = tg_buf_pool.get();
     fspread_record_append(fspread, lambda, baseOffset, recID, recData, &buf);
     tg_buf_pool.put(std::move(buf));
+#else
+    valvec<byte_t> buf;
+    fspread_record_append(fspread, lambda, baseOffset, recID, recData, &buf);
+#endif
 }
 
 const byte_t* BlobStore::os_fspread(void* lambda, size_t offset, size_t len,

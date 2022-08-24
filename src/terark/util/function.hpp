@@ -177,6 +177,33 @@ inline size_t larger_capacity(size_t oldcap) {
     return size_t(ull(oldcap) * 103 / 64); // 103/64 = 1.609375 <~ 1.618
 }
 
+/// alloc on stack by alloca or on heap by malloc
+#define TERARK_FAST_ALLOC_EX(Type, Ptr, Num, MaxStackBytes) \
+  Type* Ptr = terark_likely(Num <= (MaxStackBytes) / sizeof(Type)) \
+            ? (Type*)alloca(sizeof(Type) * Num)  \
+            : (Type*)malloc(sizeof(Type) * Num)
+
+/// TERARK_FAST_ALLOC_EX and call default cons
+#define TERARK_FAST_ARRAY_EX(Type, Ptr, Num, MaxStackBytes) \
+        TERARK_FAST_ALLOC_EX(Type, Ptr, Num, MaxStackBytes); \
+        for (size_t i = 0; i < Num; i++) new (Ptr + i) Type ()
+
+/// destroy Num objects and free(Ptr) if Ptr was allocated by alloca,
+/// destroy needs to know Num, but free need not to know bytes to be freed,
+/// if Ptr is trivially destructable, std::destroy_n() justdo nothing.
+#define TERARK_FAST_CLEAN_EX(Ptr, NumCons, NumAlloc, MaxStackBytes) \
+  std::destroy_n(Ptr, NumCons); \
+  if (NumAlloc > (MaxStackBytes) / sizeof(*(Ptr))) ::free(Ptr)
+
+#define TERARK_FAST_ALLOC(Type, Ptr, Num) \
+        TERARK_FAST_ALLOC_EX(Type, Ptr, Num, 4096)
+
+#define TERARK_FAST_ARRAY(Type, Ptr, Num) \
+        TERARK_FAST_ARRAY_EX(Type, Ptr, Num, 4096)
+
+#define TERARK_FAST_CLEAN(Ptr, NumCons, NumAlloc) \
+        TERARK_FAST_CLEAN_EX(Ptr, NumCons, NumAlloc, 4096)
+
 #if 1
 template<class T>
 struct terark_identity {

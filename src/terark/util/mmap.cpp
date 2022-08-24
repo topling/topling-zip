@@ -54,6 +54,29 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 		THROW_STD(logic_error, "CreateFile(fname=%s).Err=%d(%X)"
 			, fname, err, err);
 	}
+	TERARK_SCOPE_EXIT(CloseHandle(hFile));
+	int fd = (int)hFile;
+#else
+	int openFlags = writable ? O_RDWR : O_RDONLY;
+	int fd = ::open(fname, openFlags);
+	if (fd < 0) {
+		int err = errno;
+		THROW_STD(logic_error, "open(fname=%s, %s) = %d(%X): %s"
+			, fname, writable ? "O_RDWR" : "O_RDONLY"
+			, err, err, strerror(err));
+	}
+	TERARK_SCOPE_EXIT(::close(fd));
+#endif
+	return mmap_load(fd, fname, fsize, writable, populate);
+}
+
+// fd is HANDLE in windows
+TERARK_DLL_EXPORT
+void*
+mmap_load(int fd, const char* fname, size_t* fsize, bool writable, bool populate) {
+#ifdef _MSC_VER
+	LARGE_INTEGER lsize;
+	HANDLE hFile = (HADNLE)fd;
 	if (writable) {
 	//	bool isNewFile = GetLastError() != ERROR_ALREADY_EXISTS;
 		bool isNewFile = GetLastError() == 0;
@@ -69,18 +92,15 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 	}
 	if (!GetFileSizeEx(hFile, &lsize)) {
 		DWORD err = GetLastError();
-		CloseHandle(hFile);
 		THROW_STD(logic_error, "GetFileSizeEx(fname=%s).Err=%d(%X)"
 			, fname, err, err);
 	}
 	if (lsize.QuadPart > size_t(-1)) {
-		CloseHandle(hFile);
 		THROW_STD(logic_error, "fname=%s fsize=%I64u(%I64X) too large"
 			, fname, lsize.QuadPart, lsize.QuadPart);
 	}
 	*fsize = size_t(lsize.QuadPart);
 	if (0 == *fsize) { // allow mmap empty file with readonly
-		::CloseHandle(hFile);
 		return NULL;
 	}
 	DWORD flProtect = writable ? PAGE_READWRITE : PAGE_READONLY;
@@ -90,7 +110,6 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 	HANDLE hMmap = CreateFileMapping(hFile, NULL, flProtect, 0, 0, NULL);
 	if (NULL == hMmap) {
 		DWORD err = GetLastError();
-		CloseHandle(hFile);
 		THROW_STD(runtime_error, "CreateFileMapping(fname=%s).Err=%d(0x%X)"
 			, fname, err, err);
 	}
@@ -99,7 +118,6 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 	if (NULL == base) {
 		DWORD err = GetLastError();
 		::CloseHandle(hMmap);
-		::CloseHandle(hFile);
 		THROW_STD(runtime_error, "MapViewOfFile(fname=%s).Err=%d(0x%X)"
 			, fname, err, err);
 	}
@@ -110,19 +128,9 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 		PrefetchVirtualMemory(GetCurrentProcess(), 1, &vm, 0);
 	}
 	::CloseHandle(hMmap); // close before UnmapViewOfFile is OK
-	::CloseHandle(hFile);
 #else
-	int openFlags = writable ? O_RDWR : O_RDONLY;
-	int fd = ::open(fname, openFlags);
-	if (fd < 0) {
-		int err = errno;
-		THROW_STD(logic_error, "open(fname=%s, %s) = %d(%X): %s"
-			, fname, writable ? "O_RDWR" : "O_RDONLY"
-			, err, err, strerror(err));
-	}
 	struct stat st;
 	if (::fstat(fd, &st) < 0) {
-		close(fd);
 		THROW_STD(logic_error, "stat(fname=%s) = %s", fname, strerror(errno));
 	}
 	if (0 == st.st_size) {
@@ -130,13 +138,11 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 			st.st_size = std::max(size_t(4*1024), *fsize);
 			int err = ftruncate(fd, st.st_size);
 			if (err) {
-				close(fd);
 				THROW_STD(logic_error, "ftruncate(fname=%s, len=%zd) = %s"
 					, fname, size_t(st.st_size), strerror(errno));
 			}
 		}
 		else { // allow mmap empty file with readonly
-			::close(fd);
 			return NULL;
 		}
 	}
@@ -150,12 +156,10 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
   #endif
 	void* base = ::mmap(NULL, st.st_size, flProtect, flags, fd, 0);
 	if (MAP_FAILED == base) {
-		::close(fd);
 		THROW_STD(logic_error, "mmap(fname=%s, %s SHARED, size=%lld) = %s"
 			, fname, writable ? "READWRITE" : "READ"
 			, (long long)st.st_size, strerror(errno));
 	}
-	::close(fd);
 #endif
 	return base;
 }

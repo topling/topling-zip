@@ -288,6 +288,12 @@ const {
     size_t fixlen = m_fixedLen;
     size_t fixLenWithoutCRC = m_fixedLenWithoutCRC;
     size_t offset = m_fixedLenValues.data() - (byte_t*)m_mmapBase + fixlen * fixLenRecID;
+    // recData is likely prepared
+    bool recDataIsEmtpy = recData->empty();
+    if (terark_likely(recDataIsEmtpy)) {
+        rdbuf->erase_all();
+        recData->swap(*rdbuf);
+    }
 	auto pData = fspread(lambda, baseOffset + offset, fixlen, rdbuf);
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
@@ -304,7 +310,12 @@ const {
             }
         }
     }
-	recData->append(pData, fixLenWithoutCRC);
+    if (terark_likely(recDataIsEmtpy && rdbuf->data() == pData)) {
+        recData->swap(*rdbuf);
+        recData->risk_set_size(fixLenWithoutCRC);
+    } else {
+        recData->append(pData, fixLenWithoutCRC);
+    }
 }
 
 template<class rank_select_t>
@@ -321,6 +332,12 @@ const {
 	assert(offset0 <= offset1);
     size_t offset = m_varLenValues.data() - (byte_t*)m_mmapBase + offset0;
     size_t varlen = offset1 - offset0;
+    // recData is likely prepared
+    bool recDataIsEmtpy = recData->empty();
+    if (terark_likely(recDataIsEmtpy)) {
+        rdbuf->erase_all();
+        recData->swap(*rdbuf);
+    }
 	auto pData = fspread(lambda, baseOffset + offset, varlen, rdbuf);
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
@@ -339,7 +356,12 @@ const {
             }
         }
     }
-	recData->append(pData, varlen);
+    if (terark_likely(recDataIsEmtpy && rdbuf->data() == pData)) {
+        recData->swap(*rdbuf);
+        recData->risk_set_size(varlen);
+    } else {
+        recData->append(pData, varlen);
+    }
 }
 
 template<class rank_select_t>

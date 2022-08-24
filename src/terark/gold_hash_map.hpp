@@ -1222,7 +1222,7 @@ protected:
 			new(&e)Elem(); // default cons
 			dio >> e;
 		}
-		this->nElem = Size.t; // set size
+		this->nElem = LinkTp(Size.t); // set size
 		this->relink_fill();
 	}
 	template<class DataIO> void dio_save(DataIO& dio) const {

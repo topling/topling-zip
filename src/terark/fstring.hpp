@@ -316,6 +316,12 @@ struct basic_fstring {
 	bool starts_with(basic_fstring x) const { return startsWith(x); }
 	bool ends_with(basic_fstring x) const { return endsWith(x); }
 	size_t difference_offset(basic_fstring x) { return commonPrefixLen(x); }
+	inline int compare(basic_fstring y) const noexcept {
+		int cmp = memcmp(p, y.p, std::min(n, y.n));
+		if (cmp) return cmp;
+		else return n < y.n ? -1 :
+					n > y.n ? +1 : 0;
+	}
 	//@}
 
 	template<class StrClass>

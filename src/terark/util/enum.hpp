@@ -38,12 +38,12 @@ terark::fstring enum_name(Enum v, const char* unkown = "") {
 }
 
 template<class Enum>
-terark::fstring enum_stdstr(Enum v) {
+std::string enum_stdstr(Enum v) {
   auto names  = enum_all_names ((Enum*)0);
   auto values = enum_all_values((Enum*)0);
   for (size_t i = 0; i < names.second; ++i) {
     if (v == values[i])
-      return names.first[i];
+      return names.first[i].str();
   }
   return "unkown:" + (sizeof(Enum) <= 4 ?
                 std::to_string((int)v) :

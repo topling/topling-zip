@@ -15,6 +15,10 @@ void* mmap_load(const char* fname, size_t* size,
 				bool writable = false,
 				bool populate = false);
 
+TERARK_DLL_EXPORT
+void*
+mmap_load(int fd, const char* fname, size_t* fsize, bool writable, bool populate);
+
 template<class String>
 void* mmap_load(const String& fname, size_t* size,
 				bool writable = false,

@@ -569,7 +569,7 @@ public:
     // fragments in freelists
     size_t slow_get_free_size() const {
         size_t sz = 0;
-        this->for_each_tls([this,&sz](TCMemPoolOneThread<AlignSize>* tc) {
+        this->for_each_tls([&sz](TCMemPoolOneThread<AlignSize>* tc) {
             size_t hot_end, hot_pos;
             do {
                 hot_end = tc->m_hot_end;

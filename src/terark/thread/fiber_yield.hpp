@@ -5,6 +5,7 @@
 
 #include <terark/config.hpp>
 #include <boost/fiber/scheduler.hpp>
+#include <boost/noncopyable.hpp>
 
 namespace terark {
 
@@ -12,7 +13,7 @@ namespace terark {
     // boost::this_fiber::yield() will access thread_local, but
     // accessing thread_local is pretty slow, use this helper to speedup
     //
-    class TERARK_DLL_EXPORT FiberYield {
+    class TERARK_DLL_EXPORT FiberYield : boost::noncopyable {
     public:
         typedef boost::fibers::context::wait_queue_t wait_queue_t;
         FiberYield() noexcept {

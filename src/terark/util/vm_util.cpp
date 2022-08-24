@@ -19,8 +19,12 @@ int get_linux_kernel_version() {
     }
     return -1;
 }
-static const int g_linux_kernel_version = get_linux_kernel_version();
-static const bool g_has_madv_populate = []{
+
+TERARK_DLL_EXPORT
+const int g_linux_kernel_version = get_linux_kernel_version();
+
+TERARK_DLL_EXPORT
+const bool g_has_madv_populate = []{
     if (g_linux_kernel_version >= KERNEL_VERSION(5,14,0)) {
         return true;
     }
