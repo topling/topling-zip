@@ -364,7 +364,7 @@ tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
 ifneq (${UNAME_System},Darwin)
 ${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -lrt -lpthread
 ifneq (${UNAME_System},CYGWIN)
-${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -laio
+${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -laio -luring
 endif
 endif
 
