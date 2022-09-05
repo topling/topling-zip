@@ -3836,6 +3836,7 @@ noexcept {
 }
 
 Patricia::WriterToken::WriterToken() {
+    m_thread_id = ThisThreadID();
 }
 
 Patricia::WriterToken::~WriterToken() {
@@ -5264,6 +5265,14 @@ ADFA_LexIterator16* MainPatricia::adfa_make_iter16(size_t) const {
 Patricia::Iterator* Patricia::new_iter(size_t root) const {
     auto iter = this->adfa_make_iter(root);
     return static_cast<Iterator*>(iter);
+}
+
+size_t Patricia::iter_mem_size(size_t /*root*/) const {
+    TERARK_DIE("TODO");
+}
+
+void Patricia::cons_iter(void* mem, size_t /*root*/) const {
+    TERARK_DIE("TODO");
 }
 
 void MainPatricia::dump_token_list() const {

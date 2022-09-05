@@ -424,10 +424,14 @@ public:
     size_t  nth_seq_id(size_t idx) const { return idx; }
     size_t  nth_endpos(size_t idx) const { return m_fixlen * (idx + 1); }
     fstring back() const { return (*this)[m_size-1]; }
+    const byte_t* back_data() const { return m_strpool.end() - m_fixlen; }
+          byte_t* back_data()       { return m_strpool.end() - m_fixlen; }
+    void update_fixlen(size_t new_fixlen);
     void swap(FixedLenStrVec&);
     void push_back(fstring str);
     void pop_back();
     void reverse_keys();
+    void reverse_order();
     void sort();
     void sort(size_t valuelen); ///< m_fixlen = keylen + valuelen
     static void sort_raw(void* base, size_t num, size_t fixlen);
@@ -520,6 +524,7 @@ public:
     MemType m_strpool_mem_type;
 
     explicit SortedStrVecUintTpl(size_t delim_len = 0);
+    explicit SortedStrVecUintTpl(valvec_no_init);
     ~SortedStrVecUintTpl();
     void reserve(size_t strNum, size_t maxStrPool);
     void finish() { shrink_to_fit(); }
@@ -557,8 +562,10 @@ public:
     void pop_back();
 	void back_grow_no_init(size_t nGrow);
     void reverse_keys();
+    void reverse_order();
     void sort();
     void clear();
+    void risk_set_data(size_t num, void* mem, size_t mem_size);
     size_t lower_bound_by_offset(size_t offset) const;
     size_t upper_bound_by_offset(size_t offset) const;
     size_t upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const;

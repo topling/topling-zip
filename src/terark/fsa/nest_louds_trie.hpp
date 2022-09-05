@@ -87,11 +87,13 @@ public: // protected:
 	struct layer_ref_t {
 		index_t beg, end, mid;
 	};
+	struct layer_id_rank_t {
+		index_t id, rank;
+	};
 #if defined(TERARK_NLT_ENABLE_SEL0_CACHE)
     valvec<uint32_t>    m_sel0_cache;
 #endif
-	valvec<index_t>     m_layer_id;
-	valvec<index_t>     m_layer_rank;
+	valvec<layer_id_rank_t> m_layer_id_rank;
 	valvec<layer_ref_t> m_layer_ref;
 	uint32_t            m_max_layer_id;
 	uint32_t            m_max_layer_size;
@@ -113,30 +115,22 @@ public:
         void reset1();
         void append_lex_min_suffix(size_t root, Entry* ip, byte_t* wp);
         void append_lex_max_suffix(size_t root, Entry* ip, byte_t* wp);
-    public:
-        Iterator();
         explicit Iterator(const Dawg*);
+		~Iterator();
+		friend class NestLoudsTrieTpl;
+		friend Dawg;
+    public:
         void reset(const BaseDFA*, size_t root = 0) override;
         bool seek_end() override final;
         bool seek_lower_bound(fstring key) override final;
         bool incr() override final;
         bool decr() override final;
         size_t seek_max_prefix(fstring) override final;
+		void dispose() override; // custom delete
+		void destruct();
     };
-    template<class Dawg>
-    class TERARK_DLL_EXPORT UserMemIterator : public Iterator<Dawg> {
-        typedef typename Iterator<Dawg>::Entry Entry;
-        using   Iterator<Dawg>::m_dfa;
-        using   Iterator<Dawg>::m_top;
-        using   Iterator<Dawg>::m_base;
-        using   Iterator<Dawg>::m_trie;
-        using   Iterator<Dawg>::m_word;
-    public:
-        UserMemIterator(const Dawg*, void* user_mem);
-        ~UserMemIterator();
-        static size_t s_max_mem_size(const NestLoudsTrieTpl* trie);
-        void reset(const BaseDFA*, size_t root = 0) override;
-    };
+    template<class Dawg> size_t iter_mem_size(const Dawg*);
+
     template<class Entry>
     size_t initIterEntry(size_t parent, Entry*, byte_t* buf, size_t cap) const noexcept;
     byte_t getFirstChar(size_t child0, size_t lcount) const noexcept;

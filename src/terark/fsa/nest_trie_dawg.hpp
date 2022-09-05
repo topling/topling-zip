@@ -120,9 +120,6 @@ public:
 //  friend typename               Iterator; // g++ fail
     friend typename NestTrieDAWG::Iterator; // g++ ok
 
-	typedef typename NestTrie::template UserMemIterator<NestTrieDAWG>  UserMemIterator;
-    friend typename NestTrieDAWG::UserMemIterator; // g++ ok
-
 	static const size_t nil_state = size_t(-1);
 	static const size_t max_state = size_t(-2);
 	enum { sigma = 256 };
@@ -132,8 +129,8 @@ public:
 	NestTrieDAWG(const NestTrieDAWG&);
 	NestTrieDAWG& operator=(const NestTrieDAWG&);
 
-    size_t iterator_max_mem_size() const {
-        return UserMemIterator::s_max_mem_size(m_trie); }
+	size_t iter_mem_size() const { return m_trie->iter_mem_size(this); }
+	void cons_iter(void* mem) const { new(mem)Iterator(this); }
 
 	void swap(NestTrieDAWG& y) noexcept;
 

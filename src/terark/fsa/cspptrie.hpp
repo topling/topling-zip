@@ -207,6 +207,8 @@ public:
     /// '_nn' suffix means 'not null'
     template<class WriterTokenType>
     WriterTokenType* tls_writer_token_nn() {
+        TERARK_ASSERT_F(m_writing_concurrent_level >= OneWriteMultiRead, "%s",
+                        enum_stdstr(m_writing_concurrent_level).c_str());
         WriterTokenPtr& token = tls_writer_token();
         if (terark_likely(token.get() != NULL)) {
             assert(dynamic_cast<WriterTokenType*>(token.get()) != NULL);
@@ -219,6 +221,8 @@ public:
     }
     template<class NewFunc>
     auto tls_writer_token_nn(NewFunc New) -> decltype(New()) {
+        TERARK_ASSERT_F(m_writing_concurrent_level >= OneWriteMultiRead, "%s",
+                        enum_stdstr(m_writing_concurrent_level).c_str());
         typedef decltype(New()) PtrType;
         WriterTokenPtr& token = tls_writer_token();
         if (terark_likely(token.get() != NULL)) {
@@ -232,6 +236,8 @@ public:
     }
 
     Iterator* new_iter(size_t root = initial_state) const;
+    size_t iter_mem_size(size_t root = initial_state) const;
+    void cons_iter(void* mem, size_t root = initial_state) const;
 
     struct Stat {
         size_t n_fork;

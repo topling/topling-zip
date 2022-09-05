@@ -420,24 +420,22 @@ void NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 init_for_term(const RankSelectTerm& is_term) {
     index_t pos = 2, id = 0, rank = 0;
     while (true) {
-        m_layer_id.emplace_back(id);
-        m_layer_rank.emplace_back(rank);
+        m_layer_id_rank.push_back({id, rank});
         if ((id = pos - id - 1) >= m_louds.max_rank1())
             break;
         pos = m_louds.select0(id) + 1;
         rank = is_term.rank1(id);
     }
     assert(id == m_louds.max_rank1());
-    assert(m_layer_id.size() == m_layer_rank.size());
 
-    index_t layer_max = m_layer_id.size();
+    index_t layer_max = m_layer_id_rank.size();
     m_layer_ref.resize_no_init(layer_max);
     index_t layer_id = 0, layer_size = 0;
     for (index_t i = 0; i < layer_max; ++i) {
         index_t end_id = i == layer_max - 1
-                       ? (index_t)is_term.size() : m_layer_id[i + 1];
-        m_layer_ref[i] = layer_ref_t{m_layer_id[i], end_id, 0};
-        index_t size = end_id - m_layer_id[i];
+                       ? (index_t)is_term.size() : m_layer_id_rank[i + 1].id;
+        m_layer_ref[i] = layer_ref_t{m_layer_id_rank[i].id, end_id, 0};
+        index_t size = end_id - m_layer_id_rank[i].id;
         if (size > layer_size) {
             layer_id = i;
             layer_size = size;
@@ -478,19 +476,17 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
     size_t curr = ctx.root;
     size_t i = ctx.pos;
     size_t j = ctx.zidx;
-    size_t layer_max = m_layer_id.size();
     size_t layer = 0;
     size_t rank = 0;
     if (curr != initial_state) {
         if (HasDictRank) {
-            layer = upper_bound_0(m_layer_id.data(), layer_max, curr) - 1;
-            assert(layer < layer_max);
+            layer = upper_bound_ex_a(m_layer_id_rank, curr, TERARK_FIELD(id)) - 1;
         }
         size_t parent = curr;
         size_t parent_layer = layer;
         do {
             --parent_layer;
-            rank += is_term.rank1(parent + 1) - m_layer_rank[parent_layer];
+            rank += is_term.rank1(parent + 1) - m_layer_id_rank[parent_layer].rank;
             parent = m_louds.select1(parent) - parent - 1;
         } while (parent != initial_state);
     }
@@ -508,13 +504,14 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
         }
         if (HasDictRank) {
             assert(dict_rank != nullptr);
+            size_t layer_max = m_layer_id_rank.size();
             for (++layer; layer < layer_max; ++layer) {
                 state = m_louds.select0(state) - state;
                 assert(state <= is_term.size());
-                if (state == m_layer_id[layer])
+                if (state == m_layer_id_rank[layer].id)
                     break;
-                assert(state > m_layer_id[layer]);
-                rank += is_term.rank1(state) - m_layer_rank[layer];
+                assert(state > m_layer_id_rank[layer].id);
+                rank += is_term.rank1(state) - m_layer_id_rank[layer].rank;
             }
             assert(rank >= 1 || !dec);
             *dict_rank = rank - dec;
@@ -551,7 +548,7 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
                 curr = child;
                 ++layer;
                 if (HasDictRank)
-                    rank += is_term.rank1(da[child].m_map_state + 1) - m_layer_rank[layer];
+                    rank += is_term.rank1(da[child].m_map_state + 1) - m_layer_id_rank[layer].rank;
                 i++;
             }
             else {
@@ -562,7 +559,7 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
                     curr = mr.first;
                     ++layer;
                     if (HasDictRank)
-                        rank += is_term.rank1(curr + 1) - m_layer_rank[layer];
+                        rank += is_term.rank1(curr + 1) - m_layer_id_rank[layer].rank;
                     i++;
                     break;
                 }
@@ -570,14 +567,14 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
                     return trans_state(map_state, false);
                 ++layer;
                 if (HasDictRank)
-                    rank += is_term.rank1(mr.first) - m_layer_rank[layer];
+                    rank += is_term.rank1(mr.first) - m_layer_id_rank[layer].rank;
                 return trans_state(mr.first, false);
             }
         }
     }
     else {
         if (HasDictRank)
-            rank += is_term.rank1(1) - m_layer_rank[0];
+            rank += is_term.rank1(1) - m_layer_id_rank[0].rank;
     }
     assert(nil_state != curr);
     while(true) {
@@ -610,13 +607,13 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
                 return trans_state(curr, false);
             ++layer;
             if (HasDictRank)
-                rank += is_term.rank1(mr.first) - m_layer_rank[layer];
+                rank += is_term.rank1(mr.first) - m_layer_id_rank[layer].rank;
             return trans_state(mr.first, false);
         }
         curr = mr.first;
         ++layer;
         if (HasDictRank)
-            rank += is_term.rank1(mr.first + 1) - m_layer_rank[layer];
+            rank += is_term.rank1(mr.first + 1) - m_layer_id_rank[layer].rank;
         ++i;
     }
     if (index) *index = size_t(-1);
@@ -776,8 +773,8 @@ size_t
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 state_to_dict_rank(size_t state, const RankSelectTerm& is_term) const noexcept {
     assert(state < m_louds.max_rank1());
-    size_t layer_max = m_layer_id.size();
-    size_t layer = upper_bound_0(m_layer_id.data(), layer_max, state) - 1;
+    size_t layer_max = m_layer_id_rank.size();
+    size_t layer = upper_bound_ex_a(m_layer_id_rank, state, TERARK_FIELD(id)) - 1;
     assert(layer < layer_max);
     size_t parent_rank = 0;
     size_t parent = state;
@@ -786,20 +783,20 @@ state_to_dict_rank(size_t state, const RankSelectTerm& is_term) const noexcept {
         parent = m_louds.select1(parent) - parent - 1;
         --parent_layer;
         size_t rank = is_term.rank1(parent + 1);
-        parent_rank += rank - m_layer_rank[parent_layer];
+        parent_rank += rank - m_layer_id_rank[parent_layer].rank;
     };
     assert(parent_layer == 0);
-    size_t child_rank = is_term.rank1(state) - m_layer_rank[layer];
+    size_t child_rank = is_term.rank1(state) - m_layer_id_rank[layer].rank;
     size_t child = state;
     size_t child_layer = layer + 1;
     while (child_layer < layer_max) {
         child = m_louds.select0(child) - child;
         assert(child <= is_term.size());
-        if (child == m_layer_id[child_layer])
+        if (child == m_layer_id_rank[child_layer].id)
             break;
-        assert(child > m_layer_id[child_layer]);
+        assert(child > m_layer_id_rank[child_layer].id);
         size_t rank = is_term.rank1(child);
-        child_rank += rank - m_layer_rank[child_layer];
+        child_rank += rank - m_layer_id_rank[child_layer].rank;
         ++child_layer;
     }
     return parent_rank + child_rank;
@@ -811,7 +808,7 @@ size_t
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 dict_rank_to_state(size_t index, const RankSelectTerm& is_term) const noexcept {
     assert(index < m_louds.max_rank1());
-    size_t layer_max = m_layer_id.size();
+    size_t layer_max = m_layer_id_rank.size();
 #if 0
     valvec<layer_ref_t> layer = m_layer_ref;
 #else
@@ -822,7 +819,7 @@ dict_rank_to_state(size_t index, const RankSelectTerm& is_term) const noexcept {
     while (true) {
         assert(layer[layer_id].beg < layer[layer_id].end);
         size_t state = layer[layer_id].mid = (layer[layer_id].beg + layer[layer_id].end) / 2;
-        assert(layer_id == upper_bound_0(m_layer_id.data(), layer_max, state) - 1);
+        assert(layer_id == upper_bound_ex_a(m_layer_id_rank, state, TERARK_FIELD(id)) - 1);
         size_t parent_rank = 0;
         size_t parent = state;
         size_t parent_layer = layer_id;
@@ -831,24 +828,24 @@ dict_rank_to_state(size_t index, const RankSelectTerm& is_term) const noexcept {
             --parent_layer;
             layer[parent_layer].mid = parent;
             size_t rank = is_term.rank1(parent + 1);
-            parent_rank += rank - m_layer_rank[parent_layer];
+            parent_rank += rank - m_layer_id_rank[parent_layer].rank;
         };
         assert(parent_layer == 0);
-        size_t child_rank = is_term.rank1(state) - m_layer_rank[layer_id];
+        size_t child_rank = is_term.rank1(state) - m_layer_id_rank[layer_id].rank;
         size_t child = state;
         size_t child_layer = layer_id + 1;
         while (child_layer < layer_max) {
             child = m_louds.select0(child) - child;
             layer[child_layer].mid = child;
             assert(child <= is_term.size());
-            if (child == m_layer_id[child_layer]) {
+            if (child == m_layer_id_rank[child_layer].id) {
                 while (++child_layer < layer_max)
-                    layer[child_layer].mid = m_layer_id[child_layer];
+                    layer[child_layer].mid = m_layer_id_rank[child_layer].id;
                 break;
             }
-            assert(child > m_layer_id[child_layer]);
+            assert(child > m_layer_id_rank[child_layer].id);
             size_t rank = is_term.rank1(child);
-            child_rank += rank - m_layer_rank[child_layer];
+            child_rank += rank - m_layer_id_rank[child_layer].rank;
             ++child_layer;
         }
         size_t rank = parent_rank + child_rank;
@@ -1127,33 +1124,24 @@ getNthCharPrev(size_t child0, size_t lcount, size_t nth, byte_t cch) const noexc
 template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class Dawg>
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-Iterator<Dawg>::Iterator() : ADFA_LexIterator(valvec_no_init()) {
-    m_base = m_top = NULL;
-    m_trie = NULL;
+Iterator<Dawg>::~Iterator() {
+    TERARK_VERIFY("Should not goes here, must use dispose() or destruct()");
 }
 
 template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class Dawg>
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 Iterator<Dawg>::Iterator(const Dawg* d) : ADFA_LexIterator(valvec_no_init()) {
+    // Iterator object just has one memory block, m_word and Entry vector
+    // are following Iterator object memory, as layout:
+    //   1. Iterator
+    //   2. word_mem -- for iter->word() + extra 16 bytes for user land data
+    //   3. pile_mem -- for Entry stack
     const NestLoudsTrieTpl* trie = d->m_trie;
-    size_t word_mem = pow2_align_up(trie->m_max_strlen + 17, 16);
-    size_t iter_mem = sizeof(Entry)*(trie->m_layer_id.size() + 2);
-    m_word.ensure_capacity(word_mem + iter_mem);
-    m_dfa = d;
-    m_top = m_base = (Entry*)(m_word.data() + word_mem);
-    m_trie = trie;
-}
-
-///@param user_mem must be at least iterator_max_mem_size
-template<class RankSelect, class RankSelect2, bool FastLabel>
-template<class Dawg>
-NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-UserMemIterator<Dawg>::UserMemIterator(const Dawg* d, void* user_mem) {
-    const NestLoudsTrieTpl* trie = d->m_trie;
-    size_t word_mem = pow2_align_up(trie->m_max_strlen + 17, 16);
-    size_t iter_mem = sizeof(Entry)*(trie->m_layer_id.size() + 2);
-    m_word.risk_set_data((byte_t*)user_mem, word_mem + iter_mem);
+    size_t word_mem = pow2_align_up(trie->m_max_strlen + 16, 16);
+    size_t pile_mem = sizeof(Entry)*(trie->m_layer_id_rank.size() + 2);
+    m_word.risk_set_data((byte_t*)(this + 1));
+    m_word.risk_set_capacity(word_mem + pile_mem);
     m_dfa = d;
     m_top = m_base = (Entry*)(m_word.data() + word_mem);
     m_trie = trie;
@@ -1161,30 +1149,29 @@ UserMemIterator<Dawg>::UserMemIterator(const Dawg* d, void* user_mem) {
 
 template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class Dawg>
+size_t
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-UserMemIterator<Dawg>::~UserMemIterator() {
-    m_word.risk_release_ownership();
-}
-
-template<class RankSelect, class RankSelect2, bool FastLabel>
-template<class Dawg>
-inline size_t
-NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-UserMemIterator<Dawg>::s_max_mem_size(const NestLoudsTrieTpl* trie) {
-    size_t word_mem = pow2_align_up(trie->m_max_strlen + 17, 16);
-    size_t iter_mem = sizeof(Entry)*(trie->m_layer_id.size() + 2);
-    return word_mem + iter_mem;
+iter_mem_size(const Dawg* /* dummy */) {
+    size_t word_mem = pow2_align_up(m_max_strlen + 16, 16);
+    size_t pile_mem = sizeof(typename Iterator<Dawg>::Entry)*(m_layer_id_rank.size() + 2);
+    return sizeof(Iterator<Dawg>) + word_mem + pile_mem;
 }
 
 template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class Dawg>
 void
-NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-UserMemIterator<Dawg>::reset(const BaseDFA* dfa, size_t root) {
-    if (terark_unlikely(dfa && m_dfa != dfa)) {
-        THROW_STD(logic_error, "dfa must be same as m_dfa");
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::Iterator<Dawg>::dispose() {
+    destruct();
+    free(this); // NOLINT
+}
+
+template<class RankSelect, class RankSelect2, bool FastLabel>
+template<class Dawg>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::Iterator<Dawg>::destruct() {
+    if (m_word.data() != (byte_t*)(this + 1)) {
+        m_word.clear(); // free memory
     }
-    Iterator<Dawg>::reset(dfa, root);
 }
 
 template<class RankSelect, class RankSelect2, bool FastLabel>
@@ -1206,9 +1193,14 @@ Iterator<Dawg>::reset(const BaseDFA* dfa, size_t root) {
     }
     const Dawg* d = static_cast<const Dawg*>(dfa);
     const NestLoudsTrieTpl* trie = d->m_trie;
-    size_t word_mem = pow2_align_up(trie->m_max_strlen + 17, 16);
-    size_t iter_mem = sizeof(Entry)*(trie->m_layer_id.size() + 2);
-    m_word.ensure_capacity(word_mem + iter_mem);
+    size_t word_mem = pow2_align_up(trie->m_max_strlen + 16, 16);
+    size_t iter_mem = sizeof(Entry)*(trie->m_layer_id_rank.size() + 2);
+    if (sizeof(Iterator) + word_mem + iter_mem > m_word.capacity()) {
+        if (m_word.data() == (byte_t*)(this + 1)) {
+            m_word.risk_release_ownership();
+        }
+        m_word.ensure_capacity(word_mem + iter_mem);
+    }
     m_dfa = d;
     m_top = m_base = (Entry*)(m_word.data() + word_mem);
     m_trie = trie;

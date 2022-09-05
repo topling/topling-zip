@@ -415,8 +415,7 @@ risk_release_ownership() noexcept {
 	m_core_min_len = 0;
 	m_core_max_link_val = 0;
 	m_total_zpath_len = 0;
-	m_layer_id.clear();
-	m_layer_rank.clear();
+	m_layer_id_rank.clear();
 	m_layer_ref.clear();
 	m_max_layer_id = 0;
 	m_max_layer_size = 0;
@@ -450,8 +449,7 @@ swap(NestLoudsTrieTpl& y) noexcept {
 	std::swap(m_core_max_link_val, y.m_core_max_link_val);
 	std::swap(m_total_zpath_len, y.m_total_zpath_len);
 	std::swap(m_next_trie, y.m_next_trie);
-	m_layer_id.swap(y.m_layer_id);
-	m_layer_rank.swap(y.m_layer_rank);
+	m_layer_id_rank.swap(y.m_layer_id_rank);
 	m_layer_ref.swap(y.m_layer_ref);
 	std::swap(m_max_layer_id, y.m_max_layer_id);
 	std::swap(m_max_layer_size, y.m_max_layer_size);

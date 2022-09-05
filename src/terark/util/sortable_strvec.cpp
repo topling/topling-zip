@@ -1077,6 +1077,45 @@ void FixedLenStrVec::risk_release_ownership() {
     m_size = 0;
 }
 
+void FixedLenStrVec::update_fixlen(size_t new_fixlen) {
+    TERARK_VERIFY_EQ(m_fixlen * m_size, m_strpool.size());
+	size_t old_fixlen = m_fixlen;
+	if (old_fixlen == new_fixlen) {
+		return;
+	}
+	m_fixlen = new_fixlen;
+	if (0 == m_size) {
+		return;
+	}
+	if (old_fixlen < new_fixlen) {
+		m_strpool.resize_no_init(new_fixlen * m_size);
+		byte_t* new_curr = m_strpool.data() + new_fixlen * (m_size - 1);
+		byte_t* old_curr = m_strpool.data() + old_fixlen * (m_size - 1);
+		// loop count is (m_size - 1), copy backward
+		for (size_t i = m_size - 1; i > 0; --i) {
+			byte_t* new_prev = new_curr - new_fixlen;
+			byte_t* old_prev = old_curr - old_fixlen;
+			memmove(new_curr, old_curr, old_fixlen); // copy backward
+			new_curr = new_prev;
+			old_curr = old_prev;
+		}
+	}
+	else {
+		byte_t* new_curr = m_strpool.data() + new_fixlen;
+		byte_t* old_curr = m_strpool.data() + old_fixlen;
+		// loop count is (m_size - 1), copy forward
+		for (size_t i = m_size - 1; i > 0; --i) {
+			byte_t* new_next = new_curr + new_fixlen;
+			byte_t* old_next = old_curr + old_fixlen;
+			// use memmove because brain dead memcpy may do backward copy
+			memmove(new_curr, old_curr, new_fixlen); // copy forward
+			new_curr = new_next;
+			old_curr = old_next;
+		}
+		m_strpool.risk_set_size(new_fixlen * m_size);
+	}
+}
+
 void FixedLenStrVec::swap(FixedLenStrVec& y) {
     assert(m_fixlen * m_size == m_strpool.size());
     assert(y.m_fixlen * y.m_size == y.m_strpool.size());
@@ -1131,6 +1170,24 @@ void FixedLenStrVec::reverse_keys() {
         }
         beg += fixlen;
     }
+}
+
+void FixedLenStrVec::reverse_order() {
+    assert(m_fixlen > 0);
+    assert(m_fixlen * m_size == m_strpool.size());
+    size_t  fixlen = m_fixlen;
+	size_t  num = m_size;
+    byte_t* beg = m_strpool.begin();
+    byte_t* end = m_strpool.end() - fixlen;
+	for (size_t i = 0; i < num; ++i) {
+		byte_t* lo = beg + fixlen * i;
+		byte_t* hi = end - fixlen * i;
+		for (size_t j = 0; j < fixlen; ++j) {
+            byte_t tmp = lo[j];
+			lo[j] = hi[j];
+			hi[j] = tmp;
+		}
+	}
 }
 
 #if defined(_MSC_VER) || defined(__APPLE__)
@@ -1190,6 +1247,19 @@ static inline void byte_swap_in(uint128_t& x, boost::mpl::true_) {
 	byte_swap_in(y.second, boost::mpl::true_());
 #endif
 }
+inline uint128_t byte_swap(uint128_t x) {
+#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 11001
+	return __builtin_bswap128(x);
+#else
+	static_assert(sizeof(std::pair<uint64_t, uint64_t>) == sizeof(uint128_t));
+	auto& y = (std::pair<uint64_t, uint64_t>&)(x);
+	std::swap(y.first, y.second);
+	byte_swap_in(y.first, boost::mpl::true_());
+	byte_swap_in(y.second, boost::mpl::true_());
+	return x;
+#endif
+}
+
 #endif // TERARK_HAS_UINT128
 
 #if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
@@ -1498,6 +1568,104 @@ static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
 	return lo;
 }
 
+template<size_t FixLen> struct UintForFixLen;
+template<> struct UintForFixLen<3> { typedef uint32_t type; };
+template<> struct UintForFixLen<5> { typedef uint64_t type; };
+template<> struct UintForFixLen<6> { typedef uint64_t type; };
+template<> struct UintForFixLen<7> { typedef uint64_t type; };
+
+#if defined(TERARK_HAS_UINT128)
+template<> struct UintForFixLen< 9> { typedef uint128_t type; };
+template<> struct UintForFixLen<10> { typedef uint128_t type; };
+template<> struct UintForFixLen<11> { typedef uint128_t type; };
+template<> struct UintForFixLen<12> { typedef uint128_t type; };
+template<> struct UintForFixLen<13> { typedef uint128_t type; };
+template<> struct UintForFixLen<14> { typedef uint128_t type; };
+template<> struct UintForFixLen<15> { typedef uint128_t type; };
+#endif
+
+template<class Uint>
+union UintUnionBytes {
+	Uint   u;
+	byte_t b[sizeof(Uint)];
+
+	template<unsigned Len>
+	inline void load_bigendian(const void* src) {
+		static_assert(Len <= sizeof(Uint));
+		u = 0;
+		memcpy(b, src, Len);
+		BYTE_SWAP_IF_LITTLE_ENDIAN(u);
+	}
+	inline void load_bigendian_slow(const void* src, size_t Len) {
+		assert(Len <= sizeof(Uint));
+		u = 0;
+		memcpy(b, src, Len);
+		BYTE_SWAP_IF_LITTLE_ENDIAN(u);
+	}
+};
+
+template<bool IsFixed, size_t FixLen>
+terark_flatten
+static size_t Fixed_lower_bound_not_align(const FixedLenStrVec* sv,
+                                size_t lo, size_t hi,
+                                size_t kn, const void* key) {
+	typedef typename UintForFixLen<FixLen>::type Uint;
+	assert(FixLen == sv->m_fixlen);
+	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
+	assert(lo <= hi);
+	assert(hi <= sv->m_size);
+	UintUnionBytes<Uint> ukey;
+    if (IsFixed) {
+        assert(kn == FixLen);
+        ukey.template load_bigendian<FixLen>(key);
+    } else {
+		ukey.load_bigendian_slow(key, std::min(kn, FixLen));
+    }
+	auto data = (const byte_t*)sv->m_strpool.data();
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		UintUnionBytes<Uint> mid_val;
+		mid_val.template load_bigendian<FixLen>(data + FixLen * mid_idx);
+		if (mid_val.u < ukey.u)
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
+}
+
+template<bool IsFixed, size_t FixLen>
+terark_flatten
+static size_t Fixed_upper_bound_not_align(const FixedLenStrVec* sv,
+                                size_t lo, size_t hi,
+                                size_t kn, const void* key) {
+	typedef typename UintForFixLen<FixLen>::type Uint;
+	assert(FixLen == sv->m_fixlen);
+	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
+	assert(lo <= hi);
+	assert(hi <= sv->m_size);
+    if (IsFixed) {
+        assert(kn == FixLen);
+    }
+    else if (kn < FixLen) {
+        // upper_bound_prefix is semantically different from upper_bound
+        return Fixed_upper_bound_slow<1>(sv, lo, hi, kn, key);
+    }
+    UintUnionBytes<Uint> ukey;
+    ukey.template load_bigendian<FixLen>(key);
+	auto data = (const byte_t*)sv->m_strpool.data();
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		UintUnionBytes<Uint> mid_val;
+		mid_val.template load_bigendian<FixLen>(data + FixLen * mid_idx);
+		if (mid_val.u <= ukey.u)
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
+}
+
 FixedLenStrVec::FixedLenStrVec(size_t fixlen) {
     m_lower_bound_fixed = &Fixed_lower_bound_slow<1>;
     m_upper_bound_fixed = &Fixed_upper_bound_slow<1>;
@@ -1528,6 +1696,29 @@ void FixedLenStrVec::optimize_func() {
         SetFuncPtr(uint16_t);
         SetFuncPtr(uint32_t);
         SetFuncPtr(uint64_t);
+#define SetFuncPtrNotAlign(FixLen) \
+    case FixLen: \
+        m_lower_bound_fixed = &Fixed_lower_bound_not_align<1, FixLen>; \
+        m_upper_bound_fixed = &Fixed_upper_bound_not_align<1, FixLen>; \
+        m_lower_bound_prefix = &Fixed_lower_bound_not_align<0, FixLen>; \
+        m_upper_bound_prefix = &Fixed_upper_bound_not_align<0, FixLen>; \
+        break
+//----------------------------------------------------------
+		SetFuncPtrNotAlign(3);
+		SetFuncPtrNotAlign(5);
+		SetFuncPtrNotAlign(6);
+		SetFuncPtrNotAlign(7);
+#if defined(TERARK_HAS_UINT128)
+		SetFuncPtrNotAlign(9);
+		SetFuncPtrNotAlign(10);
+		SetFuncPtrNotAlign(11);
+		SetFuncPtrNotAlign(12);
+		SetFuncPtrNotAlign(13);
+		SetFuncPtrNotAlign(14);
+		SetFuncPtrNotAlign(15);
+        SetFuncPtr(uint128_t);
+#endif
+#undef  SetFuncPtrNotAlign
 #undef  SetFuncPtr
     }
 }
@@ -1759,6 +1950,13 @@ SortedStrVecUintTpl<UintXX>::SortedStrVecUintTpl(size_t delim_len) {
 }
 
 template<class UintXX>
+SortedStrVecUintTpl<UintXX>::SortedStrVecUintTpl(valvec_no_init) {
+	m_delim_len = 0;
+	m_offsets_mem_type = MemType::Malloc;
+	m_strpool_mem_type = MemType::Malloc;
+}
+
+template<class UintXX>
 SortedStrVecUintTpl<UintXX>::~SortedStrVecUintTpl() {
 	m_offsets.risk_destroy(m_offsets_mem_type);
 	m_strpool.risk_destroy(m_strpool_mem_type);
@@ -1813,7 +2011,6 @@ void SortedStrVecUintTpl<UintXX>::reverse_keys() {
     size_t  offset = 0;
     for(size_t i = 0, n = m_offsets.size()-1; i < n; ++i) {
         size_t endpos = m_offsets[i+1];
-    //  std::reverse(beg, beg + fixlen);
         byte_t* lo = beg + offset;
         byte_t* hi = beg + endpos - m_delim_len;
         while (lo < --hi) {
@@ -1827,6 +2024,20 @@ void SortedStrVecUintTpl<UintXX>::reverse_keys() {
 }
 
 template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::reverse_order() {
+	TERARK_VERIFY_EQ(m_offsets.back(), m_strpool.size());
+	reverse_keys();
+	std::reverse(m_strpool.begin(), m_strpool.end());
+	size_t num = m_offsets.size();
+    size_t poolsize = m_strpool.size();
+	UintXX* offsets = m_offsets.data();
+	for (size_t i = 0; i < num; ++i) {
+		offsets[i] = poolsize - offsets[i];
+	}
+	std::reverse(offsets, offsets + num);
+}
+
+template<class UintXX>
 void SortedStrVecUintTpl<UintXX>::sort() {
     THROW_STD(invalid_argument, "This method is not supported");
 }
@@ -1835,6 +2046,17 @@ template<class UintXX>
 void SortedStrVecUintTpl<UintXX>::clear() {
     m_offsets.risk_destroy(m_offsets_mem_type);
     m_strpool.risk_destroy(m_strpool_mem_type);
+}
+
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::risk_set_data(size_t num, void* mem, size_t mem_size) {
+	clear();
+	m_offsets.risk_set_data((UintXX*)mem, num + 1);
+	size_t poolsize = mem_size - sizeof(UintXX) * (num+1);
+	TERARK_VERIFY_EQ(m_offsets.back(), poolsize);
+	m_strpool.risk_set_data((byte_t*)m_offsets.end(), poolsize);
+	m_offsets_mem_type = MemType::User;
+	m_strpool_mem_type = MemType::User;
 }
 
 template<class UintXX>

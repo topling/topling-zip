@@ -487,7 +487,7 @@ NestTrieDAWG<NestTrie, DawgType>::finish_load_mmap(const DFA_MmapHeader* base) {
     m_trie->m_max_strlen = base->atom_dfa_num;
     if (m_trie->m_max_strlen == 0) { // always 0 for old NLT File
         // will over allocate memory for Iterator
-        m_trie->m_max_strlen = (m_trie->m_layer_id.size() + 1) * 256;
+        m_trie->m_max_strlen = (m_trie->m_layer_id_rank.size() + 1) * 256;
     }
 	assert(getIsTerm().size() == m_trie->total_states());
 	this->n_words = size_t(base->dawg_num_words);
@@ -697,7 +697,9 @@ template<class NestTrie, class DawgType>
 ADFA_LexIterator*
 NestTrieDAWG<NestTrie, DawgType>::adfa_make_iter(size_t root) const {
     assert(NULL != m_trie);
-    return new Iterator(this);
+    auto iter = (Iterator*)malloc(iter_mem_size());
+    cons_iter(iter);
+    return iter;
 }
 template<class NestTrie, class DawgType>
 ADFA_LexIterator16*
