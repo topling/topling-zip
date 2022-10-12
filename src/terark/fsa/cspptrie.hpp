@@ -207,8 +207,11 @@ public:
     /// '_nn' suffix means 'not null'
     template<class WriterTokenType>
     WriterTokenType* tls_writer_token_nn() {
-        TERARK_ASSERT_F(m_writing_concurrent_level >= OneWriteMultiRead, "%s",
-                        enum_stdstr(m_writing_concurrent_level).c_str());
+        // WriterToken can be used for read, m_writing_concurrent_level may
+        // be set to NoWriteReadOnly after insert phase, it is valid to use
+        // WriterToken in this case
+        TERARK_ASSERT_F(m_mempool_concurrent_level >= OneWriteMultiRead, "%s",
+                        enum_stdstr(m_mempool_concurrent_level).c_str());
         WriterTokenPtr& token = tls_writer_token();
         if (terark_likely(token.get() != NULL)) {
             assert(dynamic_cast<WriterTokenType*>(token.get()) != NULL);
@@ -221,8 +224,11 @@ public:
     }
     template<class NewFunc>
     auto tls_writer_token_nn(NewFunc New) -> decltype(New()) {
-        TERARK_ASSERT_F(m_writing_concurrent_level >= OneWriteMultiRead, "%s",
-                        enum_stdstr(m_writing_concurrent_level).c_str());
+        // WriterToken can be used for read, m_writing_concurrent_level may
+        // be set to NoWriteReadOnly after insert phase, it is valid to use
+        // WriterToken in this case
+        TERARK_ASSERT_F(m_mempool_concurrent_level >= OneWriteMultiRead, "%s",
+                        enum_stdstr(m_mempool_concurrent_level).c_str());
         typedef decltype(New()) PtrType;
         WriterTokenPtr& token = tls_writer_token();
         if (terark_likely(token.get() != NULL)) {

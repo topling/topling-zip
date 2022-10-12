@@ -1322,6 +1322,11 @@ void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen) {
 }
 // fixlen = keylen + valuelen, value is following key
 void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen, size_t valuelen) {
+	if (num <= 1) {
+		// fixlen can equal to valuelen in this condition
+		TERARK_VERIFY_GE(fixlen, valuelen);
+		return;
+	}
 	TERARK_VERIFY_GT(fixlen, valuelen);
 	size_t keylen = fixlen - valuelen;
 #ifdef _MSC_VER

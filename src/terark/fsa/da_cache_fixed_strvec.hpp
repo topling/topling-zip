@@ -9,7 +9,7 @@
 namespace terark {
 
 // now just support FixedLenStrVec
-class TERARK_DLL_EXPORT DaCacheFixedStrVec : public FixedLenStrVec{
+class TERARK_DLL_EXPORT DaCacheFixedStrVec : public FixedLenStrVec {
 protected:
     struct MyHeader;
     class MyAppendOnlyTrie;

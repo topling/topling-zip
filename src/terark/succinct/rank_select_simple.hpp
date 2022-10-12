@@ -84,9 +84,9 @@ class TERARK_DLL_EXPORT rank_select_allzero {
 public:
     typedef boost::mpl::false_ is_mixed;
     typedef uint32_t index_t;
-    rank_select_allzero() : m_size(0), m_placeholder(nullptr) {}
+    rank_select_allzero() : m_size(0) {}
     explicit
-    rank_select_allzero(size_t sz) : m_size(sz), m_placeholder(nullptr) {}
+    rank_select_allzero(size_t sz) : m_size(sz) {}
 
     void clear() { m_size = 0; }
     void risk_release_ownership() {}
@@ -100,7 +100,6 @@ public:
     void resize(size_t newsize) { m_size = newsize; }
     void swap(rank_select_allzero& another) {
         std::swap(m_size, another.m_size);
-        std::swap(m_placeholder, another.m_placeholder);
     }
     void build_cache(bool, bool) {};
 
@@ -143,16 +142,15 @@ public:
 
 private:
     size_t m_size;
-    unsigned char* m_placeholder;
 };
 
 class TERARK_DLL_EXPORT rank_select_allone {
 public:
     typedef boost::mpl::false_ is_mixed;
     typedef uint32_t index_t;
-    rank_select_allone() : m_size(0), m_placeholder(nullptr) {}
+    rank_select_allone() : m_size(0) {}
     explicit
-    rank_select_allone(size_t sz) : m_size(sz), m_placeholder(nullptr) {}
+    rank_select_allone(size_t sz) : m_size(sz) {}
 
     void clear() { m_size = 0; }
     void risk_release_ownership() {}
@@ -166,7 +164,6 @@ public:
     void resize(size_t newsize) { m_size = newsize; }
     void swap(rank_select_allone& another) {
         std::swap(m_size, another.m_size);
-        std::swap(m_placeholder, another.m_placeholder);
     }
     void build_cache(bool, bool) {};
     size_t mem_size() const { return sizeof(*this); }
@@ -208,7 +205,6 @@ public:
 
 private:
     size_t m_size;
-    unsigned char* m_placeholder;
 };
 
 } // namespace terark
