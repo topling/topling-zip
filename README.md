@@ -1,3 +1,5 @@
+This repo is `topling-zip`, but for compatibility and keep all commit history gracefully, we keep using namespace `terark`, do not change it.
+
 # 0. Disallow Bytedance Inc.
 All changes after 2021-06-01 is disallowed to be used by bytedance, see [LICENSE](LICENSE).
 # 1. Compile
