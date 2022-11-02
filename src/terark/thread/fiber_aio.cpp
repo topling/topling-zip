@@ -41,7 +41,7 @@ namespace terark {
 #endif
 
 TERARK_ENUM_CLASS(IoProvider, int,
-  //sync,
+  sync,
   posix,
   aio,
   uring
@@ -409,6 +409,8 @@ intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
   switch (g_io_provider) {
   default:
     TERARK_DIE("Not Supported aio_method = %s", enum_cstr(g_io_provider));
+  case IoProvider::sync:
+    return pread(fd, buf, len, offset);
 #if BOOST_OS_LINUX
   case IoProvider::aio:
     return tls_io_fiber_aio().exec_io(fd, buf, len, offset, IO_CMD_PREAD);
@@ -485,6 +487,8 @@ intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
   switch (g_io_provider) {
   default:
     TERARK_DIE("Not Supported aio_method = %s", enum_cstr(g_io_provider));
+  case IoProvider::sync:
+    return pwrite(fd, buf, len, offset);
 #if BOOST_OS_LINUX
   case IoProvider::aio:
     return tls_io_fiber_aio().exec_io(fd, (void*)buf, len, offset, IO_CMD_PWRITE);
@@ -528,6 +532,8 @@ intptr_t fiber_put_write(int fd, const void* buf, size_t len, off_t offset) {
   switch (g_io_provider) {
   default:
     TERARK_DIE("Not Supported aio_method = %s", enum_cstr(g_io_provider));
+  case IoProvider::sync:
+    return pwrite(fd, buf, len, offset);
 #if BOOST_OS_LINUX
   case IoProvider::aio:
     return tls_io_fiber_aio().dt_exec_io(fd, (void*)buf, len, offset, IO_CMD_PWRITE);

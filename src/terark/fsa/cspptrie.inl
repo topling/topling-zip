@@ -155,6 +155,7 @@ protected:
     TokenBase  m_dummy; // m_dummy.m_next is real head
     LinkType   m_tail;
     uint32_t   m_token_qlen;
+    uint32_t   m_dead_token_in_queue;
     bool       m_head_lock;
     bool       m_head_is_idle;
     mutable size_t m_live_iter_num;

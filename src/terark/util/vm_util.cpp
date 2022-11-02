@@ -28,8 +28,10 @@ const bool g_has_madv_populate = []{
     if (g_linux_kernel_version >= KERNEL_VERSION(5,14,0)) {
         return true;
     }
+  #if 0 // mlock mem cap is too small, don't use it
     fprintf(stderr,
         "WARN: MADV_POPULATE_READ requires kernel 5.14+, fallback to mlock\n");
+  #endif
     return false;
 }();
 const size_t g_min_prefault_pages = g_has_madv_populate ? 1 : 2;
@@ -44,12 +46,20 @@ void AutoPrefaultMem::maybe_prefault(const void* p, size_t n, size_t min_pages) 
     size_t lo = pow2_align_down(size_t(p), VM_PAGE_SIZE);
     size_t hi = pow2_align_up(size_t(p) + n, VM_PAGE_SIZE);
     len = hi - lo;
+  #if 0
+    // mlock mem cap is too small, don't use it
     if (len >= VM_PAGE_SIZE * min_pages) {
         if (g_has_madv_populate)
             madvise((void*)lo, len, MADV_POPULATE_READ);
         else
             mlock(ptr = (void*)lo, len);
     }
+  #else
+    // check g_has_madv_populate first, only MADV_POPULATE_READ
+    if (g_has_madv_populate && len >= VM_PAGE_SIZE * min_pages) {
+        madvise((void*)lo, len, MADV_POPULATE_READ);
+    }
+  #endif
 }
 
 } // namespace terark

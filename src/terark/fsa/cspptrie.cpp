@@ -212,6 +212,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_dummy.m_flags.state = DisposeDone;
     m_tail = {&m_dummy, 0};
     m_token_qlen = 0;
+    m_dead_token_in_queue = 0;
     m_live_iter_num = 0;
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
@@ -3004,6 +3005,32 @@ void Patricia::TokenBase::init_tls(Patricia* trie0) noexcept {
     m_tls = lzf;
 }
 
+class Patricia::TokenPtrVec {
+    TokenBase* head = nullptr; // use linked list
+public:
+    size_t num = 0;
+    void add_for_del(TokenBase* tok) {
+        tok->m_link.next = head;
+        head = tok;
+        num++;
+    }
+    void batch_del(uint32_t* dead_num) {
+        uint32_t num2 = 0;
+        TokenBase* tok = head;
+        while (tok) {
+            TokenBase* next = tok->m_link.next;
+            tok->m_flags.state = DisposeDone;
+            delete tok;
+            tok = next;
+            num2++;
+        }
+        TERARK_VERIFY_EQ(num, num2);
+        as_atomic(*dead_num).fetch_sub(num2, std::memory_order_relaxed);
+        head = nullptr;
+        num = 0; // reset num
+    }
+};
+
 void Patricia::TokenBase::dispose() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     int retry = 0;
@@ -3037,7 +3064,9 @@ void Patricia::TokenBase::dispose() {
                     m_thread_id = ThisThreadID(); // pass check in mt_release
                     mt_release(m_trie);
                 } else if (cas_weak(m_flags, flags, {DisposeWait, false})) {
-                    if (trie->m_token_qlen > 64) {
+                    auto old = as_atomic(trie->m_dead_token_in_queue)
+                              .fetch_add(1, std::memory_order_relaxed);
+                    if (old * 4 > trie->m_token_qlen) {
                         goto gc;
                     }
                     return;
@@ -3058,7 +3087,9 @@ void Patricia::TokenBase::dispose() {
             break;
         case ReleaseWait:
             if (cas_weak(m_flags, flags, {DisposeWait, flags.is_head})) {
-                if (trie->m_token_qlen > 64) {
+                auto old = as_atomic(trie->m_dead_token_in_queue)
+                          .fetch_add(1, std::memory_order_relaxed);
+                if (old * 4 > trie->m_token_qlen) {
                     goto gc;
                 }
                 return;
@@ -3071,10 +3102,18 @@ void Patricia::TokenBase::dispose() {
     }
 gc:
     // now 'this' may have been deleted, do not access any field of 'this'
-    valvec<TokenBase*> del(trie->m_token_qlen, valvec_reserve());
+    //valvec<TokenBase*> del(trie->m_token_qlen, valvec_reserve());
+    TokenPtrVec dvec;
+#if 0
     while (!cas_weak(trie->m_head_lock, false, true)) {
         std::this_thread::yield();
     }
+#else
+    // just a try
+    if (!cas_weak(trie->m_head_lock, false, true)) {
+        return; // lock fail, fast return
+    }
+#endif
     TokenBase* prev = &trie->m_dummy;
     TokenBase* curr = trie->m_dummy.m_link.next;
     uint32_t reduce_cnt = 0;
@@ -3096,7 +3135,7 @@ gc:
         case DisposeWait:
             prev->m_link.next = next; // del curr from list
             reduce_cnt++;
-            del.push_back(curr);
+            dvec.add_for_del(curr);
             curr = next;
             break;
         case ReleaseWait:
@@ -3122,10 +3161,7 @@ gc:
     }
     as_atomic(trie->m_token_qlen).fetch_sub(reduce_cnt, std::memory_order_relaxed);
     cas_unlock(trie->m_head_lock);
-    for (TokenBase* token : del) {
-        token->m_flags.state = DisposeDone;
-        delete token;
-    }
+    dvec.batch_del(&trie->m_dead_token_in_queue);
 }
 
 terark_forceinline
@@ -3140,32 +3176,6 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     p->m_link.next = this;
     trie->m_tail = {this, verseq+1};
 }
-
-constexpr size_t MAX_DEL_PTRS = 32;
-class Patricia::TokenPtrVec {
-    size_t num = 0;
-    TokenBase* ptrs[MAX_DEL_PTRS];
-public:
-    void add_for_del(TokenBase* tok) {
-        if (terark_likely(num < MAX_DEL_PTRS)) {
-            ptrs[num++] = tok;
-        } else {
-            // unlikely, slow path, keep simple stupid
-            tok->m_flags.state = DisposeDone;
-            delete tok; // we delete other token
-        }
-    }
-    void batch_del() {
-        TERARK_ASSERT_LE(num, MAX_DEL_PTRS);
-        for (size_t i = 0; i < num; ++i) {
-            TokenBase* tok = ptrs[i];
-            TERARK_VERIFY(DisposeWait == tok->m_flags.state);
-            tok->m_flags.state = DisposeDone;
-            delete tok;
-        }
-        num = 0; // reset num
-    }
-};
 
 bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenPtrVec* dvec) {
     auto trie = static_cast<MainPatricia*>(trie1);
@@ -3410,7 +3420,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 m_value = NULL;
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 cas_unlock(trie->m_head_lock);
-                dvec.batch_del();
+                dvec.batch_del(&trie->m_dead_token_in_queue);
                 return;
             case AcquireLock:
                 do { _mm_pause();
@@ -3458,7 +3468,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     }
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                     cas_unlock(trie->m_head_lock);
-                    dvec.batch_del();
+                    dvec.batch_del(&trie->m_dead_token_in_queue);
                     return;
                 }
                 else { // retry
@@ -3515,10 +3525,15 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
 terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(m_flags.is_head);
+    //assert(m_flags.is_head); // false positive
     TERARK_ASSERT_EQ(AcquireDone, m_flags.state);
     if (trie->m_head_lock || !cas_weak(trie->m_head_lock, false, true)) {
         return; // be wait free, do nothing, return immediately
+    }
+    // dispose() & reclaim() will lock without respect to is_head
+    if (terark_unlikely(!this->m_flags.is_head)) {
+        cas_unlock(trie->m_head_lock);
+        return;
     }
     if (m_link.next) {
         //assert(!trie->m_head_is_dead); // false positive
@@ -3533,7 +3548,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         TERARK_VERIFY(new_head->dequeue(trie, &dvec));
         //m_min_age = trie->m_dummy.m_min_age; // do not update
         cas_unlock(trie->m_head_lock);
-        dvec.batch_del();
+        dvec.batch_del(&trie->m_dead_token_in_queue);
     }
     else {
         //assert(this == trie->m_dummy.m_link.next); // false positive
@@ -3639,7 +3654,7 @@ void PatriciaMem<Align>::reclaim_head() {
     m_head_is_idle = false;
     head->m_min_age = min_age;
     cas_unlock(m_head_lock);
-    dvec.batch_del();// do delete outside of lock
+    dvec.batch_del(&m_dead_token_in_queue); // do delete outside of lock
 }
 
 void Patricia::TokenBase::idle() {
@@ -3651,7 +3666,8 @@ void Patricia::TokenBase::idle() {
     TERARK_VERIFY_F(AcquireDone == flags.state, "real = %s", enum_cstr(flags.state));
   #else
     if (terark_unlikely(AcquireDone != flags.state)) {
-        WARN("state = %s, TODO: fix it\n", enum_cstr(flags.state));
+        WARN("conLevel = %s, state = %s, TODO: fix it\n",
+             enum_cstr(conLevel), enum_cstr(flags.state));
         return;
     }
   #endif
@@ -3723,7 +3739,7 @@ void Patricia::TokenBase::idle() {
     trie->m_head_is_dead = false;
     trie->m_head_is_idle = false;
     cas_unlock(trie->m_head_lock);
-    dvec.batch_del();
+    dvec.batch_del(&trie->m_dead_token_in_queue);
 }
 
 terark_flatten
