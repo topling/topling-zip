@@ -377,7 +377,7 @@ const char* StrDateTimeNow() {
 ///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 #define PTrieLog(level, type, fmt, ...) do { \
     if (csppDebugLevel >= level) \
-        fprintf(stderr, "%s: " type ": %s:%d: %s: " fmt, StrDateTimeNow(), \
+        fprintf(stderr, "%s: " type ": %s:%d: %s: " fmt "\n", StrDateTimeNow(), \
             __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
     } while (0)
 
@@ -493,7 +493,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       sum_retry += lzf->m_n_retry;
       if (csppDebugLevel >= 2) {
         sum_wait += lzf->m_race_wait;
-        INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd, wait = %10.6f sec\n",
+        INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd, wait = %10.6f sec",
              thread_nth, lzf->m_n_retry, g_pf.sf(0, lzf->m_race_wait));
         lzf->m_race_wait = 0;
       }
@@ -512,7 +512,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     m_counter_mutex.unlock();
     m_mempool_lock_free.sync_frag_size();
     if (csppDebugLevel >= 2 && m_n_words) {
-      INFO("PatriciaMW: thread_num = %3zd, sum_retry = %8zd, wait = %10.6f sec, retry/total = %f\n",
+      INFO("PatriciaMW: thread_num = %3zd, sum_retry = %8zd, wait = %10.6f sec, retry/total = %f",
            thread_nth, sum_retry, g_pf.sf(0, sum_wait), double(sum_retry)/m_n_words);
     }
     if (csppDebugLevel >= 3 && m_n_words) {
@@ -756,7 +756,7 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, HugePageEnum use_h
             "mmap(size = %zd) = %s\n", maxMem, strerror(errno));
         if (HugePageEnum::kTransparent == use_hugepage) {
             if (madvise(mem, maxMem, MADV_HUGEPAGE) != 0) {
-                WARN("madvise(MADV_HUGEPAGE, size=%zd[0x%zX]) = %s\n",
+                WARN("madvise(MADV_HUGEPAGE, size=%zd[0x%zX]) = %s",
                      maxMem, maxMem, strerror(errno));
             }
         }
@@ -3077,7 +3077,7 @@ void Patricia::TokenBase::dispose() {
                 TERARK_VERIFY(nullptr == this->m_link.next);
               #else // relax error check
                 if (this->m_link.next)
-                    WARN("next = %p, not null, ignore\n", m_link.next);
+                    WARN("next = %p, not null, ignore", m_link.next);
               #endif
                 TERARK_VERIFY(cas_strong(m_flags, flags, {DisposeDone, false}));
                 TERARK_VERIFY_NE(this, trie->m_dummy.m_link.next); // ??
@@ -3097,7 +3097,7 @@ void Patricia::TokenBase::dispose() {
             break;
         }
         _mm_pause();
-        INFO("flags = {%s, %d}, retry = %d\n",
+        INFO("flags = {%s, %d}, retry = %d",
              enum_name(flags.state).c_str(), flags.is_head, ++retry);
     }
 gc:
@@ -3517,7 +3517,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             } // switch
         }
         _mm_pause();
-        INFO("retry = %d, flags = {%s, %d}\n", ++retry
+        INFO("retry = %d, flags = {%s, %d}", ++retry
              , enum_cstr(flags.state, "Unkown"), flags.is_head);
     } // while
 }
@@ -3553,6 +3553,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     else {
         //assert(this == trie->m_dummy.m_link.next); // false positive
         ullong   verseq = m_link.verseq;
+      #if 0 // the following verify will fail
         if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
             TERARK_VERIFY_F(
                 cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1}),
@@ -3563,6 +3564,24 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             this->m_min_age = verseq+1;
             this->m_flags.is_head = this == trie->m_dummy.m_link.next;
         }
+      #else // try this fix, the verify should not fail
+        ullong   tailseq = trie->m_tail.verseq;
+        ullong   nextseq = std::max(verseq, tailseq) + 1;
+        if (cas_strong(m_link, {NULL, verseq}, {NULL, nextseq})) {
+            TERARK_VERIFY_F(
+                cas_strong(trie->m_tail, {this, tailseq}, {this, nextseq}),
+                "tail real = {%p, %llu}, expected = {%p, %llu}",
+                trie->m_tail.next, trie->m_tail.verseq,
+                this, tailseq);
+            trie->m_dummy.m_min_age = nextseq;
+            this->m_min_age = nextseq;
+            this->m_flags.is_head = this == trie->m_dummy.m_link.next;
+            if (verseq != tailseq) {
+                WARN("Before: this = {%p, seq = %lld}, tail = {%p, seq = %lld}, recovered",
+                     this, verseq, trie->m_tail.next, tailseq);
+            }
+        }
+      #endif
         cas_unlock(trie->m_head_lock);
     }
 }
@@ -3666,7 +3685,7 @@ void Patricia::TokenBase::idle() {
     TERARK_VERIFY_F(AcquireDone == flags.state, "real = %s", enum_cstr(flags.state));
   #else
     if (terark_unlikely(AcquireDone != flags.state)) {
-        WARN("conLevel = %s, state = %s, TODO: fix it\n",
+        WARN("conLevel = %s, state = %s, TODO: fix it",
              enum_cstr(conLevel), enum_cstr(flags.state));
         return;
     }
