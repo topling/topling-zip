@@ -3577,8 +3577,8 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             this->m_min_age = nextseq;
             this->m_flags.is_head = this == trie->m_dummy.m_link.next;
             if (verseq != tailseq) {
-                WARN("Before: this = {%p, seq = %lld}, tail = {%p, seq = %lld}, recovered",
-                     this, verseq, trie->m_tail.next, tailseq);
+                WARN("%zX, Before:this = {%p, seq = %lld}, tail = {%p, seq = %lld}, recovered",
+                     ThisThreadID(), this, verseq, trie->m_tail.next, tailseq);
             }
         }
       #endif

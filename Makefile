@@ -441,8 +441,8 @@ THIS_LIB_OBJS = $(sort $(filter %.o,$^) \
 
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
-${1}/git-version-fsa.cpp: ${fsa_src}
-${1}/git-version-zbs.cpp: ${zbs_src}
+${1}/git-version-fsa.cpp: ${fsa_src} ${core_src}
+${1}/git-version-zbs.cpp: ${zbs_src} ${fsa_src} ${core_src}
 ${1}/git-version-%.cpp: Makefile
 	@mkdir -p $$(dir $$@)
 	@rm -f $$@.tmp
