@@ -755,7 +755,8 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, HugePageEnum use_h
             PROT_READ|PROT_WRITE,
             MAP_PRIVATE|
             (HugePageEnum::kMmap == use_hugepage ? MAP_HUGETLB : 0)|
-            MAP_ANONYMOUS|MAP_UNINITIALIZED|MAP_NORESERVE,
+            //MAP_ANONYMOUS|MAP_UNINITIALIZED|MAP_NORESERVE, // fail
+            MAP_ANONYMOUS|MAP_NORESERVE,
             -1, 0);
         TERARK_VERIFY_F(MAP_FAILED != mem,
             "mmap(size = %zd) = %s\n", maxMem, strerror(errno));
