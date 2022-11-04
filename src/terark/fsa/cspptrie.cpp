@@ -42,6 +42,7 @@
     //#include <sched.h>
     //#include <linux/getcpu.h>
     #include <syscall.h>
+    #include <linux/mman.h>
 #elif BOOST_OS_WINDOWS
 #elif BOOST_OS_MACOS
     #include <cpuid.h>
@@ -599,7 +600,11 @@ MainPatricia::MainPatricia(size_t valsize, intptr_t maxMem,
 template<size_t Align>
 PatriciaMem<Align>::PatriciaMem()
 {
-    init(SingleThreadShared);
+    // this function will be called by BaseDFA::load.
+    // must use SingleThreadStrict, because SingleThreadShared will construct
+    // tls objects m_lazy_free_list_sgl & m_reader_token_sgl_tls, thus consume
+    // tls_instance slots.
+    init(SingleThreadStrict);
     new(&m_mempool_lock_none)MemPool_LockNone<AlignSize>(MAX_STATE_SIZE);
     m_valsize = 0;
     new_root(0); // m_valsize == 0
@@ -2943,6 +2948,14 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
     case  SingleThreadShared: m_mempool_lock_none.destroy_and_clean(); break;
     case     NoWriteReadOnly: break; // do nothing
     }
+    if (m_mempool_concurrent_level >= MultiWriteMultiRead) {
+        TERARK_VERIFY_EQ(m_writer_token_sgl.get(), nullptr);
+    }
+    else if (m_mempool_concurrent_level >= SingleThreadShared) {
+        m_writer_token_sgl.reset();
+        m_lazy_free_list_sgl.~LazyFreeList();
+        m_reader_token_sgl_tls.~ReaderTokenTLS_Holder();
+    }
     m_mempool_concurrent_level = NoWriteReadOnly;
     m_writing_concurrent_level = NoWriteReadOnly;
     m_mempool.risk_set_data(bbase + blocks[0].offset, blocks[0].length);
@@ -3007,8 +3020,8 @@ void Patricia::TokenBase::init_tls(Patricia* trie0) noexcept {
 
 class Patricia::TokenPtrVec {
     TokenBase* head = nullptr; // use linked list
-public:
     size_t num = 0;
+public:
     void add_for_del(TokenBase* tok) {
         tok->m_link.next = head;
         head = tok;
