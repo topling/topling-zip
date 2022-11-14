@@ -54,16 +54,24 @@ public:
             m_id = s_id_head;
             s_id_head = s_id_list[s_id_head];
             s_id_list[m_id] = uint32_t(busy);
+            s_id_num_free--;
         }
         else if (s_id_list.size() < Rows * Cols) {
             m_id = (uint32_t)s_id_list.size();
             s_id_list.push_back(uint32_t(busy));
         }
         else { // fail
-            TERARK_DIE("too many object instance, max = %u", Rows*Cols);
+            valvec<char> buf(s_id_list.size() * 10, valvec_reserve());
+            for (auto id : s_id_list) {
+                int len = sprintf(buf.ensure_unused(32), "%d,", id);
+                buf.risk_set_size(buf.size() + len);
+            }
+            buf.back() = '\0'; // replace last ',' to '\0'
+            TERARK_DIE("too many instances, max = %u : {%s}", Rows*Cols, buf.data());
         }
     }
     ~instance_tls() {
+        TERARK_VERIFY_LT(m_id, s_id_list.size());
         size_t id = as_atomic(m_id).exchange(dead, std::memory_order_relaxed);
         size_t i = id / Cols;
         size_t j = id % Cols;
@@ -78,6 +86,7 @@ public:
         TERARK_VERIFY_EQ(busy, s_id_list[id]);
         s_id_list[id] = s_id_head;
         s_id_head = uint32_t(id);
+        s_id_num_free++;
       s_mutex.unlock();
     }
 
@@ -121,6 +130,7 @@ private:
     static std::mutex s_mutex;
     static uint32_t   s_thread_num;
     static uint32_t   s_id_head;
+    static uint32_t   s_id_num_free;
     static valvec<uint32_t> s_id_list;
 
     // use matrix to speed lookup & reduce memory usage
@@ -180,6 +190,10 @@ instance_tls<T, Rows, Cols>::s_id_head = tail;
 template<class T, uint32_t Rows, uint32_t Cols>
 valvec<uint32_t>
 instance_tls<T, Rows, Cols>::s_id_list(Cols, valvec_reserve());
+
+template<class T, uint32_t Rows, uint32_t Cols>
+uint32_t
+instance_tls<T, Rows, Cols>::s_id_num_free = 0;
 
 template<class T, uint32_t Rows, uint32_t Cols>
 typename

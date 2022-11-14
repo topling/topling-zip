@@ -996,8 +996,8 @@ public:
     void risk_set_size(size_t size) { this->n = size; }
     void risk_set_capacity(size_t capa) { this->c = capa; }
     void risk_set_end(T* endp) {
-        assert(size_t(endp - p) <= c);
-        assert(size_t(endp - p) >= 0);
+        assert(endp - p <= ptrdiff_t(c));
+        assert(endp - p >= 0);
         n = endp - p;
     }
 

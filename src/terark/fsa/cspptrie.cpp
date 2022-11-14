@@ -3699,8 +3699,8 @@ void Patricia::TokenBase::idle() {
     TERARK_VERIFY_F(AcquireDone == flags.state, "real = %s", enum_cstr(flags.state));
   #else
     if (terark_unlikely(AcquireDone != flags.state)) {
-        WARN("conLevel = %s, state = %s, TODO: fix it",
-             enum_cstr(conLevel), enum_cstr(flags.state));
+        WARN("this = %p, conLevel = %s, state = %s, TODO: fix it",
+             this, enum_cstr(conLevel), enum_cstr(flags.state));
         return;
     }
   #endif
@@ -3715,14 +3715,14 @@ void Patricia::TokenBase::idle() {
             goto Retry;
         m_live_verseq = m_link.verseq;
     }
-    else if (trie->m_token_qlen) {
+    else if (terark_likely(0 == trie->m_token_qlen)) {
+        m_flags.state = AcquireIdle;
+    }
+    else {
         TERARK_VERIFY_EQ(ThisThreadID(), m_thread_id);
         m_flags = {AcquireIdle, false};
         if (flags.is_head)
             goto CleanForSetReadOnly;
-    }
-    else {
-        m_flags.state = AcquireIdle;
     }
     return;
   CleanForSetReadOnly:
@@ -3839,7 +3839,7 @@ void Patricia::TokenBase::acquire(Patricia* trie1) {
         case AcquireLock:
             while (true) {
                 TokenFlags flags = {AcquireIdle, m_flags.is_head};
-                if (cas_weak(m_flags, flags, {ReleaseDone, flags.is_head}))
+                if (cas_weak(m_flags, flags, {AcquireDone, flags.is_head}))
                     break;
                 else
                     _mm_pause(); // spin
