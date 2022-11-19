@@ -719,17 +719,17 @@ public:
 			std::fill_n(fastlist, fastleng, FreeList());
 			hugelist = FreeList();
 		}
-		if (!boost::has_trivial_destructor<Value>::value) {
-			if (nDeleted) {
-				for (size_t i = 0; i < nNodes; ++i)
-					if (delmark != pNodes[i].link)
-						nth_value(i).~Value();
-			} else {
-				for (size_t i = 0; i < nNodes; ++i)
-					nth_value(i).~Value();
-			}
-		}
 		if (nNodes > nDeleted) {
+			if (!boost::has_trivial_destructor<Value>::value) {
+				if (nDeleted) {
+					for (size_t i = 0; i < nNodes; ++i)
+						if (delmark != pNodes[i].link)
+							nth_value(i).~Value();
+				} else {
+					for (size_t i = 0; i < nNodes; ++i)
+						nth_value(i).~Value();
+				}
+			}
 			TERARK_VERIFY_NE(const_cast<LinkTp*>(&tail), bucket);
 			std::fill_n(bucket, nBucket, (LinkTp)tail);
 		}

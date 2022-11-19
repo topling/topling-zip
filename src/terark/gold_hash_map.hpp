@@ -592,22 +592,21 @@ public:
 
 	// keep memory
 	void erase_all() {
-		NodeLayout nl = m_nl;
-		if (!nl.is_null()) {
-			if (!boost::has_trivial_destructor<Elem>::value) {
-                if (freelist_is_empty()) {
-                    for (size_t i = nElem; i > 0; --i)
-                        nl.data(i-1).~Elem();
-                } else {
-                    for (size_t i = nElem; i > 0; --i)
-                        if (delmark != nl.link(i-1))
-                            nl.data(i-1).~Elem();
-                }
-			}
-		}
 		if (nElem > freelist_size) {
+			if (!boost::has_trivial_destructor<Elem>::value) {
+				NodeLayout nl = m_nl;
+				if (!nl.is_null()) {
+					if (freelist_is_empty()) {
+						for (size_t i = nElem; i > 0; --i)
+							nl.data(i-1).~Elem();
+					} else {
+						for (size_t i = nElem; i > 0; --i)
+							if (delmark != nl.link(i-1))
+								nl.data(i-1).~Elem();
+					}
+				}
+			}
 			std::fill_n(bucket, nBucket, (LinkTp)tail);
-			nElem = 0;
 		}
 		if (freelist_head < delmark) {
 			TERARK_VERIFY_LT(freelist_head, nElem);
@@ -615,6 +614,7 @@ public:
 			freelist_size = 0;
 			freelist_freq = 0;
 		}
+		nElem = 0;
 	}
 
 #ifndef TERARK_GOLD_HASH_MAP_ITERATOR_USE_FAST
