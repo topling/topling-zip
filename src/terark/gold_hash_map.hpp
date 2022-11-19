@@ -595,15 +595,14 @@ public:
 		if (nElem > freelist_size) {
 			if (!boost::has_trivial_destructor<Elem>::value) {
 				NodeLayout nl = m_nl;
-				if (!nl.is_null()) {
-					if (freelist_is_empty()) {
-						for (size_t i = nElem; i > 0; --i)
+				assert(!nl.is_null());
+				if (freelist_is_empty()) {
+					for (size_t i = nElem; i > 0; --i)
+						nl.data(i-1).~Elem();
+				} else {
+					for (size_t i = nElem; i > 0; --i)
+						if (delmark != nl.link(i-1))
 							nl.data(i-1).~Elem();
-					} else {
-						for (size_t i = nElem; i > 0; --i)
-							if (delmark != nl.link(i-1))
-								nl.data(i-1).~Elem();
-					}
 				}
 			}
 			std::fill_n(bucket, nBucket, (LinkTp)tail);
