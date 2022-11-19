@@ -729,10 +729,11 @@ public:
 					nth_value(i).~Value();
 			}
 		}
-		if (nNodes) {
+		if (nNodes > nDeleted) {
 			TERARK_VERIFY_NE(const_cast<LinkTp*>(&tail), bucket);
 			std::fill_n(bucket, nBucket, (LinkTp)tail);
 		}
+		nDeleted = 0;
 		nNodes = 0;
 		lenpool = 0;
 	}

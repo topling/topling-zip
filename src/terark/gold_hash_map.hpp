@@ -605,15 +605,15 @@ public:
                 }
 			}
 		}
+		if (nElem > freelist_size) {
+			std::fill_n(bucket, nBucket, (LinkTp)tail);
+			nElem = 0;
+		}
 		if (freelist_head < delmark) {
 			TERARK_VERIFY_LT(freelist_head, nElem);
 			freelist_head = tail;
 			freelist_size = 0;
 			freelist_freq = 0;
-		}
-		if (nElem) {
-			std::fill_n(bucket, nBucket, (LinkTp)tail);
-			nElem = 0;
 		}
 	}
 
