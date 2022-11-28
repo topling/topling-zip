@@ -28,6 +28,8 @@
 #include <boost/type_traits/has_trivial_constructor.hpp>
 #include <boost/type_traits/has_trivial_destructor.hpp>
 
+#include <type_traits>
+
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wclass-memaccess" // which version support?
@@ -812,9 +814,11 @@ public:
 		return std::make_pair(slot, true);
 	}
 	template<class ConsElem, class PreInsert>
-	std::pair<size_t, bool>
-	lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem,
-					   PreInsert pre_insert) {
+	auto lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem,
+					        PreInsert pre_insert) -> typename
+	std::enable_if<!std::is_same<decltype(pre_insert(this)), void>::value,
+					std::pair<size_t, bool> >::type
+	{
 		const HashTp h = HashTp(HashEqual::hash(key));
 		const size_t old_nBucket = nBucket;
 		size_t i = size_t(h % old_nBucket);
@@ -827,6 +831,39 @@ public:
 		if (!pre_insert(this)) {
 			return std::make_pair(nElem, true);
 		}
+		if (terark_unlikely(nElem - freelist_size >= maxload)) {
+			// rehash will auto find next prime bucket size
+			i = h % rehash(nBucket + 1);
+		}
+		else if (terark_unlikely(nBucket != old_nBucket)) {
+			i = h % nBucket;
+		}
+		size_t slot = risk_slot_alloc(); // here, no risk
+		cons_elem(&m_nl.data(slot)); // must success
+		m_nl.link(slot) = bucket[i]; // newer at head
+		bucket[i] = LinkTp(slot); // new head of i'th bucket
+		if (intptr_t(pHash) != hash_cache_disabled)
+			pHash[slot] = h;
+		is_sorted = false;
+		return std::make_pair(slot, true);
+	}
+
+	template<class ConsElem, class PreInsert>
+	auto lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem,
+					        PreInsert pre_insert) -> typename
+	std::enable_if<std::is_same<decltype(pre_insert(this)), void>::value,
+				   std::pair<size_t, bool> >::type
+	{
+		const HashTp h = HashTp(HashEqual::hash(key));
+		const size_t old_nBucket = nBucket;
+		size_t i = size_t(h % old_nBucket);
+		// this func is a copy-paste except old_nBucket and pre_insert
+		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
+				return std::make_pair(p, false);
+		}
+		pre_insert(this);
 		if (terark_unlikely(nElem - freelist_size >= maxload)) {
 			// rehash will auto find next prime bucket size
 			i = h % rehash(nBucket + 1);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <type_traits>
 
 #include <terark/config.hpp>
 #include "hash_common.hpp"
@@ -1482,8 +1483,11 @@ public:
 		return std::make_pair(slot, true);
 	}
 	template<class ConsValue, class PreInsert>
-	std::pair<size_t, bool>
-	lazy_insert_i(fstring key, ConsValue cons_value, PreInsert pre_insert) {
+	auto lazy_insert_i(fstring key, ConsValue cons_value, PreInsert pre_insert)
+	-> typename // pre_insert is not void and it is convertable to bool
+	std::enable_if<!std::is_same<decltype(pre_insert(this)), void>::value,
+					std::pair<size_t, bool> >::type
+	{
 		TERARK_ASSERT_GE(key.n, 0);
 		const HashTp h = hash(key);
 		const size_t old_nBucket = nBucket;
@@ -1504,6 +1508,58 @@ public:
 		if (!pre_insert(this)) {
 			return std::make_pair(nNodes, true);
 		}
+		if (terark_unlikely(nNodes >= maxload)) {
+			i = h % rehash(nBucket + 1);
+		}
+		else if (terark_unlikely(nBucket != old_nBucket)) {
+			i = h % nBucket;
+		}
+		TERARK_ASSERT_LE(nNodes, maxNodes);
+		size_t real_len = fstring_func::align_to(key.n+1);
+		size_t slot = alloc_slot(real_len);
+		size_t xbeg = LOAD_OFFSET(pNodes[slot+0].offset);
+		size_t xend = LOAD_OFFSET(pNodes[slot+1].offset);
+		TERARK_ASSERT_EQ(xend - xbeg, real_len);
+		TERARK_ASSERT_LT(slot, nNodes);
+		((align_type*)(strpool + xend))[-1] = 0; // pad 0
+		strpool[xend-1] = (char)(real_len - key.n - 1); // extra-1
+		memcpy(strpool + xbeg, key.p, key.n);
+		cons_value(&nth_value(slot)); // must success
+		pNodes[slot].link = bucket[i]; // newer at head
+		bucket[i] = LinkTp(slot); // new head of i'th bucket
+		if (intptr_t(pHash) != hash_cache_disabled) {
+			TERARK_ASSERT_NE(NULL, pHash);
+			pHash[slot] = h;
+		}
+		sort_flag = en_unsorted;
+		return std::make_pair(slot, true);
+	}
+
+	// same as lazy_insert_i overload, but pre_insert returns void
+	template<class ConsValue, class PreInsert>
+	auto lazy_insert_i(fstring key, ConsValue cons_value, PreInsert pre_insert)
+	-> typename
+	std::enable_if<std::is_same<decltype(pre_insert(this)), void>::value,
+				   std::pair<size_t, bool> >::type
+	{
+		TERARK_ASSERT_GE(key.n, 0);
+		const HashTp h = hash(key);
+		const size_t old_nBucket = nBucket;
+		size_t i = size_t(h % old_nBucket);
+		// this func is a copy-paste except old_nBucket and pre_insert
+		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
+			TERARK_ASSERT_LT(p, nNodes);
+			const Node* y = &pNodes[p];
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+		// doesn't need to compare cached hash value, it almost always true
+			size_t ybeg = LOAD_OFFSET(y[0].offset);
+			size_t yend = LOAD_OFFSET(y[1].offset);
+			size_t ylen = yend - ybeg - extralen(yend);
+			if (equal(key, fstring(strpool + ybeg, ylen)))
+				return std::make_pair(p, false);
+		}
+		pre_insert(this); // returns void
 		if (terark_unlikely(nNodes >= maxload)) {
 			i = h % rehash(nBucket + 1);
 		}
