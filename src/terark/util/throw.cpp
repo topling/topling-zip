@@ -16,7 +16,7 @@ std::string ExceptionFormatString(const char* format, ...) {
     va_end(ap);
     buf.resize(len);
     buf.shrink_to_fit();
-	fprintf(stderr, "%s\n", buf.c_str());
+	//fprintf(stderr, "%s\n", buf.c_str());
 	return buf;
 #else
 	terark::AutoFree<char> buf;
@@ -24,7 +24,7 @@ std::string ExceptionFormatString(const char* format, ...) {
     va_start(ap, format);
 	int len = vasprintf(&buf.p, format, ap);
     va_end(ap);
-	fprintf(stderr, "%s\n", buf.p);
+	//fprintf(stderr, "%s\n", buf.p);
 	return std::string(buf.p, len);
 #endif
 }
