@@ -497,7 +497,7 @@ ${rdir}/boost-static/build.done:
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
-	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 ${DBG_DWARF} -g3" \
 		                     -j8   cflags="-fPIC ${DBG_DWARF} -g3" threading=multi link=static variant=release
 	touch $@
@@ -508,7 +508,7 @@ ${rdir}/boost-shared/build.done:
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
-	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=release
 	touch $@
@@ -519,7 +519,7 @@ ${ddir}/boost-static/build.done:
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
-	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17" \
 		                     -j8   cflags="-fPIC" threading=multi link=static variant=debug
 	touch $@
@@ -530,7 +530,7 @@ ${ddir}/boost-shared/build.done:
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
-	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=debug
 	touch $@
