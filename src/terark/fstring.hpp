@@ -312,6 +312,13 @@ struct basic_fstring {
 		return minlen;
 	}
 
+	size_t commonPrefixLen(const Char* str, ptrdiff_t len) const {
+		size_t minlen = n < len ? n : len;
+		for (size_t i = 0; i < minlen; ++i)
+			if (p[i] != str[i]) return i;
+		return minlen;
+	}
+
 	///@{ to compatible with other similar class such as Slice ...
 	bool starts_with(basic_fstring x) const { return startsWith(x); }
 	bool ends_with(basic_fstring x) const { return endsWith(x); }
