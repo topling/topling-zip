@@ -783,12 +783,10 @@ public:
 
 	template<class CompatibleObject>
 	std::pair<size_t, bool> insert_i(const CompatibleObject& obj) {
-		key_param_pass_t key = MyKeyExtractor(obj);
-		return lazy_insert_elem_i(key, CopyConsFunc<CompatibleObject>(obj));
+		return lazy_insert_elem_i(MyKeyExtractor(obj), CopyConsFunc<CompatibleObject>(obj));
 	}
 	std::pair<size_t, bool> insert_i(const Elem& obj) {
-		key_param_pass_t key = MyKeyExtractor(obj);
-		return lazy_insert_elem_i(key, CopyConsFunc<Elem>(obj));
+		return lazy_insert_elem_i(MyKeyExtractor(obj), CopyConsFunc<Elem>(obj));
 	}
 	template<class ConsElem>
 	std::pair<size_t, bool>
