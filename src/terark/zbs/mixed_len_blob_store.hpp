@@ -2,7 +2,8 @@
 #include <string>
 #include <terark/int_vector.hpp>
 #include <terark/zbs/abstract_blob_store.hpp>
-#include <terark/rank_select.hpp>
+#include <terark/succinct/rank_select_il_256.hpp>
+#include <terark/succinct/rank_select_se_512.hpp>
 
 namespace terark {
 

@@ -3,8 +3,13 @@
 #include <terark/fsa/x_fsa_util.hpp>
 #include <terark/fsa/fsa.hpp>
 #include <terark/bitmap.hpp>
-#include <terark/rank_select.hpp>
 #include <terark/int_vector.hpp>
+#include <terark/succinct/rank_select_se_256.hpp>
+#include <terark/succinct/rank_select_il_256.hpp>
+#include <terark/succinct/rank_select_se_512.hpp>
+#include <terark/succinct/rank_select_mixed_il_256.hpp>
+#include <terark/succinct/rank_select_mixed_xl_256.hpp>
+#include <terark/succinct/rank_select_mixed_se_512.hpp>
 #include <terark/util/sortable_strvec.hpp>
 #include <terark/util/zo_sorted_strvec.hpp>
 #include "dfa_algo_basic.hpp"
