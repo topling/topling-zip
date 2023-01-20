@@ -80,27 +80,6 @@ ADFA_LexIteratorT<CharT>::ADFA_LexIteratorT(valvec_no_init) {
 template<class CharT>
 ADFA_LexIteratorT<CharT>::~ADFA_LexIteratorT() {}
 
-template<class CharT>
-void ADFA_LexIteratorT<CharT>::dispose() {
-	// default is to direct delete
-	delete this;
-}
-
-template<class CharT>
-bool ADFA_LexIteratorT<CharT>::seek_begin() {
-	return seek_lower_bound(fstr());
-}
-
-template<class CharT>
-bool ADFA_LexIteratorT<CharT>::seek_rev_lower_bound(fstr str) {
-    if (seek_lower_bound(str)) {
-        if (word() == str)
-            return true;
-        return decr();
-    }
-    return seek_end();
-}
-
 template class ADFA_LexIteratorT<char>;
 template class ADFA_LexIteratorT<uint16_t>;
 

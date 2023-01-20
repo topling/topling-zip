@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 #include <terark/stdtypes.hpp>
-#include <terark/fstring.hpp>
+#include <terark/str_lex_iter.hpp>
 #include <terark/util/fstrvec.hpp>
 #include <terark/util/function.hpp>
 #include <boost/noncopyable.hpp>
@@ -129,46 +129,27 @@ struct TERARK_DLL_EXPORT MatchContext : MatchContextBase {
 };
 
 template<class CharT>
-class TERARK_DLL_EXPORT ADFA_LexIteratorT : boost::noncopyable {
+class TERARK_DLL_EXPORT ADFA_LexIteratorT : public StringLexIteratorT<CharT> {
 protected:
     typedef typename terark_get_uchar_type<CharT>::type uch_t;
+	using StringLexIteratorT<CharT>::m_word;
 	const BaseDFA* m_dfa;
-	valvec<uch_t>  m_word;
 	size_t m_curr;
 
 	virtual ~ADFA_LexIteratorT();
 public:
-	virtual void dispose();
-
 	typedef basic_fstring<CharT> fstr;
 	ADFA_LexIteratorT(const BaseDFA* dfa);
 	ADFA_LexIteratorT(valvec_no_init);
 	virtual void reset(const BaseDFA* dfa, size_t root = 0) = 0;
 
-	virtual bool incr() = 0;
-	virtual bool decr() = 0;
-
-	virtual bool seek_begin();
-	virtual bool seek_end() = 0;
-	virtual bool seek_lower_bound(fstr) = 0;
-	bool seek_rev_lower_bound(fstr); // convenient function
-
 	virtual size_t seek_max_prefix(fstr) = 0;
 
 	const BaseDFA* get_dfa() const { return m_dfa; }
-	fstr word() const { return fstr(m_word.data(), m_word.size()); }
 	size_t word_state() const { return m_curr; }
-
-	// for user add app data after m_word.size() and before m_word.capacity()
-	// user should not add more than 16 bytes app data
-	valvec<uch_t>& mutable_word() { return m_word; }
 };
 typedef ADFA_LexIteratorT<char    >  ADFA_LexIterator;
 typedef ADFA_LexIteratorT<uint16_t>  ADFA_LexIterator16;
-
-struct DisposeAsDelete {
-	template<class T> void operator()(T* p) const { p->dispose(); }
-};
 
 typedef std::unique_ptr<ADFA_LexIterator  , DisposeAsDelete> ADFA_LexIteratorUP;
 typedef std::unique_ptr<ADFA_LexIterator16, DisposeAsDelete> ADFA_LexIterator16UP;
