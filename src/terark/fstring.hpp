@@ -145,11 +145,6 @@ template<>struct terark_get_uchar_type<char>{typedef unsigned char type;};
 template<>struct terark_get_uchar_type<uint16_t>{typedef uint16_t type;};
 
 // for SFINAE
-template<class First, class...>
-struct FirstType {
-	typedef First type;
-};
-
 #define DOT_STAR_S(s) (int)((s).size()), (s).data()
 
 // Fast String: shallow copy, simple, just has char* and length
@@ -192,8 +187,7 @@ struct basic_fstring {
 	const std::pair<const Char*, const Char*> range() const { return std::make_pair(p, p+n); }
 
 	template<class AnyStringType>
-	operator typename
-	FirstType<AnyStringType, decltype(AnyStringType((Char*)0, 1))>::type
+	operator decltype(AnyStringType((const Char*)0, 1))
 	() const { return AnyStringType(p, n); }
 
 	typedef ptrdiff_t difference_type;
