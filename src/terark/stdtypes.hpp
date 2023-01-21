@@ -144,6 +144,7 @@ inline bool bitset_has_subset(IntX set, IntX subset) {
         TERARK_VERIFY_F_IMP(expr, ": " fmt, ##__VA_ARGS__)
 
 #if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
+#   define TERARK_IS_DEBUG 1
 #	define DEBUG_only(S) S
 #	define DEBUG_perror		perror
 #	define DEBUG_printf		printf
@@ -154,6 +155,7 @@ inline bool bitset_has_subset(IntX set, IntX subset) {
 #	define TERARK_ASSERT_F TERARK_VERIFY_F
 #	define TERARK_VERIFY assert
 #else
+#   define TERARK_IS_DEBUG 0
 #	define DEBUG_only(S)
 #	define DEBUG_perror(Msg)
 #	define DEBUG_printf		1 ? (void)0 : (void)printf
