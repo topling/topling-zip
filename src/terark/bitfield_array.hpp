@@ -83,6 +83,9 @@ template<>struct AllOne<64> {
 	defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64) || defined(_M_X64) \
 	)
   #define BITFIELD_ARRAY_FAST_MISALIGN
+  #define BITFIELD_ARRAY_METHOD(suffix)   aligned_ ## suffix
+#else
+  #define BITFIELD_ARRAY_METHOD(suffix) unaligned_ ## suffix
 #endif
 
 template<int... BitFieldsBits>
@@ -168,49 +171,29 @@ public:
 	template<class... Uints>
 	void aset(size_t idx, Uints... fields) {
 		assert(idx < m_size);
-#if defined(BITFIELD_ARRAY_FAST_MISALIGN)
-		aligned_pset<0>(m_bytes.data(), idx, fields...);
-#else
-		unaligned_pset<0>(m_bytes.data(), idx, fields...);
-#endif
+		BITFIELD_ARRAY_METHOD(pset)<0>(m_bytes.data(), idx, fields...);
 	}
 	template<int FirstField, class... Uints>
 	void pset(size_t idx, Uints... fields) {
 		assert(idx < m_size);
-#if defined(BITFIELD_ARRAY_FAST_MISALIGN)
-		aligned_pset<FirstField>(m_bytes.data(), idx, fields...);
-#else
-		unaligned_pset<FirstField>(m_bytes.data(), idx, fields...);
-#endif
+		BITFIELD_ARRAY_METHOD(pset)<FirstField>(m_bytes.data(), idx, fields...);
 	}
 
 	template<int NthField>
 	typename BestUint<NthField>::type get(size_t idx) const {
 		assert(idx < m_size);
-#if defined(BITFIELD_ARRAY_FAST_MISALIGN)
-		return aligned_get<NthField>(m_bytes.data(), idx);
-#else
-		return unaligned_get<NthField>(m_bytes.data(), idx);
-#endif
+		return BITFIELD_ARRAY_METHOD(get)<NthField>(m_bytes.data(), idx);
 	}
 
 	template<int NthField>
 	void set(size_t idx, typename BestUint<NthField>::type val) {
 		assert(idx < m_size);
-#if defined(BITFIELD_ARRAY_FAST_MISALIGN)
-		aligned_set<NthField>(m_bytes.data(), idx, val);
-#else
-		unaligned_set<NthField>(m_bytes.data(), idx, val);
-#endif
+		BITFIELD_ARRAY_METHOD(set)<NthField>(m_bytes.data(), idx, val);
 	}
 
 	typename BestUint<0>::type get0(size_t idx) const {
 		assert(idx < m_size);
-#if defined(BITFIELD_ARRAY_FAST_MISALIGN)
-		return aligned_get<0>(m_bytes.data(), idx);
-#else
-		return unaligned_get<0>(m_bytes.data(), idx);
-#endif
+		return BITFIELD_ARRAY_METHOD(get)<0>(m_bytes.data(), idx);
 	}
 
 	template<class IndexType>
@@ -225,11 +208,7 @@ public:
 
 	void set0(size_t idx, typename BestUint<0>::type val) {
 		assert(idx < m_size);
-#if defined(BITFIELD_ARRAY_FAST_MISALIGN)
-		aligned_set<0>(m_bytes.data(), idx, val);
-#else
-		unaligned_set<0>(m_bytes.data(), idx, val);
-#endif
+		BITFIELD_ARRAY_METHOD(set)<0>(m_bytes.data(), idx, val);
 	}
 
 #define aligned_load unaligned_load
