@@ -16,6 +16,7 @@ public:
     typedef typename super::bldata_t bldata_t;
 	typedef rank_select_mixed_dimensions<super, 0> rank_select_view_0;
 	typedef rank_select_mixed_dimensions<super, 1> rank_select_view_1;
+	using super::super;
 	using super::get;
 	using super::bldata;
 	using super::data;
