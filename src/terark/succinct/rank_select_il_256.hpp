@@ -296,7 +296,7 @@ fast_select1_q(const Line* lines, const uint32_t* sel1, const Line*, size_t Rank
 
 typedef rank_select_il rank_select_il_256;
 typedef rank_select_il rank_select_il_256_32;
-typedef rank_select_il rank_select_il_256_32_11; // Q0=4, Q1=1
+typedef rank_select_il rank_select_il_256_32_11; // Q0=1, Q1=1
 
 // suffix "_41" means Q0=4, Q1=1
 class TERARK_DLL_EXPORT rank_select_il_256_32_41 : public rank_select_il_256_32 {
