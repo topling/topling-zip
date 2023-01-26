@@ -215,6 +215,9 @@ AbstractBlobStore::~AbstractBlobStore() {
 void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
 	std::swap(m_numRecords   , y.m_numRecords   );
 	std::swap(m_unzipSize    , y.m_unzipSize    );
+    std::swap(m_mmap_aio     , y.m_mmap_aio     );
+    std::swap(m_supportZeroCopy, y.m_supportZeroCopy);
+    std::swap(m_min_prefetch_pages, y.m_min_prefetch_pages);
 	std::swap(m_fpath        , y.m_fpath        );
     std::swap(m_isMmapData   , y.m_isMmapData   );
     std::swap(m_isUserMem    , y.m_isUserMem    );

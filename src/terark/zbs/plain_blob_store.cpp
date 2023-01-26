@@ -155,6 +155,7 @@ void PlainBlobStore::save_mmap(function<void(const void*, size_t)> write) const 
 }
 
 PlainBlobStore::PlainBlobStore() {
+    m_supportZeroCopy = true;
     m_checksumLevel = 3;
     m_checksumType = 0;
     m_get_record_append = static_cast<get_record_append_func_t>
@@ -234,7 +235,10 @@ const {
             }
         }
     }
-    recData->append(p, len);
+    //recData->append(p, len);
+    TERARK_VERIFY_EQ(recData->capacity(), 0);
+    recData->risk_set_data((byte_t*)p);
+    recData->risk_set_size(len);
 }
 
 void

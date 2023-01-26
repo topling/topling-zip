@@ -47,6 +47,7 @@ public:
 
     BlobStore();
     ~BlobStore() override;
+    bool support_zero_copy() const { return m_supportZeroCopy; }
     size_t num_records() const { return m_numRecords; }
     uint64_t total_data_size() const { return m_unzipSize; }
     virtual size_t mem_size() const = 0;
@@ -171,6 +172,7 @@ protected:
     size_t      m_numRecords;
     uint64_t    m_unzipSize;
     bool        m_mmap_aio;
+    bool        m_supportZeroCopy;
     uint16_t    m_min_prefetch_pages;
 
     typedef void (BlobStore::*get_record_append_func_t)(size_t recID, valvec<byte_t>* recData) const;

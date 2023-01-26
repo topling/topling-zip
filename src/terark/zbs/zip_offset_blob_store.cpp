@@ -87,6 +87,7 @@ void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     m_checksumLevel = mmapBase->checksumLevel;
     m_checksumType = mmapBase->checksumType;
     m_compressLevel = mmapBase->compressLevel;
+    m_supportZeroCopy = (0 == m_compressLevel);
     if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
         XXHash64 hash(g_dpbsnark_seed);
         hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
@@ -254,7 +255,10 @@ const {
             }
         }
     }
-    recData->append(m_content.data() + BegEnd[0], len);
+    //recData->append(pData, len);
+    TERARK_VERIFY_EQ(recData->capacity(), 0);
+    recData->risk_set_data((byte_t*)pData);
+    recData->risk_set_size(len);
 }
 
 void
@@ -297,7 +301,10 @@ const {
              }
          }
     }
-    co->recData.append(pData, len);
+    //co->recData.append(pData, len);
+    TERARK_VERIFY_EQ(co->recData.capacity(), 0);
+    co->recData.risk_set_data((byte_t*)pData);
+    co->recData.risk_set_size(len);
 }
 
 void
@@ -541,7 +548,7 @@ public:
             FileStream(m_fpath, "rb+").chsize(file_size);
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
-            *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, offsets_size, 
+            *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, offsets_size,
                                                                        m_options);
 
             XXHash64 xxhash64(g_dpbsnark_seed);

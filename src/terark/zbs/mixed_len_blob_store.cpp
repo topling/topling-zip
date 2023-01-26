@@ -102,6 +102,7 @@ template<class rank_select_t>
 MixedLenBlobStoreTpl<rank_select_t>::MixedLenBlobStoreTpl() {
   BOOST_STATIC_ASSERT(sizeof(FileHeader) == 128);
   m_unzipSize = 0;
+  m_supportZeroCopy = true;
   m_fixedNum = 0;
   m_fixedLen = size_t(-1);
   m_fixedLenWithoutCRC = size_t(-1);
@@ -215,7 +216,10 @@ const {
             }
         }
     }
-	recData->append(pData, m_fixedLenWithoutCRC);
+	//recData->append(pData, m_fixedLenWithoutCRC);
+    TERARK_VERIFY_EQ(recData->capacity(), 0);
+    recData->risk_set_data((byte_t*)pData);
+    recData->risk_set_size(m_fixedLenWithoutCRC);
 }
 
 template<class rank_select_t>
@@ -253,7 +257,10 @@ const {
             }
         }
     }
-	recData->append(pData, nData);
+	//recData->append(pData, nData);
+    TERARK_VERIFY_EQ(recData->capacity(), 0);
+    recData->risk_set_data((byte_t*)pData);
+    recData->risk_set_size(nData);
 }
 
 template<class rank_select_t>
