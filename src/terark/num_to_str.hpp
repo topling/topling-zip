@@ -148,5 +148,10 @@ struct string_appender : public String {
 	string_appender& operator<<(long double x) { char buf[96]; this->append(buf, num_to_str(buf, x)); return *this; };
 };
 
+template<class String>
+inline string_appender<String>& as_string_appender(String& str) {
+	return static_cast<string_appender<String>&>(str);
+}
+
 } // namespace terark
 
