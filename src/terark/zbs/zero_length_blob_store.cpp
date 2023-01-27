@@ -48,6 +48,7 @@ void ZeroLengthBlobStore::save_mmap(function<void(const void*, size_t)> write) c
 }
 
 ZeroLengthBlobStore::ZeroLengthBlobStore() {
+    m_supportZeroCopy = true;
     m_get_record_append = static_cast<get_record_append_func_t>
                (&ZeroLengthBlobStore::get_record_append_imp);
     // binary compatible:
@@ -82,6 +83,8 @@ void
 ZeroLengthBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
     assert(recID < m_numRecords);
+    TERARK_ASSERT_EQ(0, recData->size());
+    TERARK_ASSERT_EQ(0, recData->capacity());
 }
 
 void
