@@ -152,6 +152,14 @@ template<class String>
 inline string_appender<String>& as_string_appender(String& str) {
 	return static_cast<string_appender<String>&>(str);
 }
+template<class String>
+inline string_appender<String> as_string_appender(const String& str) {
+	return static_cast<const string_appender<String>&>(str); // copy
+}
+template<class String>
+inline string_appender<String>&& as_string_appender(String&& str) {
+	return static_cast<string_appender<String>&&>(str);
+}
 
 } // namespace terark
 
