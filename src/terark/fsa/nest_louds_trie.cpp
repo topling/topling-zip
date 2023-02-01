@@ -2184,7 +2184,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		for(size_t i = 0; i < firstNonEmpty; ++i) {
 			size_t seq_id = strVec.nth_seq_id(i);
 			if (linkSeqStore)
-				linkSeqStore->oTmpBuf << LinkSeq(0, seq_id);
+				linkSeqStore->oTmpBuf << LinkSeq(m_is_link.size() - 1, seq_id);
 			else
 				linkVec[seq_id] = m_is_link.size() - 1;
 		}
