@@ -2178,7 +2178,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		nextStrVecStore = OnePassQueue<SortableStrVec::OffsetLength>::create(conf.tmpDir, "nestStrVec-");
 	}
 	size_t depth = 0;
-	{
+	auto bfsPutRoot = [&]() {
 		// allowing empty strings
 		size_t firstNonEmpty = upper_bound_0<StrVecType&>(strVec, strVecSize, "");
 		for(size_t i = 0; i < firstNonEmpty; ++i) {
@@ -2186,14 +2186,14 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 			if (linkSeqStore)
 				linkSeqStore->oTmpBuf << LinkSeq(0, seq_id);
 			else
-				linkVec[seq_id] = 0;
+				linkVec[seq_id] = m_is_link.size() - 1;
 		}
 		if (conf.debugLevel >= 1) {
 			fprintf(stderr, "build_self_trie: firstNonEmpty = %zd\n", firstNonEmpty);
 		}
 		q1->push_back({firstNonEmpty, strVecSize, 0});
 		q1->complete_write();
-	}
+	};
 #if defined(USE_SUFFIX_ARRAY_TRIE)
 	if (conf.saFragMinFreq &&
 (!conf.suffixTrie || strVec.m_real_str_size < strVec.str_size() * 0.7)) {
@@ -2258,6 +2258,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         if (!pref.empty())
             writePrefixFrag(pref);
     }
+    bfsPutRoot();
     auto patchNestStrVec = [&]() {
         TERARK_VERIFY(nullptr == nestStrPoolFile); // NOLINT
         if (0 == prefixNum)
