@@ -8,6 +8,24 @@
 
 namespace terark {
 
+template<class Char>
+std::string basic_fstring<Char>::hex() const noexcept {
+	constexpr ptrdiff_t nHexPerCH = 2 * sizeof(Char);
+	std::string res;
+	res.resize(nHexPerCH * n);
+	char* buf = &res[0];
+	static const char hexTab[] = "0123456789ABCDEF";
+	for(ptrdiff_t i = 0; i < n; i++) {
+		uc_t uc = p[i];
+		for (ptrdiff_t j = 0; j < nHexPerCH; j++)
+			buf[nHexPerCH*i + j] = hexTab[uc >> 4*(nHexPerCH-1-j) & 15];
+	}
+	return res;
+}
+
+template std::string basic_fstring<char>::hex() const noexcept;
+template std::string basic_fstring<uint16_t>::hex() const noexcept;
+
 std::string operator+(fstring x, fstring y) {
 	std::string z;
 	z.reserve(x.n + y.n);

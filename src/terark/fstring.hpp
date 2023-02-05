@@ -150,7 +150,7 @@ template<>struct terark_get_uchar_type<uint16_t>{typedef uint16_t type;};
 // Fast String: shallow copy, simple, just has char* and length
 // May be short name of: Febird String
 template<class Char>
-struct basic_fstring {
+struct TERARK_DLL_EXPORT basic_fstring {
 //	BOOST_STATIC_ASSERT(sizeof(Char) <= 2);
 	typedef std::basic_string<Char> std_string;
 	const Char* p;
@@ -264,6 +264,7 @@ struct basic_fstring {
         assert(len <= size_t(n));
         return basic_fstring(p, n-len);
     }
+	std::string hex() const noexcept;
 
 	bool matchAt(ptrdiff_t pos, Char ch) const {
 		assert(pos >= 0);
