@@ -58,8 +58,8 @@ public:
 	void risk_set_data(byte* Data, size_t num, size_t bits) {
 		assert(m_bits <= 64);
 		assert(bits <= sizeof(size_t) * 8);
-		size_t Bytes = 0==num ? 0 : (bits*num + 7) / 8 + sizeof(size_t)-1 + 15;
-		Bytes &= ~size_t(15); // align to 16
+		size_t Bytes = compute_mem_size(bits, num);
+		TERARK_ASSERT_AL(Bytes, 16);
 		m_bits = bits;
 		m_mask = sizeof(size_t)*8 == bits ? size_t(-1) : (size_t(1)<<bits)-1;
 		m_size = num;
