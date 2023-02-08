@@ -1,4 +1,5 @@
 #pragma once
+#include <terark/util/enum.hpp>
 #include <terark/int_vector.hpp>
 #include <terark/io/FileMemStream.hpp>
 #include <terark/zbs/abstract_blob_store.hpp>
@@ -17,11 +18,11 @@ class TERARK_DLL_EXPORT DictZipBlobStore : public AbstractBlobStore {
 public:
 	struct FileHeader;  friend struct FileHeader;
 	struct TERARK_DLL_EXPORT Options {
-		enum EntropyAlgo : byte_t {
+		TERARK_ENUM_PLAIN_INCLASS(EntropyAlgo, byte_t,
 			kNoEntropy,
 			kHuffmanO1,
-			kFSE,
-		};
+			kFSE
+		);
 		enum SampleSortPolicy {
 			kSortNone,
 			kSortLeft,
@@ -163,6 +164,8 @@ public:
 
 	DictZipBlobStore();
 	~DictZipBlobStore();
+
+	Options::EntropyAlgo entropyAlgo() const { return m_entropyAlgo; }
 
 	void swap(DictZipBlobStore&);
 
