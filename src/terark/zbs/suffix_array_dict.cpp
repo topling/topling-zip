@@ -301,6 +301,9 @@ SuffixDictCacheDFA::tpl_bfs_build_cache(TrieClass* trie, size_t minFreq, size_t 
 				//	trie->states[e.state].set_pzip_bit();
 				}
 			}
+			if (hi - lo < minFreq) {
+				continue;
+			}
 			if (sa[lo] + depth >= sa_size) {
 				lo++;
 			}
@@ -308,15 +311,13 @@ SuffixDictCacheDFA::tpl_bfs_build_cache(TrieClass* trie, size_t minFreq, size_t 
 			while (lo < hi) {
 				byte_t c = str[sa[lo] + depth];
 				size_t u = sa_upper_bound(lo, hi, depth, c);
-				if (u - lo >= minFreq) {
-					size_t child = trie->new_state();
-					q2.push_back({uint32_t(depth) + 1, uint32_t(child)});
-					children[childcnt].ch = c;
-					children[childcnt].target = child;
-					trie->states[child].m_suffixLow = lo;
-					trie->states[child].m_suffixHig = u;
-					childcnt++;
-				}
+				size_t child = trie->new_state();
+				q2.push_back({uint32_t(depth) + 1, uint32_t(child)});
+				children[childcnt].ch = c;
+				children[childcnt].target = child;
+				trie->states[child].m_suffixLow = lo;
+				trie->states[child].m_suffixHig = u;
+				childcnt++;
 				lo = u;
 			}
 			trie->add_all_move(e.state, children, childcnt);
