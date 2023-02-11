@@ -472,7 +472,8 @@ void DictZipBlobStoreBuilder::prepareDict() {
 		m_dict.reset(new SuffixDictCacheDFA());
 		//m_dict.reset(new HashSuffixDictCacheDFA()); // :( much slower
 		m_dict->build_sa(m_strDict);
-		size_t minFreq = m_strDict.size() < (1ul << 30) ? 15 : 31;
+		size_t minFreq = UintVecMin0::compute_uintbits(m_strDict.size()+2)/2;
+		//size_t minFreq = m_strDict.size() < (1ul << 30) ? 15 : 31;
 		//size_t minFreq = 32*1024; // for benchmark pure suffix array match
 		m_dict->bfs_build_cache(minFreq, 64);
 	}
