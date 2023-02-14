@@ -227,7 +227,13 @@ public:
         return *this;
     }
 
-    ~valvec32() { clear(); }
+    ~valvec32() {
+        if (c) { // minimal works, allow `0==c` but `p!=NULL`
+            assert(nullptr != p);
+            STDEXT_destroy_range(p, p + n);
+            free(p);
+        }
+    }
 
     void fill(param_type x) {
         std::fill_n(p, n, x);
