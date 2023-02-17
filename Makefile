@@ -42,6 +42,7 @@ COMMON_C_FLAGS  += -Wformat=2 -Wcomment
 COMMON_C_FLAGS  += -Wall -Wextra
 COMMON_C_FLAGS  += -Wno-unused-parameter
 #COMMON_C_FLAGS  += -Wno-alloc-size-larger-than # unrecognize
+LINK_LIBURING ?= -luring
 
 gen_sh := $(dir $(lastword ${MAKEFILE_LIST}))gen_env_conf.sh
 
@@ -364,7 +365,7 @@ tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
 ifneq (${UNAME_System},Darwin)
 ${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -lrt -lpthread
 ifneq (${UNAME_System},CYGWIN)
-${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -laio -luring
+${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -laio ${LINK_LIBURING}
 endif
 endif
 
