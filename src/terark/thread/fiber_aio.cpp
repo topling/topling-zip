@@ -5,11 +5,6 @@
 #include "fiber_aio.hpp"
 #include <boost/predef.h>
 
-#if BOOST_OS_LINUX
-  #include <libaio.h> // linux native aio
-  #include <liburing.h>
-#endif
-
 #if BOOST_OS_WINDOWS
 	#define NOMINMAX
 	#define WIN32_LEAN_AND_MEAN
@@ -32,6 +27,11 @@
 
 #if defined(__linux__)
   #include <linux/version.h>
+  #include <libaio.h> // linux native aio
+  #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0) || defined(TOPLING_IO_FORCE_URING)
+    #include <liburing.h>
+    #define TOPLING_IO_HAS_URING
+  #endif
 #endif
 
 namespace terark {
@@ -264,6 +264,7 @@ public:
   }
 };
 
+#if defined(TOPLING_IO_HAS_URING)
 class io_fiber_uring : public io_fiber_base {
   io_uring ring;
   int tobe_submit = 0;
@@ -342,6 +343,7 @@ public:
     io_uring_queue_exit(&ring);
   }
 };
+#endif // TOPLING_IO_HAS_URING
 
 static io_fiber_aio& tls_io_fiber_aio() {
   using boost::fibers::context;
@@ -349,11 +351,13 @@ static io_fiber_aio& tls_io_fiber_aio() {
   return io_fiber;
 }
 
+#if defined(TOPLING_IO_HAS_URING)
 static io_fiber_uring& tls_io_fiber_uring() {
   using boost::fibers::context;
   static thread_local io_fiber_uring io_fiber(context::active_pp());
   return io_fiber;
 }
+#endif
 
 // dt_ means 'dedicated thread'
 struct DT_ResetOnExitPtr {
@@ -436,6 +440,8 @@ intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
   case IoProvider::aio:
     return tls_io_fiber_aio().exec_io(fd, buf, len, offset, IO_CMD_PREAD);
+#endif
+#if defined(TOPLING_IO_HAS_URING)
   case IoProvider::uring:
   if (g_linux_kernel_version >= KERNEL_VERSION(5,6,0)) {
     return tls_io_fiber_uring().exec_io(fd, buf, len, offset, IORING_OP_READ);
@@ -514,6 +520,8 @@ intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
   case IoProvider::aio:
     return tls_io_fiber_aio().exec_io(fd, (void*)buf, len, offset, IO_CMD_PWRITE);
+#endif
+#if defined(TOPLING_IO_HAS_URING)
   case IoProvider::uring:
   if (g_linux_kernel_version >= KERNEL_VERSION(5,6,0)) {
     return tls_io_fiber_uring().exec_io(fd, (void*)buf, len, offset, IORING_OP_WRITE);
