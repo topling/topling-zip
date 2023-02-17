@@ -60,11 +60,12 @@ TERARK_ENUM_CLASS(IoProvider, int,
 
 #if BOOST_OS_LINUX
 
+TERARK_DLL_EXPORT int get_linux_kernel_version(); // defined in vm_util.cpp
 static IoProvider g_io_provider = []{
   const char* env = getenv("TOPLING_IO_PROVIDER");
   IoProvider prov = enum_value(env ? env : "uring", IoProvider::uring);
 #if defined(TOPLING_IO_HAS_URING)
-  if (nullptr == env && g_linux_kernel_version < KERNEL_VERSION(5,1,0)) {
+  if (nullptr == env && get_linux_kernel_version() < KERNEL_VERSION(5,1,0)) {
     fprintf(stderr,
 R"(WARN: env TOPLING_IO_PROVIDER is not defined, and linux kernel is too old,
       will fallback to posix aio. If you want io uring in case of your old

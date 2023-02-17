@@ -10,7 +10,7 @@
 
 namespace terark {
 
-int get_linux_kernel_version() {
+TERARK_DLL_EXPORT int get_linux_kernel_version() {
     utsname u;
     uname(&u);
     int major, minor, patch;
