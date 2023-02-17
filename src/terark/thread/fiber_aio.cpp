@@ -28,9 +28,20 @@
 #if defined(__linux__)
   #include <linux/version.h>
   #include <libaio.h> // linux native aio
-  #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0) || defined(TOPLING_IO_FORCE_URING)
-    #include <liburing.h>
-    #define TOPLING_IO_HAS_URING
+  #if defined(TOPLING_IO_WITH_URING)
+    #if TOPLING_IO_WITH_URING // mandatory io uring
+      #include <liburing.h>
+      #define TOPLING_IO_HAS_URING
+    #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0)
+      #pragma message "the kernel support io uring but it is mandatory disabled by -D TOPLING_IO_WITH_URING=0"
+    #endif
+  #else
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0)
+      #include <liburing.h>
+      #define TOPLING_IO_HAS_URING
+    #else
+      #pragma message "the kernel does not support io uring, to mandatory compile with io uring, add compile flag: -D TOPLING_IO_WITH_URING=1"
+    #endif
   #endif
 #endif
 
@@ -52,6 +63,7 @@ TERARK_ENUM_CLASS(IoProvider, int,
 static IoProvider g_io_provider = []{
   const char* env = getenv("TOPLING_IO_PROVIDER");
   IoProvider prov = enum_value(env ? env : "uring", IoProvider::uring);
+#if defined(TOPLING_IO_HAS_URING)
   if (nullptr == env && g_linux_kernel_version < KERNEL_VERSION(5,1,0)) {
     fprintf(stderr,
 R"(WARN: env TOPLING_IO_PROVIDER is not defined, and linux kernel is too old,
@@ -61,6 +73,12 @@ R"(WARN: env TOPLING_IO_PROVIDER is not defined, and linux kernel is too old,
 )");
     prov = IoProvider::posix;
   }
+#else
+  if (IoProvider::uring == prov) {
+    fprintf(stderr, "WARN: Program is compiled without io uring, fallback to posix aio\n");
+    prov = IoProvider::posix;
+  }
+#endif
   if (IoProvider::posix == prov) {
     int threads = (int)getEnvLong("TOPLING_IO_POSIX_THREADS", 0);
     if (threads > 0) {
