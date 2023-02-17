@@ -51,7 +51,29 @@ TERARK_ENUM_CLASS(IoProvider, int,
 
 static IoProvider g_io_provider = []{
   const char* env = getenv("TOPLING_IO_PROVIDER");
-  return enum_value(env ? env : "uring", IoProvider::uring);
+  IoProvider prov = enum_value(env ? env : "uring", IoProvider::uring);
+  if (nullptr == env && g_linux_kernel_version < KERNEL_VERSION(5,1,0)) {
+    fprintf(stderr,
+R"(WARN: env TOPLING_IO_PROVIDER is not defined, and linux kernel is too old,
+      will fallback to posix aio. If you want io uring in case of your old
+      kernel has back-ported io uring, please explicitly define
+      env TOPLING_IO_PROVIDER=uring !
+)");
+    prov = IoProvider::posix;
+  }
+  if (IoProvider::posix == prov) {
+    int threads = (int)getEnvLong("TOPLING_IO_POSIX_THREADS", 0);
+    if (threads > 0) {
+      struct aioinit init = {};
+      init.aio_threads = threads;
+      init.aio_num = threads * 8;
+      aio_init(&init); // return is void
+    }
+    else {
+      // do not call aio_init, use posix aio default conf
+    }
+  }
+  return prov;
 }();
 
 static std::atomic<size_t> g_ft_num;
