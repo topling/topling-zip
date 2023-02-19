@@ -71,6 +71,8 @@ void use_hugepage_resize_no_init(valvec<T>* vec, size_t newsize) {
 		fprintf(stderr, "WARN: %s: madvise(MADV_HUGEPAGE, size=%zd[0x%zX]) = %s\n",
 			BOOST_CURRENT_FUNCTION, nBytes, nBytes, strerror(errno));
 		free(amem);
+		vec->reserve(newsize);
+		vec->risk_set_size(newsize);
 		return;
 	}
 	else {

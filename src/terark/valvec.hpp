@@ -253,9 +253,7 @@ public:
 
     ~valvec() {
         if (c) { // minimal works, allow `0==c` but `p!=NULL`
-            assert(nullptr != p);
-            STDEXT_destroy_range(p, p + n);
-            free(p);
+            destroy_and_free();
         }
     }
 
@@ -306,9 +304,8 @@ public:
     assign(const Container& cont) { assign(cont.begin(), cont.size()); }
 
     void clear() noexcept {
-        if (p) {
-            STDEXT_destroy_range(p, p + n);
-            free(p);
+        if (c) { // minimal works, allow `0==c` but `p!=NULL`
+            destroy_and_free();
         }
         p = NULL;
         n = c = 0;
@@ -331,6 +328,7 @@ public:
     size_t free_mem_size() const { return sizeof(T) * (c - n); }
 
     void reserve(size_t newcap) {
+        TERARK_ASSERT_LE(n, c);
         if (newcap <= c)
             return; // nothing to do
         reserve_slow(newcap);
@@ -340,19 +338,28 @@ private:
     terark_no_inline
     void reserve_slow(size_t newcap) {
         assert(newcap > c);
+        TERARK_VERIFY_LE(n, c);
         T* q = (T*)realloc(p, sizeof(T) * newcap);
         if (NULL == q) TERARK_DIE("realloc(%zd)", sizeof(T) * newcap);
         p = q;
         c = newcap;
     }
+    terark_no_inline void destroy_and_free() {
+        TERARK_VERIFY(nullptr != p);
+        TERARK_VERIFY_LE(n, c);
+        STDEXT_destroy_range(p, p + n);
+        free(p);
+    }
 
 public:
     T* ensure_unused(size_t unused_cap) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         ensure_capacity(oldsize + unused_cap);
         return p + oldsize;
     }
     void ensure_capacity(size_t min_cap) {
+        TERARK_ASSERT_LE(n, c);
         if (terark_likely(min_cap <= c)) {
             // nothing to do
             return;
@@ -362,7 +369,8 @@ public:
 private:
     terark_no_inline
     void ensure_capacity_slow(size_t min_cap) {
-        assert(min_cap > c);
+        TERARK_VERIFY_LT(c, min_cap);
+        TERARK_VERIFY_LE(n, c);
         size_t new_cap = std::max(larger_capacity(c), min_cap);
 #if defined(TERARK_VALVEC_HAS_WEAK_SYMBOL)
         if (xallocx) {
@@ -390,6 +398,7 @@ private:
 
 public:
     void try_capacity(size_t min_cap, size_t max_cap) {
+        TERARK_ASSERT_LE(n, c);
         if (terark_likely(min_cap <= c)) {
             // nothing to do
             return;
@@ -399,7 +408,8 @@ public:
 private:
     terark_no_inline
     void try_capacity_slow(size_t min_cap, size_t max_cap) {
-        assert(min_cap > c);
+        TERARK_VERIFY_LT(c, min_cap);
+        TERARK_VERIFY_LE(n, c);
         if (max_cap < min_cap) {
             max_cap = min_cap;
         }
@@ -450,7 +460,7 @@ public:
 
     terark_no_inline
     void shrink_to_fit() noexcept {
-        assert(n <= c);
+        TERARK_VERIFY_LE(n, c);
         if (n == c)
             return;
         if (n) {
@@ -479,6 +489,7 @@ public:
     // expect this function will reduce memory fragment
     terark_no_inline
     void shrink_to_fit_malloc_free() noexcept {
+        TERARK_VERIFY_LE(n, c);
         if (0 == c) return;
         assert(NULL != p);
         if (0 == n) {
@@ -503,6 +514,7 @@ public:
     }
 
     void resize(size_t newsize, param_type val) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         if (boost::has_trivial_destructor<T>::value) {
             if (newsize <= oldsize) {
@@ -519,6 +531,7 @@ public:
 private:
     terark_no_inline
     void resize_slow(size_t newsize, param_type val) {
+        TERARK_VERIFY_LE(n, c);
         size_t oldsize = n;
         assert(oldsize != newsize);
         if (!boost::has_trivial_destructor<T>::value && newsize <= oldsize) {
@@ -534,6 +547,7 @@ private:
 
 public:
     void resize(size_t newsize) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         if (boost::has_trivial_destructor<T>::value) {
             if (newsize <= oldsize) {
@@ -550,6 +564,7 @@ public:
 private:
     terark_no_inline
     void resize_slow(size_t newsize) {
+        TERARK_VERIFY_LE(n, c);
         size_t oldsize = n;
         assert(oldsize != newsize);
         if (!boost::has_trivial_destructor<T>::value && newsize <= oldsize) {
@@ -566,6 +581,7 @@ private:
 public:
     terark_no_inline
     void resize_fill(size_t newsize) {
+        TERARK_ASSERT_LE(n, c);
         ensure_capacity(newsize);
         STDEXT_destroy_range(p, p + n);
         if (!std::is_nothrow_default_constructible<T>::value) {
@@ -577,6 +593,7 @@ public:
 
     terark_no_inline
     void resize_fill(size_t newsize, param_type val) {
+        TERARK_ASSERT_LE(n, c);
         ensure_capacity(newsize);
         STDEXT_destroy_range(p, p + n);
         if (!std::is_nothrow_copy_constructible<T>::value) {
@@ -594,6 +611,7 @@ public:
 
     // client code should pay the risk for performance gain
     void resize_no_init(size_t newsize) {
+        TERARK_ASSERT_LE(n, c);
     //  assert(boost::has_trivial_constructor<T>::value);
         ensure_capacity(newsize);
         n = newsize;
@@ -622,6 +640,7 @@ public:
     }
 
     void insert(const T* pos, param_type x) {
+        TERARK_ASSERT_LE(n, c);
         assert(pos <= p + n);
         assert(pos >= p);
         insert(pos-p, x);
@@ -629,6 +648,7 @@ public:
 
     terark_no_inline
     void insert(size_t pos, param_type x) {
+        TERARK_ASSERT_LE(n, c);
         assert(pos <= n);
         if (pos > n) {
             throw std::out_of_range("valvec::insert");
@@ -643,6 +663,7 @@ public:
     template<class InputIter>
     terark_no_inline
     void insert(size_t pos, InputIter iter, size_t count) {
+        TERARK_ASSERT_LE(n, c);
         assert(pos <= n);
         if (pos > n) {
             throw std::out_of_range("valvec::insert");
@@ -655,6 +676,7 @@ public:
     }
 
     void push_back() {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         assert(oldsize <= c);
         if (terark_unlikely(oldsize < c)) {
@@ -667,6 +689,7 @@ public:
 private:
     terark_no_inline
     void push_back_slow() {
+        TERARK_VERIFY_LE(n, c);
         size_t oldsize = n;
         ensure_capacity(oldsize + 1);
         new(p + oldsize)T(); // default cons
@@ -675,6 +698,7 @@ private:
 
 public:
     void push_back(param_type x) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         if (terark_likely(oldsize < c)) {
             new(p+oldsize)T(x); // copy cons
@@ -686,6 +710,7 @@ public:
 private:
     terark_no_inline
     void push_back_slow(param_type x) {
+        TERARK_VERIFY_LE(n, c);
         size_t oldsize = n;
         if (!ParamPassType<T>::is_pass_by_value &&
                 &x >= p && &x < p + oldsize) {
@@ -704,6 +729,7 @@ public:
     void append(param_type x) { push_back(x); } // alias for push_back
     template<class Iterator>
     void append(Iterator first, ptrdiff_t len) {
+        TERARK_ASSERT_LE(n, c);
         assert(len >= 0);
         size_t newsize = n + len;
         ensure_capacity(newsize);
@@ -712,6 +738,7 @@ public:
     }
     template<class Iterator>
     void append(Iterator first, Iterator last) {
+        TERARK_ASSERT_LE(n, c);
         ptrdiff_t len = std::distance(first, last);
         size_t newsize = n + len;
         ensure_capacity(newsize);
@@ -720,15 +747,18 @@ public:
     }
     template<class Iterator>
     void append(const std::pair<Iterator, Iterator>& rng) {
+        TERARK_ASSERT_LE(n, c);
         append(rng.first, rng.second);
     }
     template<class Container>
     typename void_<typename Container::const_iterator>::type
     append(const Container& cont) {
+        TERARK_ASSERT_LE(n, c);
         append(cont.begin(), cont.end());
     }
     template<class Iterator>
     void unchecked_append(Iterator first, ptrdiff_t len) {
+        TERARK_ASSERT_LE(n, c);
         TERARK_ASSERT_GE(len, 0);
         TERARK_ASSERT_LE(len, ptrdiff_t(c - n));
         size_t newsize = n + len;
@@ -738,6 +768,7 @@ public:
 
     terark_no_inline
     void push_n(size_t cnt, param_type val) {
+        TERARK_ASSERT_LE(n, c);
         if (boost::has_trivial_copy<T>::value) {
             std::uninitialized_fill_n(grow_no_init(cnt), cnt, val);
         }
@@ -750,35 +781,41 @@ public:
     }
 
     T* grow_capacity(size_t cnt) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         ensure_capacity(oldsize + cnt);
         return p + oldsize;
     }
     T* grow_no_init(size_t cnt) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         resize_no_init(oldsize + cnt);
         return p + oldsize;
     }
 
     T* grow(size_t cnt, param_type x) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         resize(oldsize + cnt, x);
         return p + oldsize;
     }
 
     T* grow(size_t cnt) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         resize(oldsize + cnt);
         return p + oldsize;
     }
 
     void unchecked_push_back() {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         assert(oldsize < c);
         new(p+oldsize)T(); // default cons
         n = oldsize + 1;
     }
     void unchecked_push_back(param_type x) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         assert(oldsize < c);
         new(p+oldsize)T(x); // copy cons
@@ -908,10 +945,12 @@ public:
     }
 
     void operator+=(param_type x) {
+        TERARK_ASSERT_LE(n, c);
         push_back(x);
     }
 
     void operator+=(const valvec& y) {
+        TERARK_ASSERT_LE(n, c);
         size_t newsize = n + y.size();
         ensure_capacity(newsize);
         std::uninitialized_copy(y.p, y.p + y.n, p+n);
@@ -925,6 +964,7 @@ public:
     }
 
     T& emplace_back() {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         assert(oldsize <= c);
         if (terark_unlikely(oldsize < c)) {
@@ -945,6 +985,7 @@ public:
 // this emplace_back is buggy for vec.emplace_back(vec[0]);
     template<class... Args>
     T& emplace_back(Args&&... args) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         ensure_capacity(oldsize + 1);
         T* lp = p;
@@ -955,6 +996,7 @@ public:
 #else
     template<class... Args>
     T& emplace_back(Args&&... args) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         assert(oldsize <= c);
         if (oldsize < c) {
@@ -970,6 +1012,7 @@ private:
     template<class... Args>
     terark_no_inline
     T& emplace_back_slow(Args&&... args) {
+        TERARK_VERIFY_LE(n, c);
         assert(n == c);
         T val(std::forward<Args>(args)...);
         ensure_capacity_slow(n+1);
@@ -979,6 +1022,7 @@ private:
 public:
     template<class... Args>
     T& unchecked_emplace_back(Args&&... args) {
+        TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
         assert(oldsize < c);
         T* lp = p;
