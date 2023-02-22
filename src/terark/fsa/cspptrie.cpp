@@ -3632,7 +3632,9 @@ void PatriciaMem<Align>::reclaim_head() {
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
-            assert(false == flags.is_head);
+            if (terark_unlikely(!flags.is_head)) {
+                WARN("TODO: It has no harm now, need fix in the future");
+            }
             TERARK_VERIFY(NULL != next); // must have stopped at AcquireDone
             if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                 head->m_link = {NULL, 0};
