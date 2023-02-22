@@ -33,7 +33,7 @@ void FiberPool::update_fiber_count(int count) {
   for (int i = m_fiber_cnt; i < count; ++i) {
     boost::fibers::fiber(std::allocator_arg_t(),
       boost::fibers::protected_fixedsize_stack(stack_size),
-      [this, i]() { this->fiber_proc(i); }).detach();
+      &FiberPool::fiber_proc, this, i).detach();
   }
   m_fiber_cnt = count;
 }
