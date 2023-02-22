@@ -2973,7 +2973,7 @@ const {
 	assert(m_ptrList.data() == (const byte_t*)((FileHeader*)m_mmapBase + 1));
 	size_t offset = sizeof(FileHeader) + BegEnd[0];
 	size_t zipLen = BegEnd[1] - BegEnd[0];
-	if (zipLen == 0) {
+	if (terark_unlikely(zipLen == 0)) {
 		return;  // empty
 	}
 	const byte* pos = readRaw(offset, zipLen);
