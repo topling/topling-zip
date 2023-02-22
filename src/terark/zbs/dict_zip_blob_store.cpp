@@ -1842,9 +1842,11 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
                 m_fse_gtable = FSE_createCTable(tabLog, maxSym);
                 err = FSE_buildCTable(m_fse_gtable, c->norm, maxSym, tabLog);
                 if (FSE_isError(err)) {
+                  #if 0
                     fprintf(stderr
                         , "WARN: FSE_buildCTable() = %s, global entropy table will be disabled\n"
                         , FSE_getErrorName(err));
+                  #endif
                     FSE_freeCTable(m_fse_gtable);
                     m_fse_gtable = NULL;
                     unnecessary = true;
@@ -2705,8 +2707,7 @@ DictZipBlobStore::fspread_record_append_tpl(pread_func_t fspread,
                                             valvec<byte_t>* rdbuf)
 const {
     auto readRaw = [=](size_t offset, size_t zipLen) {
-        fspread(lambda, baseOffset + offset, zipLen, rdbuf);
-        return rdbuf->data();
+        return fspread(lambda, baseOffset + offset, zipLen, rdbuf);
     };
     read_record_append_tpl<ZipOffset, CheckSumLevel,
         Entropy, EntropyInterLeave>(recID, recData, readRaw);
