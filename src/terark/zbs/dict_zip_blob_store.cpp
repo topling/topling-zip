@@ -2986,7 +2986,7 @@ const {
         zipLen -= 4; // exclude trailing crc32
 		uint32_t crc2 = Crc32c_update(0, pos, zipLen);
 		uint32_t crc1 = unaligned_load<uint32_t>(pos + zipLen);
-		if (crc2 != crc1) {
+		if (terark_unlikely(crc2 != crc1)) {
 			THROW_STD(logic_error, "CRC check failed: recId = %zd", recId);
 		}
 	}
