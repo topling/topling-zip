@@ -28,12 +28,13 @@ void FiberPool::update_fiber_count(int count) {
   if (count <= 0) {
     return;
   }
-  static const long stack_size = ParseSizeXiB("TOPLING_FIBER_STACK_SIZE", 128*1024);
+  static const long stack_size = ParseSizeXiB(getenv("TOPLING_FIBER_STACK_SIZE"), 128*1024);
   count = std::min<int>(count, +MAX_QUEUE_LEN);
   for (int i = m_fiber_cnt; i < count; ++i) {
-    boost::fibers::fiber(std::allocator_arg_t(),
-      boost::fibers::protected_fixedsize_stack(stack_size),
-      &FiberPool::fiber_proc, this, i).detach();
+    using namespace boost::fibers;
+  //using stack_t = default_stack;
+    using stack_t = protected_fixedsize_stack;
+    fiber(std::allocator_arg, stack_t(stack_size), &FiberPool::fiber_proc, this, i).detach();
   }
   m_fiber_cnt = count;
 }
