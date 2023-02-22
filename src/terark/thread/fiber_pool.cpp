@@ -4,6 +4,8 @@
 
 #include "fiber_pool.hpp"
 #include <boost/fiber/fiber.hpp>
+#include <boost/fiber/protected_fixedsize_stack.hpp>
+#include <terark/fstring.hpp>
 
 namespace terark {
 
@@ -26,9 +28,12 @@ void FiberPool::update_fiber_count(int count) {
   if (count <= 0) {
     return;
   }
+  static const long stack_size = ParseSizeXiB("TOPLING_FIBER_STACK_SIZE", 128*1024);
   count = std::min<int>(count, +MAX_QUEUE_LEN);
   for (int i = m_fiber_cnt; i < count; ++i) {
-    boost::fibers::fiber([this, i]() { this->fiber_proc(i); }).detach();
+    boost::fibers::fiber(std::allocator_arg_t(),
+      boost::fibers::protected_fixedsize_stack(stack_size),
+      [this, i]() { this->fiber_proc(i); }).detach();
   }
   m_fiber_cnt = count;
 }
