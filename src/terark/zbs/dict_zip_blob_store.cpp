@@ -2978,7 +2978,7 @@ const {
 	}
 	const byte* pos = readRaw(offset, zipLen);
 	if (CheckSumLevel == 2) {
-		if (zipLen <= 4) {
+		if (terark_unlikely(zipLen <= 4)) {
 			THROW_STD(logic_error
 				, "CRC check failed: recId = %zd, zlen = %zd"
 				, recId, zipLen);
