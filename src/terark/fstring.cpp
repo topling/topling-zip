@@ -247,6 +247,30 @@ unsigned long long ParseSizeXiB(const char* str) noexcept {
     char* endp = NULL;
     double val = strtod(str, &endp);
     char scale = *endp;
+    return ScaleSizeXiB(val, scale);
+}
+unsigned long long ParseSizeXiB(fstring str) noexcept {
+    return ParseSizeXiB(str.c_str());
+}
+unsigned long long ParseSizeXiB(const char* str, const char* Default) noexcept {
+	if (str) {
+		char* endp = NULL;
+		double val = strtod(str, &endp);
+		if (endp != str)
+			return ScaleSizeXiB(val, *endp);
+	}
+	return ParseSizeXiB(Default);
+}
+unsigned long long ParseSizeXiB(const char* str, unsigned long long Default) noexcept {
+	if (str) {
+		char* endp = NULL;
+		double val = strtod(str, &endp);
+		if (endp != str)
+			return ScaleSizeXiB(val, *endp);
+	}
+	return Default;
+}
+unsigned long long ScaleSizeXiB(double val, char scale) noexcept {
     if ('k' == scale || 'K' == scale)
         return uint64_t(val * (1ull << 10));
     else if ('m' == scale || 'M' == scale)
@@ -259,22 +283,6 @@ unsigned long long ParseSizeXiB(const char* str) noexcept {
         return uint64_t(val * (1ull << 50));
     else
         return uint64_t(val);
-}
-unsigned long long ParseSizeXiB(fstring str) noexcept {
-  return ParseSizeXiB(str.c_str());
-}
-
-unsigned long long ParseSizeXiB(const char* str, const char* Default) noexcept {
-	if (str && '\0' != *str)
-		return ParseSizeXiB(str);
-	else
-		return ParseSizeXiB(Default);
-}
-unsigned long long ParseSizeXiB(const char* str, unsigned long long Default) noexcept {
-	if (str && '\0' != *str)
-		return ParseSizeXiB(str);
-	else
-		return Default;
 }
 
 // if quote == ("), escape (") as (\")

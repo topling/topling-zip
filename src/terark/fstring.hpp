@@ -714,6 +714,7 @@ TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str) noexcept;
 TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(fstring str) noexcept;
 TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, const char* Default) noexcept;
 TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, unsigned long long) noexcept;
+TERARK_DLL_EXPORT unsigned long long ScaleSizeXiB(double val, char scale) noexcept;
 
 /// default quote = '\0' indicate do not escape quote
 TERARK_DLL_EXPORT void escape_append(fstring, std::string*, char quote = '\0');
