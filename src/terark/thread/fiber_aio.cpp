@@ -449,6 +449,9 @@ io_queue_t* dt_io_queue() {
 
 #endif
 
+template<class T>
+inline volatile T& AsVolatile(T& x) { return const_cast<volatile T&>(x); }
+
 TERARK_DLL_EXPORT
 intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
   switch (g_io_provider) {
@@ -484,10 +487,12 @@ intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
   }
   do {
     boost::this_fiber::yield();
-    err = aio_error(&acb);
+  //err = aio_error(&acb); // stupid lock/unlock just for read __error_code
+    err = AsVolatile(acb.__error_code);
   } while (EINPROGRESS == err);
 
   if (err) {
+    errno = err;
     return -1;
   }
   return aio_return(&acb);
@@ -568,6 +573,7 @@ intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
   } while (EINPROGRESS == err);
 
   if (err) {
+    errno = err;
     return -1;
   }
   return aio_return(&acb);
