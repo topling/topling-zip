@@ -101,7 +101,7 @@ private:
 	void destroyMe();
 	void setDataMemory(const void* base, size_t size);
 
-	void offsetGet2(size_t recId, size_t BegEnd[2], bool isZipped) const;
+	std::array<size_t, 2> offsetGet2(size_t recId, bool isZipped) const;
 
 public:
 	/// usage:

@@ -159,13 +159,13 @@ FSE_unzip(const void* zdata, size_t zsize, ByteArray& udata, const void* gtable)
 	return FSE_unzip(zdata, zsize, udata.data(), udata.size(), gtable);
 }
 
-inline void
-DictZipBlobStore::offsetGet2(size_t recId, size_t BegEnd[2], bool isZipped)
+inline std::array<size_t, 2>
+DictZipBlobStore::offsetGet2(size_t recId, bool isZipped)
 const {
 	if (isZipped)
-		m_zOffsets.get2(recId, BegEnd);
+		return m_zOffsets.get2(recId);
 	else
-		m_offsets.get2(recId, BegEnd);
+		return m_offsets.get2(recId);
 }
 
 DictZipBlobStore::DictZipBlobStore() {
@@ -1920,8 +1920,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     prepareZip();
     bool isOffsetsZipped = store->offsetsIsSortedUintVec();
     for (size_t recId = 0; recId < store->m_numRecords; ++recId) {
-        size_t BegEnd[2];
-        store->offsetGet2(recId, BegEnd, isOffsetsZipped);
+        auto BegEnd = store->offsetGet2(recId, isOffsetsZipped);
         this->addRecord(storeBase + BegEnd[0], BegEnd[1] - BegEnd[0]);
     }
     this->finishZip();
@@ -2442,7 +2441,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 #if !defined(NDEBUG)
 	if (offsetsIsSortedUintVec()) {
 		for(size_t i = 0; i < m_numRecords; ++i) {
-			size_t BegEnd[2]; m_zOffsets.get2(i, BegEnd);
+			auto BegEnd = m_zOffsets.get2(i);
             size_t offsetBeg = BegEnd[0];
             size_t offsetEnd = BegEnd[1];
 			assert(offsetBeg <= offsetEnd);
@@ -2807,8 +2806,7 @@ size_t DictZipBlobStore::get_record_size(size_t recId) const {
         valvec<byte_t> rec = get_record(recId);
         return rec.size();
     }
-	size_t BegEnd[2];
-	offsetGet2(recId, BegEnd, offsetsIsSortedUintVec());
+	auto BegEnd = offsetGet2(recId, offsetsIsSortedUintVec());
 	assert(BegEnd[0] <= BegEnd[1]);
 	assert(BegEnd[1] <= m_ptrList.size());
 	assert(m_ptrList.data() == (const byte_t*)((FileHeader*)m_mmapBase + 1));
@@ -2966,8 +2964,7 @@ inline
 void DictZipBlobStore::read_record_append_tpl(size_t recId, valvec<byte_t>* recData, ReadRaw readRaw)
 const {
 	assert(recId + 1 < m_offsets.size());
-	size_t BegEnd[2];
-	offsetGet2(recId, BegEnd, ZipOffset);
+	auto BegEnd = offsetGet2(recId, ZipOffset);
 	assert(BegEnd[0] <= BegEnd[1]);
 	assert(BegEnd[1] <= m_ptrList.size());
 	assert(m_ptrList.data() == (const byte_t*)((FileHeader*)m_mmapBase + 1));
@@ -3061,8 +3058,7 @@ template<bool ZipOffset>
 size_t
 DictZipBlobStore::get_zipped_size_tpl(size_t recId, CacheOffsets* co) const {
 	TERARK_ASSERT_LT(recId + 1, m_offsets.size());
-	size_t BegEnd[2];
-	offsetGet2(recId, BegEnd, ZipOffset);
+	auto BegEnd = offsetGet2(recId, ZipOffset);
 	return BegEnd[1] - BegEnd[0];
 }
 
@@ -3231,8 +3227,7 @@ const {
             size_t newId = newToOld.index();
             size_t oldId = *newToOld;
             assert(oldId < recNum);
-            size_t BegEnd[2];
-            offsetGet2(oldId, BegEnd, isOffsetsZipped);
+            auto BegEnd = offsetGet2(oldId, isOffsetsZipped);
             zipOffsetBuilder->push_back(offset);
             assert(BegEnd[0] <= BegEnd[1]);
             offset += BegEnd[1] - BegEnd[0];
@@ -3267,8 +3262,7 @@ const {
                 flush_count += offset_flush_size;
                 newId = 0;
             }
-            size_t BegEnd[2];
-            offsetGet2(oldId, BegEnd, isOffsetsZipped);
+            auto BegEnd = offsetGet2(oldId, isOffsetsZipped);
             tmpOffsets.set_wire(newId, offset);
             size_t zippedLen = BegEnd[1] - BegEnd[0];
             TERARK_ASSERT_LE(BegEnd[0], BegEnd[1]);
@@ -3322,8 +3316,7 @@ const {
     size_t gatherLen = 0;
     for (newToOld.rewind(); !newToOld.eof(); ++newToOld) {
         size_t oldId = *newToOld;
-		size_t BegEnd[2];
-		offsetGet2(oldId, BegEnd, isOffsetsZipped);
+		auto BegEnd = offsetGet2(oldId, isOffsetsZipped);
 		size_t zippedLen = BegEnd[1] - BegEnd[0];
 		TERARK_ASSERT_LE(BegEnd[0], BegEnd[1]);
 		const byte* beg = m_ptrList.data() + BegEnd[0];
@@ -3455,8 +3448,7 @@ const {
 	size_t newId = 0;
 	for(size_t oldId = 0; oldId < recNum; oldId++) {
 		if (!isDel(oldId)) {
-			size_t BegEnd[2];
-			offsetGet2(oldId, BegEnd, isOffsetsZipped);
+			auto BegEnd = offsetGet2(oldId, isOffsetsZipped);
 			newOffsets.set_wire(newId, offset);
 			size_t zippedLen = BegEnd[1] - BegEnd[0];
 			assert(BegEnd[0] <= BegEnd[1]);
@@ -3504,8 +3496,7 @@ const {
 	offset = 0;
 	for(size_t oldId = 0; oldId < recNum; oldId++) {
 		if (!isDel(oldId)) {
-			size_t BegEnd[2];
-			offsetGet2(oldId, BegEnd, isOffsetsZipped);
+			auto BegEnd = offsetGet2(oldId, isOffsetsZipped);
 			newOffsets.set_wire(newId, offset);
 			size_t zippedLen = BegEnd[1] - BegEnd[0];
 			assert(BegEnd[0] <= BegEnd[1]);
