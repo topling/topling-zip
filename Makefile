@@ -9,7 +9,10 @@ DBG_DWARF ?=
 DBG_FLAGS ?= -O0 -D_DEBUG ${DBG_DWARF} -g3 ${DBG_ASAN}
 RLS_FLAGS ?= -O3 -DNDEBUG ${DBG_DWARF} -g3 ${RLS_ASAN}
 # 'AFR' means Assert For Release
-AFR_FLAGS ?= -Og ${DBG_DWARF} -g3 ${AFR_ASAN}
+# gcc-12: -Og yield error: inlining failed in call to 'always_inline' 'ZSTD_HcFindBestMatch_selectMLS': function not considered for inlining
+# gcc-12: -O1 is OK
+#AFR_FLAGS ?= -Og ${DBG_DWARF} -g3 ${AFR_ASAN}
+AFR_FLAGS ?= -O1 ${DBG_DWARF} -g3 ${AFR_ASAN}
 
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
 CMAKE_INSTALL_PREFIX ?= /usr
