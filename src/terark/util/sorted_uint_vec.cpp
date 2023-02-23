@@ -249,10 +249,11 @@ struct SortedUintVec::ObjectHeader {
 	uint64_t  reserved : 14;
 };
 
-void SortedUintVec::get2(size_t idx, size_t aVal[2]) const {
+std::array<size_t, 2> SortedUintVec::get2(size_t idx) const {
     static_assert(sizeof(ObjectHeader)==16, "sizeof(ObjectHeader) must be 16");
     assert(m_is_sorted_uint_vec);
     assert(idx < m_size);
+    std::array<size_t, 2> aVal;
     size_t blockIdx = idx >> m_log2_blockUnits;
     size_t blockUnits = size_t(1) << m_log2_blockUnits;
     size_t indexWidth = m_offsetWidth + m_sampleWidth;
@@ -410,6 +411,8 @@ void SortedUintVec::get2(size_t idx, size_t aVal[2]) const {
             aVal[1] = sample1;
         break; }
     } // switch
+
+    return aVal;
 }
 
 /// aVal capacity must be at least blockUnits(64 or 128)
@@ -1441,7 +1444,7 @@ SortedUintVec::Builder::Impl::finish(SortedUintVec* vec) {
             memmove(base + m_indexOffset, base + sizeof(ObjectHeader), indexSize);
             auto readSize = fpInput->read(base + sizeof(ObjectHeader), dataSize);
             TERARK_UNUSED_VAR(readSize);
-            assert(readSize == dataSize); 
+            assert(readSize == dataSize);
             assert(dataSize % 8 == 0);
         }
         fpSeekable->seek(endPos);

@@ -8,6 +8,8 @@
     #include <immintrin.h> // for _bextr_u64
 #endif
 
+#include <array>
+
 namespace terark {
 
 class OutputBuffer;
@@ -73,7 +75,11 @@ public:
 	size_t size() const { return m_size; }
 	size_t get(size_t idx) const;
 	size_t operator[](size_t idx) const { return get(idx); }
-	void get2(size_t idx, size_t aVal[2]) const;
+	void get2(size_t idx, size_t aVal[2]) const {
+		static_assert(sizeof(std::array<size_t, 2>) == sizeof(size_t)*2);
+		*reinterpret_cast<std::array<size_t, 2>*>(aVal) = get2(idx);
+	}
+	std::array<size_t, 2> get2(size_t idx) const;
 	void get_block(size_t blockIdx, size_t* aVal) const;
 
     const void* get_index_base() const { return m_index; }

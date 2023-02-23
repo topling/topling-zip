@@ -2,6 +2,7 @@
 
 #include "bitmap.hpp"
 #include <terark/util/throw.hpp>
+#include <array>
 
 namespace terark {
 
@@ -223,6 +224,16 @@ public:
     aVals[0] = fast_get(data, bits, mask, idx);
     aVals[1] = fast_get(data, bits, mask, idx+1);
   }
+  std::array<size_t,2> get2(size_t idx) const {
+    const byte*  data = m_data.data();
+    const size_t bits = m_bits;
+    const size_t mask = m_mask;
+    assert(m_bits <= 58);
+	std::array<size_t,2> aVals;
+    aVals[0] = fast_get(data, bits, mask, idx);
+    aVals[1] = fast_get(data, bits, mask, idx+1);
+	return aVals;
+  }
   static
   size_t fast_get(const byte* data, size_t bits, size_t mask, size_t idx) {
     assert(bits <= 58);
@@ -265,6 +276,16 @@ public:
     assert(bits <= 64);
     aVals[0] = febitvec::s_get_uint(data, pos, bits);
     aVals[1] = febitvec::s_get_uint(data, pos + bits, bits);
+  }
+  std::array<size_t, 2> get2(size_t idx) const {
+    const size_t* data = (const size_t*)m_data.data();
+    const size_t  bits = m_bits;
+    const size_t  pos = bits * idx;
+    assert(bits <= 64);
+	std::array<size_t, 2> aVals;
+    aVals[0] = febitvec::s_get_uint(data, pos, bits);
+    aVals[1] = febitvec::s_get_uint(data, pos + bits, bits);
+	return aVals;
   }
   static
   size_t fast_get(const byte* data, size_t bits, size_t idx) {
@@ -335,6 +356,16 @@ public:
 		Int minVal = m_min_val;
 		aVals[0] = fast_get(data, bits, mask, minVal, idx);
 		aVals[1] = fast_get(data, bits, mask, minVal, idx+1);
+	}
+	std::array<Int,2> get2(size_t idx) const {
+		const byte*  data = m_data.data();
+		const size_t bits = m_bits;
+		const size_t mask = m_mask;
+		Int minVal = m_min_val;
+		std::array<Int,2> aVals;
+		aVals[0] = fast_get(data, bits, mask, minVal, idx);
+		aVals[1] = fast_get(data, bits, mask, minVal, idx+1);
+		return aVals;
 	}
 	static
 	Int fast_get(const byte* data, size_t bits, size_t mask,
