@@ -14,6 +14,10 @@ FiberPool::FiberPool(boost::fibers::context** activepp)
   update_fiber_count(DEFAULT_FIBER_CNT);
 }
 
+FiberPool::~FiberPool() {
+  // do nothing
+}
+
 void FiberPool::fiber_proc(int fiber_idx) {
   using boost::fibers::channel_op_status;
   task_t task;

@@ -21,6 +21,7 @@ public:
                  // compiler optimization
   };
   explicit FiberPool(boost::fibers::context** activepp);
+  ~FiberPool();
   void update_fiber_count(int count);
   void push(task_t&& task);
   bool try_push(const task_t& task);
