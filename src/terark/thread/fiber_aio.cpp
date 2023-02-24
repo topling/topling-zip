@@ -81,18 +81,6 @@ R"(WARN: env TOPLING_IO_PROVIDER is not defined, and linux kernel is too old,
     prov = IoProvider::posix;
   }
 #endif
-  if (IoProvider::posix == prov) {
-    int threads = (int)getEnvLong("TOPLING_IO_POSIX_THREADS", 0);
-    if (threads > 0) {
-      struct aioinit init = {};
-      init.aio_threads = threads;
-      init.aio_num = threads * 8;
-      aio_init(&init); // return is void
-    }
-    else {
-      // do not call aio_init, use posix aio default conf
-    }
-  }
   return prov;
 }();
 
@@ -526,7 +514,15 @@ public:
   }
 
   io_fiber_posix(boost::fibers::context** pp) : io_fiber_base(pp) {
-    // do nothing
+    int threads = (int)getEnvLong("TOPLING_IO_POSIX_THREADS", 0);
+    if (threads > 0) {
+      struct aioinit init = {};
+      init.aio_threads = threads;
+      init.aio_num = threads * 8;
+      aio_init(&init); // return is void
+    } else {
+      // do not call aio_init, use posix aio default conf
+    }
   }
 
   ~io_fiber_posix() {
