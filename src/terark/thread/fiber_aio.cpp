@@ -442,13 +442,16 @@ template<class T>
 inline volatile T& AsVolatile(T& x) { return const_cast<volatile T&>(x); }
 
 class io_fiber_posix : public io_fiber_base {
-  valvec<struct aiocb*> m_requests;
-  valvec<io_return*> m_returns;
+  struct fiber_aiocb : public aiocb {
+    boost::fibers::context* fctx;
+    int err;
+  };
+  valvec<fiber_aiocb*> m_requests;
 
   void io_reap() override {
     if (m_requests.empty())
       return;
-    if (aio_suspend(m_requests.data(), (int)m_requests.size(), NULL) < 0) {
+    if (aio_suspend((aiocb**)m_requests.data(), (int)m_requests.size(), NULL) < 0) {
       int err = errno;
       if (EAGAIN == err || EINTR == err) {
         return;
@@ -458,37 +461,26 @@ class io_fiber_posix : public io_fiber_base {
     }
     size_t h = 0;
     for (size_t i = 0; i < m_requests.size(); i++) {
-      struct aiocb* acb = m_requests[i];
-      io_return* io_ret = m_returns[i];
+      auto acb = m_requests[i];
       // glibc use lock/unlock just for read __error_code, it's slow.
       // If setting __error_code is the last operation in glibc, it's safe
       // to read __error_code without lock, but we can't ensure it.
       // int err = AsVolatile(acb->__error_code); // fast
       int err = aio_error(acb);
       if (EINPROGRESS == err) {
-        m_requests[h] = acb;
-        m_returns[h] = io_ret;
-        h++;
-        continue;
+        m_requests[h++] = acb;
+      } else {
+        acb->err = err;
+        m_fy.unchecked_notify(&acb->fctx);
       }
-      io_ret->done = true;
-      if (0 == err) {
-        io_ret->len = aio_return(acb);
-      } else { // include ECANCELED
-        io_ret->err = err;
-        io_ret->len = -1;
-      }
-      m_fy.unchecked_notify(&io_ret->fctx);
     }
     m_requests.risk_set_size(h);
-    m_returns.risk_set_size(h);
   }
 
 public:
   intptr_t exec_io(int fd, void* buf, size_t len, off_t offset,
                    int(*aio_func)(aiocb*)) {
-    io_return io_ret = {nullptr, 0, 0, false};
-    struct aiocb acb = {0};
+    fiber_aiocb acb; memset(&acb, 0, sizeof(acb));
     acb.aio_fildes = fd;
     acb.aio_offset = offset;
     acb.aio_buf = buf;
@@ -498,13 +490,9 @@ public:
       return -1;
     }
     m_requests.push_back(&acb);
-    m_returns.push_back(&io_ret);
-    m_fy.unchecked_wait(&io_ret.fctx);
-    assert(io_ret.done);
-    if (io_ret.err) {
-      errno = io_ret.err;
-    }
-    return io_ret.len;
+    m_fy.unchecked_wait(&acb.fctx);
+    errno = acb.err;
+    return aio_return(&acb);
   }
 
   io_fiber_posix(boost::fibers::context** pp) : io_fiber_base(pp) {
@@ -519,7 +507,6 @@ public:
       threads = 20; // glib aio default
     }
     m_requests.reserve(threads * 4);
-    m_returns.reserve(threads * 4);
   }
 
   ~io_fiber_posix() {
