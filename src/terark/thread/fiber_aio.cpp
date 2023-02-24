@@ -137,7 +137,7 @@ protected:
 
   io_fiber_base(boost::fibers::context** pp)
     : m_fy(pp)
-    , io_fiber([this]() { this->fiber_proc(); })
+    , io_fiber(&io_fiber_base::fiber_proc, this)
   {
     m_state = state::ready;
     counter = 0;
@@ -447,45 +447,43 @@ class io_fiber_posix : public io_fiber_base {
   size_t m_num_inprogress = 0;
 
   void io_reap() override {
-    while (m_num_inprogress) {
-      if (aio_suspend(m_requests.data(), (int)m_requests.size(), NULL) < 0) {
-        int err = errno;
-        if (EAGAIN == err || EINTR == err) {
-          continue;
-        } else {
-          TERARK_DIE("aio_suspend(num=%zd) = %s", m_requests.size(), strerror(err));
-        }
+    if (aio_suspend(m_requests.data(), (int)m_requests.size(), NULL) < 0) {
+      int err = errno;
+      if (EAGAIN == err || EINTR == err) {
+        return;
+      } else {
+        TERARK_DIE("aio_suspend(num=%zd) = %s", m_requests.size(), strerror(err));
       }
-      for (size_t i = 0; i < m_requests.size(); i++) {
-        struct aiocb* acb = m_requests[i];
-        if (nullptr == acb) {
-          continue;
-        }
-        // glibc use lock/unlock just for read __error_code, it's slow.
-        // If setting __error_code is the last operation in glibc, it's safe
-        // to read __error_code without lock, but we can't ensure it.
-        // int err = AsVolatile(acb->__error_code); // fast
-        int err = aio_error(acb);
-        if (EINPROGRESS == err) {
-          continue;
-        }
-        m_num_inprogress--;
-        io_return* io_ret = m_returns[i];
-        m_requests[i] = nullptr; // finished, set null
-        m_returns[i] = nullptr;
-        io_ret->done = true;
-        if (0 == err) {
-          io_ret->len = aio_return(acb);
-        } else { // include ECANCELED
-          io_ret->err = err;
-          io_ret->len = -1;
-        }
-        m_fy.unchecked_notify(&io_ret->fctx);
+    }
+    for (size_t i = 0; i < m_requests.size(); i++) {
+      struct aiocb* acb = m_requests[i];
+      if (nullptr == acb) {
+        return;
       }
-      if (m_num_inprogress < m_requests.size() * 3 / 4) {
-        m_requests.trim(std::remove(m_requests.begin(), m_requests.end(), nullptr));
-        m_returns.trim(std::remove(m_returns.begin(), m_returns.end(), nullptr));
+      // glibc use lock/unlock just for read __error_code, it's slow.
+      // If setting __error_code is the last operation in glibc, it's safe
+      // to read __error_code without lock, but we can't ensure it.
+      // int err = AsVolatile(acb->__error_code); // fast
+      int err = aio_error(acb);
+      if (EINPROGRESS == err) {
+        return;
       }
+      m_num_inprogress--;
+      io_return* io_ret = m_returns[i];
+      m_requests[i] = nullptr; // finished, set null
+      m_returns[i] = nullptr;
+      io_ret->done = true;
+      if (0 == err) {
+        io_ret->len = aio_return(acb);
+      } else { // include ECANCELED
+        io_ret->err = err;
+        io_ret->len = -1;
+      }
+      m_fy.unchecked_notify(&io_ret->fctx);
+    }
+    if (m_num_inprogress < m_requests.size() * 3 / 4) {
+      m_requests.trim(std::remove(m_requests.begin(), m_requests.end(), nullptr));
+      m_returns.trim(std::remove(m_returns.begin(), m_returns.end(), nullptr));
     }
   }
 
@@ -518,11 +516,14 @@ public:
     if (threads > 0) {
       struct aioinit init = {};
       init.aio_threads = threads;
-      init.aio_num = threads * 8;
+      init.aio_num = threads * 4;
       aio_init(&init); // return is void
     } else {
       // do not call aio_init, use posix aio default conf
+      threads = 20; // glib aio default
     }
+    m_requests.reserve(threads * 4);
+    m_returns.reserve(threads * 4);
   }
 
   ~io_fiber_posix() {
