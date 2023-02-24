@@ -22,6 +22,7 @@
 #include <terark/util/atomic.hpp>
 #include <terark/util/enum.hpp>
 #include <terark/util/vm_util.hpp>
+#include <terark/valvec.hpp>
 #include <boost/fiber/all.hpp>
 #include <boost/lockfree/queue.hpp>
 
@@ -452,6 +453,92 @@ io_queue_t* dt_io_queue() {
 template<class T>
 inline volatile T& AsVolatile(T& x) { return const_cast<volatile T&>(x); }
 
+class io_fiber_posix : public io_fiber_base {
+  valvec<struct aiocb*> m_requests;
+  valvec<io_return*> m_returns;
+  size_t m_num_inprogress = 0;
+
+  void io_reap() override {
+    while (m_num_inprogress) {
+      if (aio_suspend(m_requests.data(), (int)m_requests.size(), NULL) < 0) {
+        int err = errno;
+        if (EAGAIN == err || EINTR == err) {
+          continue;
+        } else {
+          TERARK_DIE("aio_suspend(num=%zd) = %s", m_requests.size(), strerror(err));
+        }
+      }
+      for (size_t i = 0; i < m_requests.size(); i++) {
+        struct aiocb* acb = m_requests[i];
+        if (nullptr == acb) {
+          continue;
+        }
+        // glibc use lock/unlock just for read __error_code, it's slow.
+        // If setting __error_code is the last operation in glibc, it's safe
+        // to read __error_code without lock, but we can't ensure it.
+        // int err = AsVolatile(acb->__error_code); // fast
+        int err = aio_error(acb);
+        if (EINPROGRESS == err) {
+          continue;
+        }
+        m_num_inprogress--;
+        io_return* io_ret = m_returns[i];
+        m_requests[i] = nullptr; // finished, set null
+        m_returns[i] = nullptr;
+        io_ret->done = true;
+        if (0 == err) {
+          io_ret->len = aio_return(acb);
+        } else { // include ECANCELED
+          io_ret->err = err;
+          io_ret->len = -1;
+        }
+        m_fy.unchecked_notify(&io_ret->fctx);
+      }
+      if (m_num_inprogress < m_requests.size() * 3 / 4) {
+        m_requests.trim(std::remove(m_requests.begin(), m_requests.end(), nullptr));
+        m_returns.trim(std::remove(m_returns.begin(), m_returns.end(), nullptr));
+      }
+    }
+  }
+
+public:
+  intptr_t exec_io(int fd, void* buf, size_t len, off_t offset,
+                   int(*aio_func)(aiocb*)) {
+    io_return io_ret = {nullptr, 0, 0, false};
+    struct aiocb acb = {0};
+    acb.aio_fildes = fd;
+    acb.aio_offset = offset;
+    acb.aio_buf = buf;
+    acb.aio_nbytes = len;
+    int err = (*aio_func)(&acb);
+    if (err) {
+      return -1;
+    }
+    m_requests.push_back(&acb);
+    m_returns.push_back(&io_ret);
+    m_num_inprogress++;
+    m_fy.unchecked_wait(&io_ret.fctx);
+    assert(io_ret.done);
+    if (io_ret.err) {
+      errno = io_ret.err;
+    }
+    return io_ret.len;
+  }
+
+  io_fiber_posix(boost::fibers::context** pp) : io_fiber_base(pp) {
+    // do nothing
+  }
+
+  ~io_fiber_posix() {
+    wait_for_finish();
+  }
+};
+static io_fiber_posix& tls_io_fiber_posix() {
+  using boost::fibers::context;
+  static thread_local io_fiber_posix io_fiber(context::active_pp());
+  return io_fiber;
+}
+
 TERARK_DLL_EXPORT
 intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
   switch (g_io_provider) {
@@ -476,26 +563,7 @@ intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 #if BOOST_OS_WINDOWS
   TERARK_DIE("Not Supported for Windows");
 #else
-  struct aiocb acb = {0};
-  acb.aio_fildes = fd;
-  acb.aio_offset = offset;
-  acb.aio_buf = buf;
-  acb.aio_nbytes = len;
-  int err = aio_read(&acb);
-  if (err) {
-    return -1;
-  }
-  do {
-    boost::this_fiber::yield();
-  //err = aio_error(&acb); // stupid lock/unlock just for read __error_code
-    err = AsVolatile(acb.__error_code);
-  } while (EINPROGRESS == err);
-
-  if (err) {
-    errno = err;
-    return -1;
-  }
-  return aio_return(&acb);
+  return tls_io_fiber_posix().exec_io(fd, buf, len, offset, &aio_read);
 #endif
   } // switch
   TERARK_DIE("Should not goes here");
@@ -558,25 +626,7 @@ intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
 #if BOOST_OS_WINDOWS
   TERARK_DIE("Not Supported for Windows");
 #else
-  struct aiocb acb = {0};
-  acb.aio_fildes = fd;
-  acb.aio_offset = offset;
-  acb.aio_buf = (void*)buf;
-  acb.aio_nbytes = len;
-  int err = aio_write(&acb);
-  if (err) {
-    return -1;
-  }
-  do {
-    boost::this_fiber::yield();
-    err = aio_error(&acb);
-  } while (EINPROGRESS == err);
-
-  if (err) {
-    errno = err;
-    return -1;
-  }
-  return aio_return(&acb);
+  return tls_io_fiber_posix().exec_io(fd, (void*)buf, len, offset, &aio_write);
 #endif
   } // switch
   TERARK_DIE("Should not goes here");
