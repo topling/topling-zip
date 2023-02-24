@@ -444,9 +444,10 @@ inline volatile T& AsVolatile(T& x) { return const_cast<volatile T&>(x); }
 class io_fiber_posix : public io_fiber_base {
   valvec<struct aiocb*> m_requests;
   valvec<io_return*> m_returns;
-  size_t m_num_inprogress = 0;
 
   void io_reap() override {
+    if (m_requests.empty())
+      return;
     if (aio_suspend(m_requests.data(), (int)m_requests.size(), NULL) < 0) {
       int err = errno;
       if (EAGAIN == err || EINTR == err) {
@@ -455,23 +456,21 @@ class io_fiber_posix : public io_fiber_base {
         TERARK_DIE("aio_suspend(num=%zd) = %s", m_requests.size(), strerror(err));
       }
     }
+    size_t h = 0;
     for (size_t i = 0; i < m_requests.size(); i++) {
       struct aiocb* acb = m_requests[i];
-      if (nullptr == acb) {
-        return;
-      }
+      io_return* io_ret = m_returns[i];
       // glibc use lock/unlock just for read __error_code, it's slow.
       // If setting __error_code is the last operation in glibc, it's safe
       // to read __error_code without lock, but we can't ensure it.
       // int err = AsVolatile(acb->__error_code); // fast
       int err = aio_error(acb);
       if (EINPROGRESS == err) {
-        return;
+        m_requests[h] = acb;
+        m_returns[h] = io_ret;
+        h++;
+        continue;
       }
-      m_num_inprogress--;
-      io_return* io_ret = m_returns[i];
-      m_requests[i] = nullptr; // finished, set null
-      m_returns[i] = nullptr;
       io_ret->done = true;
       if (0 == err) {
         io_ret->len = aio_return(acb);
@@ -481,10 +480,8 @@ class io_fiber_posix : public io_fiber_base {
       }
       m_fy.unchecked_notify(&io_ret->fctx);
     }
-    if (m_num_inprogress < m_requests.size() * 3 / 4) {
-      m_requests.trim(std::remove(m_requests.begin(), m_requests.end(), nullptr));
-      m_returns.trim(std::remove(m_returns.begin(), m_returns.end(), nullptr));
-    }
+    m_requests.risk_set_size(h);
+    m_returns.risk_set_size(h);
   }
 
 public:
@@ -502,7 +499,6 @@ public:
     }
     m_requests.push_back(&acb);
     m_returns.push_back(&io_ret);
-    m_num_inprogress++;
     m_fy.unchecked_wait(&io_ret.fctx);
     assert(io_ret.done);
     if (io_ret.err) {
