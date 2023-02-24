@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
     }
     for (size_t i = 0; i < fsv.size(); ++i) {
         fstring word = fsv[i];
-        assert(iter->seek_lower_bound(word));
+        TERARK_VERIFY_S(iter->seek_lower_bound(word), "word = %s", word);
     }
     fprintf(stderr, "key num = %zd, key len sum = %zd\n", fsv.size(), fsv.strpool.size());
     return 0;
