@@ -438,43 +438,35 @@ io_queue_t* dt_io_queue() {
 
 #endif
 
-template<class T>
-inline volatile T& AsVolatile(T& x) { return const_cast<volatile T&>(x); }
-
 class io_fiber_posix : public io_fiber_base {
   struct fiber_aiocb : public aiocb {
     boost::fibers::context* fctx;
     int err;
   };
-  valvec<fiber_aiocb*> m_requests;
+  valvec<fiber_aiocb*> m_req;
 
   void io_reap() override {
-    if (m_requests.empty())
+    if (m_req.empty())
       return;
-    if (aio_suspend((aiocb**)m_requests.data(), (int)m_requests.size(), NULL) < 0) {
+    if (aio_suspend((aiocb**)m_req.data(), (int)m_req.size(), NULL) < 0) {
       int err = errno;
-      if (EAGAIN == err || EINTR == err) {
+      if (EAGAIN == err || EINTR == err)
         return;
-      } else {
-        TERARK_DIE("aio_suspend(num=%zd) = %s", m_requests.size(), strerror(err));
-      }
+      else
+        TERARK_DIE("aio_suspend(num=%zd) = %s", m_req.size(), strerror(err));
     }
     size_t h = 0;
-    for (size_t i = 0; i < m_requests.size(); i++) {
-      auto acb = m_requests[i];
-      // glibc use lock/unlock just for read __error_code, it's slow.
-      // If setting __error_code is the last operation in glibc, it's safe
-      // to read __error_code without lock, but we can't ensure it.
-      // int err = AsVolatile(acb->__error_code); // fast
+    for (size_t i = 0, n = m_req.size(); i < n; i++) {
+      auto acb = m_req[i];
       int err = aio_error(acb);
       if (EINPROGRESS == err) {
-        m_requests[h++] = acb;
+        m_req[h++] = acb;
       } else {
         acb->err = err;
         m_fy.unchecked_notify(&acb->fctx);
       }
     }
-    m_requests.risk_set_size(h);
+    m_req.risk_set_size(h);
   }
 
 public:
@@ -489,7 +481,7 @@ public:
     if (err) {
       return -1;
     }
-    m_requests.push_back(&acb);
+    m_req.push_back(&acb);
     m_fy.unchecked_wait(&acb.fctx);
     errno = acb.err;
     return aio_return(&acb);
@@ -506,7 +498,7 @@ public:
       // do not call aio_init, use posix aio default conf
       threads = 20; // glib aio default
     }
-    m_requests.reserve(threads * 4);
+    m_req.reserve(threads * 4);
   }
 
   ~io_fiber_posix() {
