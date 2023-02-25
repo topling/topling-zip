@@ -36,6 +36,67 @@ void UintVecMin0Base::push_back_slow_path(size_t val) {
     set_wire(m_size++, val);
 }
 
+UintVecMin0Base::UintVecMin0Base(const UintVecMin0Base&) = default;
+UintVecMin0Base&
+UintVecMin0Base::operator=(const UintVecMin0Base&) = default;
+
+UintVecMin0Base::~UintVecMin0Base() {}
+
+void UintVecMin0Base::clear() { m_data.clear(); nullize(); }
+
+void UintVecMin0Base::shrink_to_fit() {
+    resize(m_size);
+    m_data.shrink_to_fit();
+}
+
+void UintVecMin0Base::swap(UintVecMin0Base& y) {
+    m_data.swap(y.m_data);
+    std::swap(m_bits, y.m_bits);
+    std::swap(m_mask, y.m_mask);
+    std::swap(m_size, y.m_size);
+}
+
+void UintVecMin0Base::risk_release_ownership() {
+    m_data.risk_release_ownership();
+    nullize();
+}
+
+void UintVecMin0Base::risk_destroy(MemType mt) {
+    m_data.risk_destroy(mt);
+    nullize();
+}
+
+void UintVecMin0Base::risk_set_data(byte* Data, size_t num, size_t bits) {
+    assert(m_bits <= 64);
+    assert(bits <= sizeof(size_t) * 8);
+    size_t Bytes = 0 == num ? 0 : compute_mem_size(bits, num);
+    TERARK_ASSERT_AL(Bytes, 16);
+    m_bits = bits;
+    m_mask = sizeof(size_t)*8 == bits ? size_t(-1) : (size_t(1)<<bits)-1;
+    m_size = num;
+    m_data.risk_set_data(Data, Bytes);
+}
+
+void UintVecMin0Base::resize(size_t newsize) {
+    assert(m_bits <= 64);
+    size_t bytes = 0==newsize ? 0 : (m_bits*newsize + 7) / 8 + sizeof(size_t)-1 + 15;
+    bytes &= ~size_t(15); // align to 16
+    m_data.resize(bytes, 0);
+    m_size = newsize;
+}
+
+void UintVecMin0Base::resize_with_uintbits(size_t num, size_t bits) {
+    assert(m_bits <= 64);
+    clear();
+    m_bits = bits;
+    m_mask = sizeof(size_t)*8 == bits ? size_t(-1) : (size_t(1)<<bits)-1;
+    m_size = num;
+    if (num) {
+        m_data.resize_fill(compute_mem_size(bits, num));
+    }
+}
+
+
 UintVecMin0Base::Builder::~Builder() {
 }
 

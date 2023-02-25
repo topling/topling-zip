@@ -31,41 +31,20 @@ public:
 		resize_with_wire_max_val(num, max_val);
 	}
 	UintVecMin0Base() { nullize(); }
+	UintVecMin0Base(const UintVecMin0Base&);
+	UintVecMin0Base& operator=(const UintVecMin0Base&);
+	UintVecMin0Base(UintVecMin0Base&&) = default;
+	UintVecMin0Base& operator=(UintVecMin0Base&&) = default;
 
-	void clear() { m_data.clear(); nullize(); }
+	~UintVecMin0Base();
 
-    void shrink_to_fit() {
-        resize(m_size);
-        m_data.shrink_to_fit();
-    }
+	void clear();
 
-	void swap(UintVecMin0Base& y) {
-		m_data.swap(y.m_data);
-		std::swap(m_bits, y.m_bits);
-		std::swap(m_mask, y.m_mask);
-		std::swap(m_size, y.m_size);
-	}
-
-	void risk_release_ownership() {
-		m_data.risk_release_ownership();
-		nullize();
-	}
-
-	void risk_destroy(MemType mt) {
-		m_data.risk_destroy(mt);
-		nullize();
-	}
-
-	void risk_set_data(byte* Data, size_t num, size_t bits) {
-		assert(m_bits <= 64);
-		assert(bits <= sizeof(size_t) * 8);
-		size_t Bytes = 0 == num ? 0 : compute_mem_size(bits, num);
-		TERARK_ASSERT_AL(Bytes, 16);
-		m_bits = bits;
-		m_mask = sizeof(size_t)*8 == bits ? size_t(-1) : (size_t(1)<<bits)-1;
-		m_size = num;
-		m_data.risk_set_data(Data, Bytes);
-	}
+	void shrink_to_fit();
+	void swap(UintVecMin0Base&);
+	void risk_release_ownership();
+	void risk_destroy(MemType);
+	void risk_set_data(byte* Data, size_t num, size_t bits);
 
 	const byte* data() const { return m_data.data(); }
 	size_t uintbits() const { return m_bits; }
@@ -73,13 +52,7 @@ public:
 	size_t size() const { return m_size; }
 	size_t mem_size() const { return m_data.size(); }
 
-	void resize(size_t newsize) {
-		assert(m_bits <= 64);
-		size_t bytes = 0==newsize ? 0 : (m_bits*newsize + 7) / 8 + sizeof(size_t)-1 + 15;
-		bytes &= ~size_t(15); // align to 16
-		m_data.resize(bytes, 0);
-		m_size = newsize;
-	}
+	void resize(size_t newsize);
 
 	void set_wire(size_t idx, size_t val) {
 		assert(idx < m_size);
@@ -99,16 +72,7 @@ public:
 		resize_with_uintbits(num, bits);
 	}
 
-	void resize_with_uintbits(size_t num, size_t bits) {
-		assert(m_bits <= 64);
-		clear();
-		m_bits = bits;
-		m_mask = sizeof(size_t)*8 == bits ? size_t(-1) : (size_t(1)<<bits)-1;
-		m_size = num;
-		if (num) {
-			m_data.resize_fill(compute_mem_size(bits, num));
-		}
-	}
+	void resize_with_uintbits(size_t num, size_t bit_width);
 
 private:
 	terark_no_inline void push_back_slow_path(size_t val);
