@@ -69,6 +69,8 @@ void UintVecMin0Base::risk_destroy(MemType mt) {
 void UintVecMin0Base::risk_set_data(byte* Data, size_t num, size_t bits) {
     assert(m_bits <= 64);
     assert(bits <= sizeof(size_t) * 8);
+    if (num) TERARK_VERIFY_NE(Data, nullptr);
+    else     TERARK_VERIFY_EQ(Data, nullptr);
     size_t Bytes = 0 == num ? 0 : compute_mem_size(bits, num);
     TERARK_ASSERT_AL(Bytes, 16);
     m_bits = bits;
