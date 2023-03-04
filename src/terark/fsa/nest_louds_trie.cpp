@@ -2612,8 +2612,7 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
     // this verify may fail if commonPrefix is set, disable it!
 	//TERARK_VERIFY_GE(strVec.m_strpool.size(), 3);
 	compress_core(strVec, conf);
-	typedef typename std::conditional<FastLabel,uint64_t,index_t>::type link_uint_t;
-	valvec<link_uint_t> linkVec(strVec.size(), valvec_no_init());
+	valvec<ullong> linkVec(strVec.size(), valvec_no_init());
 	for (size_t j = 0, k = 0; k < m_is_link.size(); ++k) {
 		if (m_is_link[k]) {
 			size_t offset = strVec.m_index[j].offset;
@@ -2621,23 +2620,11 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 		//	size_t seq_id = strVec.m_index[j].seq_id;
 		//	assert(seq_id == j);
 			auto val = ullong(offset) << lenBits | ullong(keylen - minLen);
-			if (sizeof(index_t) == 4 &&
-                    ( ( FastLabel && (val >> 0) > UINT32_MAX ) ||
-                      (!FastLabel && (val >> 8) > UINT32_MAX ) ) ) {
-				fprintf(stderr,
-					"FATAL: %s: lenBits=%d, (val >> %d) = 0x%llX\n"
-					"   Please try greater numTries!\n"
-					, BOOST_CURRENT_FUNCTION
-					, lenBits, (FastLabel ? 0 : 8)
-					, val  >>  (FastLabel ? 0 : 8)
-					);
-				abort(); // can not continue
-			}
 			if (FastLabel) {
-				linkVec[j] = link_uint_t(val);
+				linkVec[j] = val;
 			} else {
 				label[k] = byte_t(val);
-				linkVec[j] = index_t(val >> 8);
+				linkVec[j] = val >> 8;
 			}
 			j++;
 		}
@@ -2694,10 +2681,17 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		trie->m_core_min_len = byte_t(minLen & 255);
 		trie->m_core_max_link_val = maxLinkVal;
 		if (version >= 2) {
-		    trie->m_core_len_bits = mem.readByte();
-		    mem.skip(15); // padding, change 16 to 15 for support common prefix
+			trie->m_core_len_bits = mem.readByte();
+			if (sizeof(index_t) == 4) {
+				static_assert(sizeof(size_t) == 8);
+				uint16_t hi = 0; mem >> hi;
+				trie->m_core_max_link_val |= size_t(hi) << 32;
+				mem.skip(13); // padding is reduced from 15 to 13
+			} else {
+				mem.skip(15); // padding, change 16 to 15 for support common prefix
+			}
 		} else {
-		    mem.skip(16);
+			mem.skip(16);
 		}
 	}
 
@@ -2888,7 +2882,14 @@ save_mmap_loop(NativeDataOutput<AutoGrownMemIO>& tmpbuf,
 		tmpbuf << index_t(trie->m_core_min_len);
 		tmpbuf << index_t(trie->m_core_max_link_val);
 		tmpbuf << byte_t(trie->m_core_len_bits); // add for common prefix support
-		tmpbuf.ensureWrite(zero, sizeof(zero)); // padding
+		if (sizeof(index_t) == 4) {
+			static_assert(sizeof(trie->m_core_max_link_val) == 8);
+			tmpbuf << uint16_t(trie->m_core_max_link_val >> 32);
+			tmpbuf.ensureWrite(zero, sizeof(zero)-2); // padding
+		}
+		else {
+			tmpbuf.ensureWrite(zero, sizeof(zero)); // padding
+		}
 	}
 	tmpbuf.ensureWrite(trie->m_louds.data(), trie->m_louds.mem_size());
 	tmpbuf.ensureWrite(trie->m_is_link.data(), trie->m_is_link.mem_size());
