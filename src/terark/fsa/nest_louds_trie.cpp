@@ -1468,10 +1468,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
         }
     }
     if (coreStrNum) {
-        size_t lenBits = maxLen == minLen
-              ? 0
-              : terark_bsr_u64(maxLen - minLen) + 1
-              ;
+        size_t lenBits = UintVecMin0::compute_uintbits(maxLen - minLen); // can be 0
         if (conf.debugLevel >= 2) {
           fprintf(stderr
               , "build_mixed: core: cnt=%zd pool=%zd avg=%f, min=%zd max=%zd lenBits=%zd\n"
@@ -2605,10 +2602,7 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 		minLen = std::min(minLen, (int)strVec.m_index[i].length);
 	}
 	minLen = std::min(255, minLen);
-	int lenBits = maxLen == minLen
-				? 0
-				: terark_bsr_u64(maxLen - minLen) + 1
-				;
+	int lenBits = UintVecMin0::compute_uintbits(maxLen - minLen); // can be 0
 	if (conf.debugLevel >= 2) {
 		fprintf(stderr, "build_core: cnt=%d poolsize=%d avg=%f\n"
 				, (int)strVec.size(), (int)strVec.str_size(), strVec.avg_size());
