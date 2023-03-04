@@ -1236,7 +1236,7 @@ build_patricia_tpl(StrVecType& strVec,
 			conf.suffixTrie.reset();
 		}
 	#endif
-        if (nestStrVec.str_size() * conf.nestScale > inputStrVecBytes) {
+        if (nestStrVec.str_size() * conf.nestScale > inputStrVecBytes && conf.nestLevel > 1) {
             nestStrVec.reverse_keys();
             build_nested(nestStrVec, label, conf.nestLevel, conf);
         }
@@ -1323,7 +1323,7 @@ build_strpool2(SortableStrVec& strVec, valvec<index_t>& linkVec,
 			conf.suffixTrie.reset();
 		}
 	#endif
-        if (strVec.str_size() * conf.nestScale > inputStrVecBytes) {
+        if (strVec.str_size() * conf.nestScale > inputStrVecBytes && conf.nestLevel > 1) {
             strVec.reverse_keys();
             build_nested(strVec, label, conf.nestLevel, conf);
         }
