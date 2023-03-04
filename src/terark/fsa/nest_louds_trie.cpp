@@ -2712,11 +2712,8 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		// nextState=nextNodeNum-1 must be a linked node
 		size_t max_link_val = trie->m_core_max_link_val + (nextNodeNum-1);
 		size_t LowBits = FastLabel ? 0 : 8;
-		size_t nextLinkBits
-			= (max_link_val - next_link_min_val) >> LowBits == 0
-			? 0
-			: 1 + terark_bsr_u64((max_link_val - next_link_min_val) >> LowBits)
-			;
+		size_t nextLinkBits = UintVecMin0::compute_uintbits
+					((max_link_val - next_link_min_val) >> LowBits);
 		trie->m_next_link.risk_set_data(
 			mem.skip((next_link_mem_size + 7) & ~7),
 			trie->m_is_link.max_rank1(),
@@ -2748,10 +2745,7 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 			// nextState=nextNodeNum-1 must be a linked node
 			size_t LowBits = FastLabel ? 0 : 8;
 			size_t nextLinkBits
-				= (nextNodeNum-1) >> LowBits == next_link_min_val
-				? 0
-				: 1 + terark_bsr_u64(((nextNodeNum-1)>>LowBits) - next_link_min_val)
-				;
+				= UintVecMin0::compute_uintbits((nextNodeNum-1) >> LowBits);
 			trie->m_next_link.risk_set_data(
 				mem.skip((next_link_mem_size + 7) & ~7),
 				trie->m_is_link.max_rank1(),
