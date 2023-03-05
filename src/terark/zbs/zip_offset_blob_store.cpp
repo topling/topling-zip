@@ -114,6 +114,7 @@ void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
             ,  m_offsets.mem_size(), llong(mmapBase->offsetsBytes)
         );
     }
+    set_func();
 }
 
 void ZipOffsetBlobStore::get_meta_blocks(valvec<Block>* blocks) const {
@@ -167,13 +168,9 @@ void ZipOffsetBlobStore::save_mmap(function<void(const void*, size_t)> write) co
 ZipOffsetBlobStore::ZipOffsetBlobStore() {
     m_checksumLevel = 3; // check all data
     m_checksumType = 0;  // crc32c
-    m_get_record_append = static_cast<get_record_append_func_t>
-                (&ZipOffsetBlobStore::get_record_append_imp);
-    m_fspread_record_append = static_cast<fspread_record_append_func_t>
-                (&ZipOffsetBlobStore::fspread_record_append_imp);
-    m_get_record_append_CacheOffsets =
-        static_cast<get_record_append_CacheOffsets_func_t>
-        (&ZipOffsetBlobStore::get_record_append_CacheOffsets);
+    m_get_record_append = nullptr;
+    m_fspread_record_append = nullptr;
+    m_get_record_append_CacheOffsets = nullptr;
     m_get_zipped_size = dest_scast(&ZipOffsetBlobStore::get_zipped_size_imp);
 }
 
@@ -197,6 +194,30 @@ ZipOffsetBlobStore::~ZipOffsetBlobStore() {
     }
 }
 
+void ZipOffsetBlobStore::set_func() {
+#define SetFunc(func) \
+    if (m_compressLevel > 0) { \
+        if (2 == m_checksumLevel) { \
+            if (kCRC16C == m_checksumType) \
+                 m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<true, 2>); \
+            else m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<true, 4>); \
+        } else { \
+            m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<true, 0>); \
+        } \
+    } else { \
+        if (2 == m_checksumLevel) { \
+            if (kCRC16C == m_checksumType) \
+                 m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<false, 2>); \
+            else m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<false, 4>); \
+        } else { \
+            m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<false, 0>); \
+        } \
+    }
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    SetFunc(get_record_append);
+    SetFunc(fspread_record_append);
+    SetFunc(get_record_append_CacheOffsets);
+}
 
 void ZipOffsetBlobStore::swap(ZipOffsetBlobStore& other) {
   AbstractBlobStore::risk_swap(other);
@@ -222,6 +243,7 @@ static void ZipOffsetBlobStore_AppendDecompress(size_t id, const byte_t* data, s
   output->risk_set_size(curr_size + size);
 }
 
+template<bool Compress, int CheckSumLen>
 void
 ZipOffsetBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
@@ -232,27 +254,25 @@ const {
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
-    if (m_compressLevel > 0) {
+    if (Compress) {
         ZipOffsetBlobStore_AppendDecompress(recID, pData, len, recData);
         return;
     }
-    if (2 == m_checksumLevel) {
-        if (kCRC16C == m_checksumType) {
-            len -= sizeof(uint16_t);
-            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
-            uint16_t crc2 = Crc16c_update(0, pData, len);
-            if (crc2 != crc1) {
-                throw BadCrc16cException(
-                        "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
-            }
-        } else {
-            len -= sizeof(uint32_t);
-            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-            uint32_t crc2 = Crc32c_update(0, pData, len);
-            if (crc2 != crc1) {
-                throw BadCrc32cException(
-                        "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
-            }
+    if (CheckSumLen == sizeof(uint16_t)) {
+        len -= sizeof(uint16_t);
+        uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+        uint16_t crc2 = Crc16c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc16cException(
+                    "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
+        }
+    } else if (CheckSumLen == sizeof(uint32_t)) {
+        len -= sizeof(uint32_t);
+        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+        uint32_t crc2 = Crc32c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc32cException(
+                    "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
         }
     }
     //recData->append(pData, len);
@@ -261,8 +281,9 @@ const {
     recData->risk_set_size(len);
 }
 
+template<bool Compress, int CheckSumLen>
 void
-ZipOffsetBlobStore::get_record_append_CacheOffsets(size_t recID, CacheOffsets* co)
+ZipOffsetBlobStore::get_record_append_CacheOffsets_imp(size_t recID, CacheOffsets* co)
 const {
     assert(recID + 1 < m_offsets.size());
     size_t log2 = m_offsets.log2_block_units(); // must be 6 or 7
@@ -278,28 +299,26 @@ const {
     size_t BegEnd[2] = { co->offsets[inBlockID], co->offsets[inBlockID+1] };
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
-    if (m_compressLevel > 0) {
+    if (Compress) {
         ZipOffsetBlobStore_AppendDecompress(recID, pData, len, &co->recData);
         return;
     }
-     if (2 == m_checksumLevel) {
-         if (kCRC16C == m_checksumType) {
-             len -= sizeof(uint16_t);
-             uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
-             uint16_t crc2 = Crc16c_update(0, pData, len);
-             if (crc2 != crc1) {
-                 throw BadCrc16cException(
-                         "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
-             }
-         } else {
-             len -= sizeof(uint32_t);
-             uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-             uint32_t crc2 = Crc32c_update(0, pData, len);
-             if (crc2 != crc1) {
-                 throw BadCrc32cException(
-                         "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
-             }
-         }
+    if (CheckSumLen == sizeof(uint16_t)) {
+        len -= sizeof(uint16_t);
+        uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+        uint16_t crc2 = Crc16c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc16cException(
+                    "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+        }
+    } else if (CheckSumLen == sizeof(uint32_t)) {
+        len -= sizeof(uint32_t);
+        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+        uint32_t crc2 = Crc32c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc32cException(
+                    "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+        }
     }
     //co->recData.append(pData, len);
     TERARK_VERIFY_EQ(co->recData.capacity(), 0);
@@ -307,6 +326,7 @@ const {
     co->recData.risk_set_size(len);
 }
 
+template<bool Compress, int CheckSumLen>
 void
 ZipOffsetBlobStore::fspread_record_append_imp(
                     pread_func_t fspread, void* lambda,
@@ -323,27 +343,25 @@ const {
     size_t offset = sizeof(FileHeader) + BegEnd[0];
     auto pData = fspread(lambda, baseOffset + offset, len, rdbuf);
     assert(NULL != pData);
-    if (m_compressLevel > 0) {
+    if (Compress) {
         ZipOffsetBlobStore_AppendDecompress(recID, pData, len, recData);
         return;
     }
-    if (2 == m_checksumLevel) {
-        if (kCRC16C == m_checksumType) {
-            len -= sizeof(uint16_t);
-            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
-            uint16_t crc2 = Crc16c_update(0, pData, len);
-            if (crc2 != crc1) {
-                throw BadCrc16cException(
-                        "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
-            }
-        } else {
-            len -= sizeof(uint32_t);
-            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-            uint32_t crc2 = Crc32c_update(0, pData, len);
-            if (crc2 != crc1) {
-                throw BadCrc32cException(
-                        "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
-            }
+    if (CheckSumLen == sizeof(uint16_t)) {
+        len -= sizeof(uint16_t);
+        uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+        uint16_t crc2 = Crc16c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc16cException(
+                    "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
+        }
+    } else if (CheckSumLen == sizeof(uint32_t)) {
+        len -= sizeof(uint32_t);
+        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+        uint32_t crc2 = Crc32c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc32cException(
+                    "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
         }
     }
     recData->append(pData, len);

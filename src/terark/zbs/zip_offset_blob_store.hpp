@@ -20,8 +20,12 @@ class TERARK_DLL_EXPORT ZipOffsetBlobStore : public AbstractBlobStore {
     valvec<byte_t> m_content;
     SortedUintVec  m_offsets;
 
+    void set_func();
+    template<bool Compress, int CheckSumLen>
     void get_record_append_imp(size_t recID, valvec<byte_t>* recData) const;
-    void get_record_append_CacheOffsets(size_t recID, CacheOffsets*) const;
+    template<bool Compress, int CheckSumLen>
+    void get_record_append_CacheOffsets_imp(size_t recID, CacheOffsets*) const;
+    template<bool Compress, int CheckSumLen>
     void fspread_record_append_imp(pread_func_t fspread, void* lambda,
                                    size_t baseOffset, size_t recID,
                                    valvec<byte_t>* recData,
