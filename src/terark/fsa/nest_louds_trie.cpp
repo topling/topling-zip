@@ -1677,9 +1677,6 @@ namespace nlt_detail {
 				, fpath.data(), strerror(errno));
 		}
 	}
-}
-
-using namespace nlt_detail;
 
 template<class T>
 class OnePassQueue : boost::noncopyable {
@@ -2078,6 +2075,10 @@ createRangeQueue(const NestLoudsTrieConfig& conf, fstring prefix) {
 		return OnePassQueue<Range>::create(conf.tmpDir, prefix);
 	}
 }
+
+} // namespace nlt_detail
+
+using namespace nlt_detail;
 
 ///@param[inout] strVec
 ///@param[out]   linkVec
