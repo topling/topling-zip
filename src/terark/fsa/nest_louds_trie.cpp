@@ -2441,7 +2441,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 						, childBegRow, childEndRow, childBegCol, childEndCol
 						);
 				assert(childBegRow < childEndRow);
-				// strVec.nth_size(childBegRow) may be expesive and this loop may be small
+				// strVec.nth_size(childBegRow) may be expensive and this loop may be small
 				if (childBegStr.size() == childBegCol) {
 					do {
 						size_t linked_node_id = m_is_link.size() - 1;
