@@ -1451,7 +1451,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
             size_t curNestLevel, const NestLoudsTrieConfig& conf) {
     valvec<index_t> nextLinkVec;
     valvec<index_t> coreLinkVec;
-    febitvec isShort(strVec.size(), false);
+    febitvec isInCore(strVec.size(), false);
     SortableStrVec coreStrVec;
     size_t coreStrLen = 0;
     size_t coreStrNum = 0;
@@ -1460,7 +1460,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
     for(size_t i = 0, n = strVec.size(); i < n; ++i) {
         size_t l = strVec.nth_size(i);
         if (l <= MaxShortStrLen) {
-            isShort.set1(strVec.m_index[i].seq_id);
+            isInCore.set1(strVec.m_index[i].seq_id);
             coreStrLen += l;
             coreStrNum += 1;
             minLen = std::min(minLen, l);
@@ -1515,17 +1515,17 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
     }
     size_t coreMaxLinkVal = m_core_max_link_val;
     size_t j = coreLinkVec.size();
-    size_t k = isShort.size();
+    size_t k = isInCore.size();
     // it is likely that coreLinkVec.size() > nextLinkVec.size()
-    coreLinkVec.resize_no_init(isShort.size());
+    coreLinkVec.resize_no_init(isInCore.size());
     while (k-- > 0) {
-        if (isShort[k])
+        if (isInCore[k])
             coreLinkVec[k] = coreLinkVec[--j];
         else
             coreLinkVec[k] = nextLinkVec[k-j] + coreMaxLinkVal;
     }
     nextLinkVec.clear();
-    isShort.clear();
+    isInCore.clear();
     build_link(coreLinkVec, label);
 }
 
