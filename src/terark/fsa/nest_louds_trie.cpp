@@ -1459,8 +1459,10 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
     size_t maxLen = 0;
     for(size_t i = 0, n = strVec.size(); i < n; ++i) {
         size_t l = strVec.nth_size(i);
-        if (l <= MaxShortStrLen) {
-            isInCore.set1(strVec.m_index[i].seq_id);
+		size_t seq_id = strVec.nth_seq_id(i);
+		TERARK_ASSERT_LT(seq_id, conf.isHiFreqFrag.size());
+        if (l <= MaxShortStrLen || conf.isHiFreqFrag[seq_id]) {
+            isInCore.set1(seq_id);
             coreStrLen += l;
             coreStrNum += 1;
             minLen = std::min(minLen, l);
@@ -1477,9 +1479,10 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
         }
         coreStrVec.reserve(coreStrNum, coreStrLen);
         strVec.erase_if2([&](size_t i, fstring str) {
-            if (str.size() <= MaxShortStrLen) {
+            size_t seq_id = strVec.m_index[i].seq_id;
+            if (isInCore[seq_id]) {
                 coreStrVec.push_back(str);
-                coreStrVec.m_index.back().seq_id = strVec.m_index[i].seq_id;
+                coreStrVec.m_index.back().seq_id = seq_id;
                 return true;
             }
             return false;
@@ -2175,6 +2178,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	} else {
 		nextStrVecStore = OnePassQueue<SortableStrVec::OffsetLength>::create(conf.tmpDir, "nestStrVec-");
 	}
+	conf.isHiFreqFrag.resize(0);
 	size_t depth = 0;
 	auto bfsPutRoot = [&]() {
 		// allowing empty strings
@@ -2236,6 +2240,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
             } else {
                 labelStore->push_back(0); // reserved for latter use
             }
+			conf.isHiFreqFrag.push_back(true);
             m_is_link.push_back(true);
         } else {
             labelStore->push_back(frag[0]);
@@ -2422,6 +2427,8 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 						nextKey.length = uint32_t(fragStrLen);
 						nextStrVecStore->push_back(nextKey);
 					}
+					size_t freq = childEndRow - childBegRow;
+					conf.isHiFreqFrag.push_back(freq >= fragStrLen);
 					if (FastLabel) {
 						labelStore->push_back(childBegStr[parentBegCol]);
 					} else {

@@ -40,6 +40,9 @@ public:
 	std::string commonPrefix;
 	std::string tmpDir;
 
+	// indexed by nestStrVec[*].seq_id, these strings should be saved in core
+	mutable febitvec isHiFreqFrag;
+
 	/// taking effect only when tmpDir is not empty
 	/// 0: default, real tmpLevel is used in a smart way
 	/// 1: use tmpfile for BFS queue
