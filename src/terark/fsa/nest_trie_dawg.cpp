@@ -650,7 +650,7 @@ build_from_tpl(StrVecType& strVec, const NestLoudsTrieConfig& conf) {
 
 template<class NestTrie, class DawgType>
 void
-NestTrieDAWG<NestTrie, DawgType>::build_term_bits(const valvec<index_t>& linkVec) {
+NestTrieDAWG<NestTrie, DawgType>::build_term_bits(const valvec<size_t>& linkVec) {
 	auto& termFlag = this->getIsTerm();
 	termFlag.resize_fill(this->m_trie->m_is_link.size(), 0);
 	for(size_t node_id : linkVec) {
@@ -663,7 +663,7 @@ NestTrieDAWG<NestTrie, DawgType>::build_term_bits(const valvec<index_t>& linkVec
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::
-build_with_id(SortableStrVec& strVec, valvec<index_t>& idvec, const NestLoudsTrieConfig& conf) {
+build_with_id(SortableStrVec& strVec, valvec<size_t>& idvec, const NestLoudsTrieConfig& conf) {
 	if (conf.nestLevel < 1) {
 		THROW_STD(invalid_argument, "conf.nestLevel=%d", conf.nestLevel);
 	}

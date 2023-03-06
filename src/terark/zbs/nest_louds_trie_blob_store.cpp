@@ -43,7 +43,7 @@ template<class NestLoudsTrie>
 void
 NestLoudsTrieBlobStore<NestLoudsTrie>::
 build_from(SortableStrVec& strVec, const NestLoudsTrieConfig& conf) {
-	valvec<uint32_t> idvec;
+	valvec<size_t> idvec;
 	AbstractBlobStore::m_unzipSize = strVec.str_size();
 	if (conf.flags[conf.optUseDawgStrPool]) {
 		NestLoudsTrie::build_strpool2(strVec, idvec, conf);

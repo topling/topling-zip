@@ -1140,7 +1140,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(SortableStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1149,7 +1149,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(SortThinStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1158,7 +1158,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(FixedLenStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1167,7 +1167,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(VoSortedStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1176,7 +1176,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(ZoSortedStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1185,7 +1185,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(DoSortedStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1194,7 +1194,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(QoSortedStrVec& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
+               function<void(const valvec<size_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
     build_patricia_tpl(strVec, buildTerm, conf);
@@ -1205,7 +1205,7 @@ template<class StrVecType>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia_tpl(StrVecType& strVec,
-                   function<void(const valvec<index_t>& linkVec)> buildTerm,
+                   function<void(const valvec<size_t>& linkVec)> buildTerm,
                    const NestLoudsTrieConfig& conf)
 {
 	assert(conf.nestLevel > 0);
@@ -1220,7 +1220,7 @@ build_patricia_tpl(StrVecType& strVec,
 		if (!conf.isInputSorted) {
 			strVec.sort();
 		}
-		valvec<index_t> linkVec;
+		valvec<size_t> linkVec;
 		build_self_trie_tpl(strVec, nestStrVec, linkVec, label, conf.nestLevel, conf);
 		if (conf.debugLevel >= 2)
 			fprintf(stderr
@@ -1304,7 +1304,7 @@ build_patricia_tpl(StrVecType& strVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_strpool2(SortableStrVec& strVec, valvec<index_t>& linkVec,
+build_strpool2(SortableStrVec& strVec, valvec<size_t>& linkVec,
                const NestLoudsTrieConfig& conf) {
 	assert(conf.nestLevel > 0);
 	if (strVec.size() == 0) {
@@ -1347,7 +1347,7 @@ build_strpool2(SortableStrVec& strVec, valvec<index_t>& linkVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_strpool(SortableStrVec& strVec, valvec<index_t>& linkVec,
+build_strpool(SortableStrVec& strVec, valvec<size_t>& linkVec,
               const NestLoudsTrieConfig& conf)
 {
 	if (strVec.size() == 0) {
@@ -1362,7 +1362,7 @@ build_strpool(SortableStrVec& strVec, valvec<index_t>& linkVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_strpool_loop(SortableStrVec& strVec, valvec<index_t>& linkVec,
+build_strpool_loop(SortableStrVec& strVec, valvec<size_t>& linkVec,
                    size_t curNestLevel, const NestLoudsTrieConfig& conf)
 {
 	assert(!FastLabel);
@@ -1407,7 +1407,7 @@ build_strpool_loop(SortableStrVec& strVec, valvec<index_t>& linkVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_link(valvec<index_t>& nextLinkVec, valvec<byte_t>& label) {
+build_link(valvec<size_t>& nextLinkVec, valvec<byte_t>& label) {
 	if (!FastLabel) {
 		for (size_t j = 0, k = 0; k < m_is_link.size(); ++k) {
 			if (m_is_link[k]) {
@@ -1449,8 +1449,8 @@ void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
             size_t curNestLevel, const NestLoudsTrieConfig& conf) {
-    valvec<index_t> nextLinkVec;
-    valvec<index_t> coreLinkVec;
+    valvec<size_t> nextLinkVec;
+    valvec<size_t> coreLinkVec;
     febitvec isInCore(strVec.size(), false);
     SortableStrVec coreStrVec;
     size_t coreStrLen = 0;
@@ -1498,7 +1498,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
             size_t offset = coreStrVec.m_index[i].offset;
             size_t keylen = coreStrVec.m_index[i].length;
             size_t val = (offset << lenBits) | (keylen - minLen);
-            coreLinkVec[i] = index_t(val);
+            coreLinkVec[i] = val;
         }
         TERARK_VERIFY_EQ(label.size(), m_is_link.size());
         coreStrVec.m_index.clear(); // free memory earlier
@@ -1541,7 +1541,7 @@ build_nested(SortableStrVec& strVec, valvec<byte_t>& label,
         this->build_mixed(strVec, label, curNestLevel, conf);
     }
     else {
-        valvec<index_t> nextLinkVec;
+        valvec<size_t> nextLinkVec;
         m_next_trie = new NestLoudsTrieTpl<RankSelect>();
         m_next_trie->build_strpool_loop(strVec, nextLinkVec, curNestLevel-1, conf);
         this->build_link(nextLinkVec, label);
@@ -2090,7 +2090,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_self_trie(SortableStrVec& strVec,
-                valvec<index_t>& linkVec,
+                valvec<size_t>& linkVec,
                 valvec<byte_t>& label,
                 size_t curNestLevel,
                 const NestLoudsTrieConfig& conf)
@@ -2105,7 +2105,7 @@ template<class StrVecType>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
-                    valvec<index_t>& linkVec,
+                    valvec<size_t>& linkVec,
                     valvec<byte_t>& label,
                     size_t curNestLevel,
                     const NestLoudsTrieConfig& conf)
@@ -2456,7 +2456,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 						if (linkSeqStore) {
 							linkSeqStore->oTmpBuf << LinkSeq(linked_node_id, seq_id);
 						} else {
-							assert(index_t(-1) == linkVec[seq_id]);
+							assert(size_t(-1) == linkVec[seq_id]);
 							linkVec[seq_id] = linked_node_id;
 						}
 						childBegRow++;
@@ -2499,10 +2499,10 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		std::swap(nestStrVec.m_strpool_mem_type, strVec.m_strpool_mem_type);
 	}
 	strVec.clear(); // free memory
-	std::unique_ptr<typename OnePassQueue<index_t>::InFile> linkVecStore;
+	std::unique_ptr<typename OnePassQueue<size_t>::InFile> linkVecStore;
 	if (!conf.tmpDir.empty() && realTmpLevel == 2) {
 		assert(!linkSeqStore);
-		linkVecStore.reset(new typename OnePassQueue<index_t>::InFile(conf.tmpDir, "linkVec-"));
+		linkVecStore.reset(new typename OnePassQueue<size_t>::InFile(conf.tmpDir, "linkVec-"));
 		linkVecStore->swap_out(&linkVec);
 	}
 if (nestStrPoolFile) {
@@ -2559,9 +2559,9 @@ else
 #ifdef NDEBUG
 		linkVec.resize_no_init(strVecSize);
 #else
-		linkVec.resize_fill(strVecSize, index_t(-1));
+		linkVec.resize_fill(strVecSize, size_t(-1));
 #endif
-		index_t* lv = linkVec.data();
+		size_t* lv = linkVec.data();
 		for (size_t i = 0; i < strVecSize; ++i) {
 			LinkSeq ls;
 			linkSeqStore->iTmpBuf >> ls;

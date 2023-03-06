@@ -104,7 +104,7 @@ protected:
     template<class StrVecType>
     void build_from_tpl(StrVecType&, const NestLoudsTrieConfig&);
 
-    void build_term_bits(const valvec<index_t>& linkVec);
+    void build_term_bits(const valvec<size_t>& linkVec);
 
 public:
     using IsTermRep::is_term;
@@ -163,7 +163,7 @@ public:
 	void build_from(DoSortedStrVec&, const NestLoudsTrieConfig&);
 	void build_from(QoSortedStrVec&, const NestLoudsTrieConfig&);
 
-	void build_with_id(SortableStrVec&, valvec<index_t>& idvec, const NestLoudsTrieConfig&);
+	void build_with_id(SortableStrVec&, valvec<size_t>& idvec, const NestLoudsTrieConfig&);
 
 	template<class OP>
 	void for_each_move(size_t parent, OP op) const {

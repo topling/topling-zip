@@ -182,18 +182,18 @@ public:
 	void restore_next_string(size_t node_id, std::string* str) const noexcept;
 	void restore_string_loop(size_t node_id, std::string* str) const noexcept;
 
-	void build_strpool(SortableStrVec&, valvec<index_t>& idvec, const NestLoudsTrieConfig&);
-	void build_strpool2(SortableStrVec& strVec, valvec<index_t>& linkVec, const NestLoudsTrieConfig& conf);
-	void build_patricia(SortableStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(SortThinStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(FixedLenStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(VoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(DoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(QoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(ZoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_strpool(SortableStrVec&, valvec<size_t>& idvec, const NestLoudsTrieConfig&);
+	void build_strpool2(SortableStrVec& strVec, valvec<size_t>& linkVec, const NestLoudsTrieConfig& conf);
+	void build_patricia(SortableStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(SortThinStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(FixedLenStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(VoSortedStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(DoSortedStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(QoSortedStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(ZoSortedStrVec&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 
     template<class StrVecType>
-    void build_patricia_tpl(StrVecType&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+    void build_patricia_tpl(StrVecType&, function<void(const valvec<size_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 
 	void load_mmap(const void* data, size_t size);
 	byte_t* save_mmap(size_t* pSize) const;
@@ -207,11 +207,11 @@ public:
 	void str_stat(std::string* ) const;
 
 public: // protected:
-	void build_strpool_loop(SortableStrVec&, valvec<index_t>& linkVec, size_t curNestLevel, const NestLoudsTrieConfig&);
-	void build_link(valvec<index_t>& nextLinkVec, valvec<byte_t>& label);
-	void build_self_trie(SortableStrVec&, valvec<index_t>& linkVec, valvec<byte_t>& label, size_t curNestLevel, const NestLoudsTrieConfig&);
+	void build_strpool_loop(SortableStrVec&, valvec<size_t>& linkVec, size_t curNestLevel, const NestLoudsTrieConfig&);
+	void build_link(valvec<size_t>& nextLinkVec, valvec<byte_t>& label);
+	void build_self_trie(SortableStrVec&, valvec<size_t>& linkVec, valvec<byte_t>& label, size_t curNestLevel, const NestLoudsTrieConfig&);
 	template<class StrVecType>
-	void build_self_trie_tpl(StrVecType&, SortableStrVec&, valvec<index_t>& linkVec, valvec<byte_t>& label, size_t curNestLevel, const NestLoudsTrieConfig&);
+	void build_self_trie_tpl(StrVecType&, SortableStrVec&, valvec<size_t>& linkVec, valvec<byte_t>& label, size_t curNestLevel, const NestLoudsTrieConfig&);
 	void build_core(SortableStrVec& strVec, valvec<byte_t>& label, const NestLoudsTrieConfig&);
 	void build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label, const NestLoudsTrieConfig&);
 	void build_mixed(SortableStrVec& strVec, valvec<byte_t>& label, size_t curNestLevel, const NestLoudsTrieConfig&);
