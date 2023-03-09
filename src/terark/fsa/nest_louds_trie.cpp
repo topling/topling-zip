@@ -2163,7 +2163,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		linkSeqStore.reset(new TempFile(conf.tmpDir, "linkSeqVec-"));
 	}
 	else {
-		linkVec.resize_fill(strVecSize, index_t(-1));
+		linkVec.resize_fill(strVecSize, size_t(-1));
 	}
     typedef LinkSeqTpl<index_t> LinkSeq;
 	auto q1 = createRangeQueue<index_t>(conf, "q1-");
