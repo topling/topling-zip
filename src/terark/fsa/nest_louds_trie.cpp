@@ -167,7 +167,7 @@ void NestLoudsTrieConfig::setBestDelims(const char* delims) {
     			i += 3;
     			break;
     		default:
-    			ch = delims[i];
+    			ch = delims[i++];
     			break;
     		}
     		bestDelim.push_back(ch);
