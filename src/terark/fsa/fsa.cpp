@@ -1169,6 +1169,10 @@ void BaseDFA::dfa_get_random_keys(SortableStrVec* keys, size_t num) const {
     dfa_get_random_keys_append(keys, num);
 }
 
+size_t BaseDFA::max_strlen() const noexcept {
+	return size_t(-1); // unbounded
+}
+
 size_t BaseDFA::find_first_leaf(size_t root) const {
 	valvec<size_t> stack(512, valvec_reserve());
 	terark::AutoFree<size_t> children(m_dyn_sigma);

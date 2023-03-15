@@ -134,7 +134,7 @@ public:
 
 	void swap(NestTrieDAWG& y) noexcept;
 
-    size_t max_strlen() const { return m_trie->m_max_strlen; }
+    size_t max_strlen() const noexcept final { return m_trie->m_max_strlen; }
 	size_t total_states() const { return getIsTerm().size(); }
 	bool has_freelist() const override; // return false
 

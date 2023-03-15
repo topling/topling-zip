@@ -282,6 +282,8 @@ public:
 	virtual void dfa_get_random_keys_append(SortableStrVec* keys, size_t max_keys) const;
 	void dfa_get_random_keys(SortableStrVec* keys, size_t max_keys) const;
 
+	virtual size_t max_strlen() const noexcept;
+
 	size_t find_first_leaf(size_t root = initial_state) const;
 
 	size_t pfs_put_children(size_t parent, febitvec& color, valvec<size_t>& stack, size_t* children_buf) const;
