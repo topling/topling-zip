@@ -54,6 +54,16 @@ operator=(const NestTrieDAWG& y) {
 }
 
 template<class NestTrie, class DawgType>
+size_t NestTrieDAWG<NestTrie, DawgType>::iter_mem_size() const {
+	return m_trie->iter_mem_size(this);
+}
+
+template<class NestTrie, class DawgType>
+void NestTrieDAWG<NestTrie, DawgType>::cons_iter(void* mem) const {
+	new(mem)Iterator(this);
+}
+
+template<class NestTrie, class DawgType>
 void NestTrieDAWG<NestTrie, DawgType>::swap(NestTrieDAWG& y) noexcept {
 	BaseDFA::risk_swap(y);
 	std::swap(n_words, y.n_words);

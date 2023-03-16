@@ -129,8 +129,8 @@ public:
 	NestTrieDAWG(const NestTrieDAWG&);
 	NestTrieDAWG& operator=(const NestTrieDAWG&);
 
-	size_t iter_mem_size() const { return m_trie->iter_mem_size(this); }
-	void cons_iter(void* mem) const { new(mem)Iterator(this); }
+	size_t iter_mem_size() const;
+	void cons_iter(void* mem) const;
 
 	void swap(NestTrieDAWG& y) noexcept;
 
