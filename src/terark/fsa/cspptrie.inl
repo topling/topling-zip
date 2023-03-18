@@ -178,7 +178,6 @@ protected:
     template<ConcurrentLevel, class LazyList>
     void revoke_expired_nodes(LazyList&, TokenBase*);
     void check_valsize(size_t valsize) const;
-    void SingleThreadShared_sync_token_list(byte_t* oldmembase);
 
     void finish_load_mmap(const DFA_MmapHeader*) override final;
     long prepare_save_mmap(DFA_MmapHeader*, const void**) const override final;

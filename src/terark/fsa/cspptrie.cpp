@@ -1358,12 +1358,6 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
     size_t curr = initial_state;
     size_t pos = 0;
     NodeInfo ni;
-#define SingleThreadShared_check_for_sync_token_list() \
-    ConLevel == SingleThreadShared &&                  \
-        terark_unlikely(m_mempool.data() != a->bytes)  \
-  ? SingleThreadShared_sync_token_list(a->bytes)  \
-  : (void)(0)
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
     TERARK_ASSERT_NE(newCurr, curr);
     if (ConLevel != SingleThreadStrict) {
@@ -1375,7 +1369,6 @@ auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
         free_node<SingleThreadStrict>(curr, ni.node_size, nullptr);
     }
     if (ConLevel < OneWriteMultiRead)
-        SingleThreadShared_check_for_sync_token_list(),
         a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     this->m_n_nodes += nodeIncNum;
     this->m_n_words += 1;
@@ -1407,7 +1400,7 @@ for (;; pos++) {
                 goto SplitZpath;
             TERARK_ASSERT_EQ(key.size(), pos);
             if (p->meta.b_is_final) {
-                token->m_value = (char*)p->bytes + ni.va_offset;
+                token->m_valpos = p->bytes + ni.va_offset - a->bytes;
                 return false; // existed
             }
             goto MarkFinalStateOmitSetNodeInfo;
@@ -1416,7 +1409,7 @@ for (;; pos++) {
     else {
         if (terark_unlikely(key.size() == pos)) {
             if (p->meta.b_is_final) {
-                token->m_value = (void*)(p->bytes + get_val_self_pos(p));
+                token->m_valpos = p->bytes + get_val_self_pos(p) - a->bytes;
                 return false; // existed
             }
             if (terark_likely(15 != p->meta.n_cnt_type))
@@ -1534,7 +1527,6 @@ TERARK_ASSERT_LE(pos, key.size());
 #define init_token_value(new1, new2, list) do {                \
     bool initOk = token->init_value(value, valsize);           \
     if (ConLevel < OneWriteMultiRead) {                        \
-        SingleThreadShared_check_for_sync_token_list();        \
         a = reinterpret_cast<PatriciaNode*>(m_mempool.data()); \
         ni.zpath.p = a[curr].chars + ni.zp_offset;             \
     }                                                          \
@@ -1543,13 +1535,13 @@ TERARK_ASSERT_LE(pos, key.size());
     if (ConLevel >= OneWriteMultiRead) {                       \
         if (terark_unlikely(!initOk)) {                        \
             init_token_value_fail_clean(new1, new2, list, NULL)\
-            token->m_value = NULL;                             \
+            token->m_valpos = size_t(-1);                   \
             return true;                                       \
         }                                                      \
     } else {                                                   \
         assert(initOk);                                        \
     }                                                          \
-    token->m_value = valptr;                                   \
+    token->m_valpos = valpos;                               \
 } while (0)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1563,12 +1555,11 @@ TERARK_ASSERT_LE(pos, key.size());
     size_t suffix_node = new_suffix_chain<ConLevel>(key.substr(pos+1),
                                           &valpos, &chainLen, valsize, nullptr);
     if (ConLevel >= OneWriteMultiRead && size_t(-1) == suffix_node) {
-        token->m_value = NULL;
+        token->m_valpos = size_t(-1);
         return true;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     if (ConLevel < OneWriteMultiRead)
-        SingleThreadShared_check_for_sync_token_list(),
         a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     if (0 == a[curr].meta.n_zpath_len) {
         ni.set(a + curr, 0, a[curr].meta.b_is_final ? valsize : 0);
@@ -1580,7 +1571,7 @@ TERARK_ASSERT_LE(pos, key.size());
         size_t newCurr = add_state_move<ConLevel>(curr, ch, suffix_node, valsize, nullptr);
         if (ConLevel == OneWriteMultiRead && size_t(-1) == newCurr) {
             revoke_list<OneWriteMultiRead>(a, suffix_node, valsize, nullptr);
-            token->m_value = NULL;
+            token->m_valpos = size_t(-1);
             return true;
         }
         init_token_value(-1, newCurr, suffix_node);
@@ -1618,13 +1609,13 @@ ForkBranch: {
     size_t newSuffixNode = new_suffix_chain<ConLevel>(key.substr(pos+1),
                                             &valpos, &chainLen, valsize, nullptr);
     if (ConLevel == OneWriteMultiRead && size_t(-1) == newSuffixNode) {
-        token->m_value = NULL;
+        token->m_valpos = size_t(-1);
         return true;
     }
     size_t newCurr = fork<ConLevel>(curr, zidx, &ni, key[pos], newSuffixNode, nullptr);
     if (ConLevel == OneWriteMultiRead && size_t(-1) == newCurr) {
         revoke_list<OneWriteMultiRead>(a, newSuffixNode, valsize, nullptr);
-        token->m_value = NULL;
+        token->m_valpos = size_t(-1);
         return true;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
@@ -1652,7 +1643,7 @@ SplitZpath: {
     size_t valpos = size_t(-1);
     size_t newCurr = split_zpath<ConLevel>(curr, zidx, &ni, &valpos, valsize, nullptr);
     if (ConLevel == OneWriteMultiRead && size_t(-1) == newCurr) {
-        token->m_value = NULL;
+        token->m_valpos = size_t(-1);
         return true;
     }
     init_token_value(newCurr, ni.oldSuffixNode, -1);
@@ -1695,7 +1686,7 @@ MarkFinalStateOmitSetNodeInfo:
         a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
         byte_t* valptr = a[newcur].bytes + ni.va_offset;
         a[newcur].meta.b_is_final = true;
-        token->m_value = valptr;
+        token->m_valpos = valptr - a->bytes;
         tiny_memcpy_align_4(valptr, value, valsize);
         m_n_words += 1;
         m_adfa_total_words_len += key.size();
@@ -1706,11 +1697,10 @@ MarkFinalStateOmitSetNodeInfo:
         size_t newcur = newpos / AlignSize;
         bool initOk = token->init_value(value, valsize);
         assert(initOk); TERARK_UNUSED_VAR(initOk);
-        SingleThreadShared_check_for_sync_token_list();
         a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
         auto p = tiny_memcpy_align_4(a+newcur, a+curr, ni.va_offset);
         a[newcur].meta.b_is_final = true;
-        token->m_value = p; // now p is newly added value
+        token->m_valpos = p - a->bytes; // now p is newly added value
         tiny_memcpy_align_4(p, value, valsize);
         m_adfa_total_words_len += key.size();
         update_curr_ptr(newcur, 0);
@@ -1718,15 +1708,15 @@ MarkFinalStateOmitSetNodeInfo:
     else {
         size_t newcur = alloc_node<ConLevel>(newlen, nullptr);
         if (mem_alloc_fail == newcur) {
-            token->m_value = NULL;
+            token->m_valpos = size_t(-1);
             return true;
         }
         auto p = tiny_memcpy_align_4(a+newcur, a+curr, ni.va_offset);
         a[newcur].meta.b_is_final = true;
-        token->m_value = p; // now p is newly added value
+        token->m_valpos = p - a->bytes; // now p is newly added value
         if (!token->init_value(value, valsize)) {
             free_node<ConLevel>(newcur, newlen, nullptr);
-            token->m_value = NULL;
+            token->m_valpos = size_t(-1);
             return true;
         }
         tiny_memcpy_align_4(p, value, valsize);
@@ -1918,7 +1908,7 @@ for (;; pos++) {
                 goto SplitZpath;
             TERARK_ASSERT_EQ(key.size(), pos);
             if (p->meta.b_is_final) {
-                token->m_value = (char*)p->bytes + ni.va_offset;
+                token->m_valpos = p->bytes + ni.va_offset - a->bytes;
                 goto HandleDupKey;
             }
             goto MarkFinalStateOmitSetNodeInfo;
@@ -1927,7 +1917,7 @@ for (;; pos++) {
     else {
         if (terark_unlikely(key.size() == pos)) {
             if (p->meta.b_is_final) {
-                token->m_value = (void*)(p->bytes + get_val_self_pos(p));
+                token->m_valpos = p->bytes + get_val_self_pos(p) - a->bytes;
                 goto HandleDupKey;
             }
             if (terark_likely(15 != p->meta.n_cnt_type))
@@ -2044,7 +2034,7 @@ TERARK_ASSERT_LT(pos, key.size());
                                                &valpos, &chainLen, valsize, lzf);
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     if (size_t(-1) == suffix_node) {
-        token->m_value = NULL; // fail flag
+        token->m_valpos = size_t(-1); // fail flag
         return true;
     }
     if (0 == a[curr].meta.n_zpath_len) {
@@ -2060,7 +2050,7 @@ TERARK_ASSERT_LT(pos, key.size());
         size_t newCurr = add_state_move<MultiWriteMultiRead>(curr, ch, suffix_node, valsize, lzf);
         if (size_t(-1) == newCurr) {
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
-            token->m_value = NULL; // fail flag
+            token->m_valpos = size_t(-1); // fail flag
             return true;
         }
         if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
@@ -2076,14 +2066,14 @@ TERARK_ASSERT_LT(pos, key.size());
     if (terark_likely(!is_value_inited)) {                       \
       if (terark_unlikely(!token->init_value(value, valsize))) { \
         init_token_value_fail_clean(new1, new2, list, lzf)       \
-        token->m_value = NULL;                                   \
+        token->m_valpos = size_t(-1);                            \
         return true;                                             \
       }                                                          \
       is_value_inited = true;                                    \
     }                                                            \
     auto valptr = a->bytes + valpos;                             \
     tiny_memcpy_align_4(valptr, value, valsize);                 \
-    token->m_value = valptr;                                     \
+    token->m_valpos = valpos;                                    \
 } while (0)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         init_token_value_mw(-1, newCurr, suffix_node);
@@ -2137,7 +2127,7 @@ ForkBranch: {
     size_t newSuffixNode = new_suffix_chain<MultiWriteMultiRead>(key.substr(pos+1),
                                                  &valpos, &chainLen, valsize, lzf);
     if (size_t(-1) == newSuffixNode) {
-        token->m_value = NULL; // fail flag
+        token->m_valpos = size_t(-1); // fail flag
         return true;
     }
     TERARK_ASSERT_LE(ni.n_skip, 10);
@@ -2148,7 +2138,7 @@ ForkBranch: {
     if (size_t(-1) == newCurr) {
         TERARK_ASSERT_EQ(reinterpret_cast<PatriciaNode*>(m_mempool.data()), a);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
-        token->m_value = NULL; // fail flag
+        token->m_valpos = size_t(-1); // fail flag
         return true;
     }
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
@@ -2189,7 +2179,7 @@ SplitZpath: {
     size_t valpos = size_t(-1);
     size_t newCurr = split_zpath<MultiWriteMultiRead>(curr, zidx, &ni, &valpos, valsize, lzf);
     if (size_t(-1) == newCurr) {
-        token->m_value = NULL; // fail flag
+        token->m_valpos = size_t(-1); // fail flag
         return true;
     }
     // ni.oldSuffixNode is the copy of curr with zpath updated to suffix_str
@@ -2226,7 +2216,7 @@ MarkFinalStateOnFastNode: {
       while (!(as_atomic(a[curr].flags).load(std::memory_order_relaxed) & FLAG_final)) {
           _mm_pause();
       }
-      token->m_value = (char*)a->chars + valpos;
+      token->m_valpos = valpos;
       goto HandleDupKey;
     }
     else {
@@ -2252,7 +2242,7 @@ MarkFinalStateOmitSetNodeInfo:
     size_t newcur = newpos / AlignSize;
     size_t valpos = newpos + ni.va_offset;
     if (size_t(-1) == newpos) {
-        token->m_value = NULL;
+        token->m_valpos = size_t(-1);
         return true;
     }
     TERARK_ASSERT_LE(ni.n_skip, 10);
@@ -2634,7 +2624,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
             }
             if (terark_unlikely(kkn <= zlen)) {
                 if (kkn == zlen && p->meta.b_is_final) {
-                    token->m_value = (char*)zptr + pow2_align_up(zlen, AlignSize);
+                    token->m_valpos = zptr + pow2_align_up(zlen, AlignSize) - a->bytes;
                     return true; // done
                 }
                 goto Fail;
@@ -2646,11 +2636,11 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
                 if (p->meta.b_is_final) {
                     size_t skip = s_skip_slots[cnt_type];
                     size_t n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
-                    token->m_value = (void*)(p[skip + n_children].bytes);
+                    token->m_valpos = p[skip + n_children].bytes - a->bytes;
                     return true; // done
                 }
             //  goto Fail; // false positive assertion at Fail
-                token->m_value = NULL;
+                token->m_valpos = size_t(-1);
                 return false;
             }
         }
@@ -2806,7 +2796,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
     }
   Fail:
     //assert(pos < key.size()); // false positive
-    token->m_value = NULL;
+    token->m_valpos = size_t(-1);
     return false;
 }
 
@@ -2902,23 +2892,6 @@ void* PatriciaMem<Align>::alloc_appdata(size_t len) {
 }
 
 template<size_t Align>
-void PatriciaMem<Align>::SingleThreadShared_sync_token_list(byte_t* oldmembase) {
-    TERARK_VERIFY_EQ(SingleThreadShared, m_writing_concurrent_level);
-    TERARK_VERIFY_NE(m_mempool.data(), oldmembase);
-    TERARK_IF_DEBUG(size_t cnt = 0,);
-    byte_t   * newmembase = m_mempool.data();
-    for(auto curr = m_dummy.m_link.next; curr != NULL; curr = curr->m_link.next) {
-        TokenBase* token = static_cast<TokenBase*>(curr);
-        //assert(dynamic_cast<ReaderToken*>(token) != nullptr);
-        if (byte_t* pvalue = (byte_t*)(token->m_value)) {
-            size_t  offset = pvalue - oldmembase;
-            token->m_value = newmembase + offset;
-        }
-        TERARK_IF_DEBUG(cnt++,);
-    }
-}
-
-template<size_t Align>
 void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
     byte_t* bbase = (byte_t*)base;
     if (base->total_states >= max_state) {
@@ -2999,7 +2972,7 @@ Patricia::TokenBase::TokenBase() {
     m_link.verseq   = 0;
     m_min_age = 0;
     m_trie  = NULL;
-    m_value = NULL;
+    m_valpos = size_t(-1);
     m_flags.state = ReleaseDone;
     m_flags.is_head = false;
     m_thread_id = UINT64_MAX;
@@ -3431,7 +3404,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     trie->m_head_is_dead = true;
                 }
                 m_flags = {ReleaseDone, false};
-                m_value = NULL;
+                m_valpos = size_t(-1);
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 cas_unlock(trie->m_head_lock);
                 dvec.batch_del(&trie->m_dead_token_in_queue);
@@ -3501,7 +3474,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             case AcquireDone:
                 if (cas_weak(m_flags, flags, {ReleaseWait, false})) {
                     //fprintf(stderr, "DEBUG: thread-%08zX ReleaseWait self token\n", m_thread_id);
-                    m_value = NULL;
+                    m_valpos = size_t(-1);
                     return;
                 }
                 else {
@@ -3524,7 +3497,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             case AcquireIdle:
                 if (cas_weak(m_flags, flags, {ReleaseWait, false})) {
                     //fprintf(stderr, "DEBUG: thread-%08zX ReleaseWait self token\n", m_thread_id);
-                    m_value = NULL;
+                    m_valpos = size_t(-1);
                     return;
                 }
                 break; // retry
@@ -3824,7 +3797,7 @@ void Patricia::TokenBase::acquire(Patricia* trie1) {
     assert(NULL != trie1);
     assert(NULL == m_trie || trie1 == m_trie);
     auto trie = static_cast<MainPatricia*>(trie1);
-    m_value = NULL;
+    m_valpos = size_t(-1);
     m_trie = trie;
     auto conLevel = trie->m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared || trie->m_token_qlen) {
@@ -4125,7 +4098,7 @@ public:
         m_curr = m_iter.back().state;
         m_word.back() = '\0';
         m_word.pop_back();
-        m_value = (void*)(zptr + pow2_align_up(zlen, AlignSize));
+        m_valpos = zptr + pow2_align_up(zlen, AlignSize) - a->bytes;
     }
     terark_no_inline
     void append_lex_max_suffix(size_t root, const PatriciaNode* a) {
@@ -4162,7 +4135,7 @@ public:
       #endif
         m_word.back() = '\0';
         m_word.pop_back();
-        m_value = (void*)(zptr + pow2_align_up(zlen, AlignSize));
+        m_valpos = zptr + pow2_align_up(zlen, AlignSize) - a->bytes;
     }
     void reset1();
     size_t calc_word_len() const {
@@ -4205,7 +4178,7 @@ void MainPatricia::IterImpl::reset1() {
     m_curr = size_t(-1);
     m_word.risk_set_size(0);
     m_iter.risk_set_size(0);
-    m_value = NULL;
+    m_valpos = size_t(-1);
     if (NULL == m_trie) {
         m_iter.reserve(16); // fast malloc small
         m_flag = 0;
@@ -4354,7 +4327,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     *pch = '\0';
                     m_curr = curr;
                     m_word.pop_back();
-                    m_value = (void*)(zptr + pow2_align_up(zlen, AlignSize));
+                    m_valpos = zptr + pow2_align_up(zlen, AlignSize) - a->bytes;
                 }
                 else {
                     size_t next = trie->first_child(p, pch);
@@ -4382,7 +4355,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                 m_iter.push_back(e);
                 if (p->meta.b_is_final) {
                     const size_t skip = MainPatricia::s_skip_slots[cnt_type];
-                    m_value = (void*)(p[skip + n_children].bytes);
+                    m_valpos = p[skip + n_children].bytes - a->bytes;
                     m_curr = curr;
                     m_word.ensure_capacity(pos + 1);
                     m_word.data()[pos] = '\0';
@@ -4598,7 +4571,7 @@ seek_lower_bound_fast:
                     *wp = '\0';
                     m_word.risk_set_end(wp);
                     m_curr = curr;
-                    m_value = (void*)(pow2_align_up(size_t(zptr), AlignSize));
+                    m_valpos = pow2_align_up(size_t(zptr), AlignSize) - size_t(a);
                 }
                 else {
                     size_t next = trie->first_child(p, wp++);
@@ -4627,7 +4600,7 @@ seek_lower_bound_fast:
                 m_iter.risk_set_end(ip+1);
                 if (p->meta.b_is_final) {
                     const size_t skip = MainPatricia::s_skip_slots[cnt_type];
-                    m_value = (void*)(p[skip + n_children].bytes);
+                    m_valpos = p[skip + n_children].bytes - a->bytes;
                     m_curr = curr;
                     *wp = '\0';
                     m_word.risk_set_end(wp);
@@ -5094,7 +5067,7 @@ bool MainPatricia::IterImpl::decr() {
             m_iter.risk_set_size(top+1);
             m_word.risk_set_size(len);
             mark_word_end_zero_at(curr);
-            m_value = trie->get_valptr(curr);
+            m_valpos = trie->get_valpos(a, curr);
             return true;
         }
         if (terark_unlikely(0 == top)) {
@@ -5175,7 +5148,7 @@ bool MainPatricia::IterImpl::decr() {
         if (p->meta.b_is_final) {
             m_iter[top].nth_child = 0;
             m_curr = curr;
-            m_value = trie->get_valptr(curr);
+            m_valpos = trie->get_valpos(a, curr);
             return true;
         }
         if (0 == top) {
@@ -5338,7 +5311,7 @@ void MainPatricia::dump_token_list() const {
                     dynamic_cast<const ReaderToken*>(token) ? "read" : "base";
         fprintf(stderr, "%3zd | %-5s | %d | %s | %lld | %lld | %p | %p | %#zX | %lld | %p\n",
                 idx, type, token->m_flags.is_head, enum_cstr(token->m_flags.state),
-                token->m_min_age, token->m_link.verseq, token->m_value,
+                token->m_min_age, token->m_link.verseq, token->value(),
                 token->m_tls, token->m_thread_id, token->m_live_verseq, token);
     }
 }
@@ -5371,6 +5344,11 @@ Patricia::MemStat Patricia::mem_get_stat() const {
     mem_get_stat(&ms);
     return ms;
 }
+
+struct GetPatriciaMemPool : MainPatricia {
+    using MainPatricia::m_mempool;
+};
+const size_t Patricia::s_mempool_offset = offsetof(GetPatriciaMemPool, m_mempool);
 
 Patricia::Iterator::Iterator(Patricia* trie)
  : ADFA_LexIterator(valvec_no_init())

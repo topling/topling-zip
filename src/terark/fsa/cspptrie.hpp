@@ -62,13 +62,14 @@ protected:
         TokenBase* next;
         ullong     verseq;
     };
+    static const size_t s_mempool_offset;
 public:
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
         friend class TokenPtrVec;
     protected:
         Patricia*     m_trie;
-        void*         m_value;
+        size_t        m_valpos; // raw pos, not multiply by AlignSize
         void*         m_tls; // unused for ReaderToken
         ullong        m_live_verseq;
         size_t        m_thread_id;
@@ -97,23 +98,29 @@ public:
         }
 
         Patricia* trie() const { return m_trie; }
-        const void* value() const { return m_value; }
+        bool has_value() const { return size_t(-1) != m_valpos; }
+        size_t get_valpos() const { return m_valpos; }
+        const void* value() const {
+            assert(size_t(-1) != m_valpos);
+            auto mp = (const valvec<byte_t>*)((byte_t*)m_trie + s_mempool_offset);
+            return mp->data() + m_valpos;
+        }
         template<class T>
         T value_of() const {
             assert(sizeof(T) == m_trie->m_valsize);
-            assert(NULL != m_value);
-            assert(size_t(m_value) % m_trie->mem_align_size() == 0);
+            assert(size_t(-1) != m_valpos);
+            assert(m_valpos % m_trie->mem_align_size() == 0);
             if (sizeof(T) == 4)
-              return   aligned_load<T>(m_value);
+              return   aligned_load<T>(value());
             else
-              return unaligned_load<T>(m_value);
+              return unaligned_load<T>(value());
         }
         template<class T>
         T& mutable_value_of() const {
             assert(sizeof(T) == m_trie->m_valsize);
-            assert(NULL != m_value);
-            assert(size_t(m_value) % m_trie->mem_align_size() == 0);
-            return *reinterpret_cast<T*>(m_value);
+            assert(size_t(-1) != m_valpos);
+            assert(m_valpos % m_trie->mem_align_size() == 0);
+            return *(T*)(value());
         }
     };
 
@@ -184,8 +191,8 @@ public:
 
     /// @returns
     ///  true: key does not exists
-    ///     token->value() == NULL : reached memory limit
-    ///     token->value() != NULL : insert success,
+    ///     token->has_value() == false : reached memory limit
+    ///     token->has_value() == true  : insert success,
     ///                              and value is copyed to token->value()
     ///  false: key has existed
     ///
