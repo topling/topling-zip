@@ -98,6 +98,18 @@ public:
     WriterTokenPtr& tls_writer_token() final;
     ReaderToken* tls_reader_token() final;
 
+    template<class T>
+    T value_of(const TokenBase& token) const {
+        size_t valpos = token.m_valpos;
+        return *(const T*)(m_mempool.data() + valpos);
+    }
+
+    template<class T>
+    T& mutable_value_of(const TokenBase& token) {
+        size_t valpos = token.m_valpos;
+        return *(T*)(m_mempool.data() + valpos);
+    }
+
 protected:
     struct LazyFreeItem {
         ullong   age;
