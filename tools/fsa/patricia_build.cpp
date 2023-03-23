@@ -31,6 +31,7 @@ void usage(const char* prog) {
     fprintf(stderr, R"EOS(Usage: %s Options Input-TXT-File
 Options:
     -h Show this help information
+    -H HugePageEnum int value(kNone = 0, kMmap = 1, kTransparent = 2)
     -m MaxMem
     -o Output-Trie-File
     -g Output-Graphviz-Dot-File
@@ -96,8 +97,9 @@ int main(int argc, char* argv[]) {
     bool print_stat = false;
     bool concWriteInterleave = false;
     auto conLevel = Patricia::SingleThreadStrict;
+    std::string ptconfstr;
     for (;;) {
-        int opt = getopt(argc, argv, "Bb:ghm:o:6:t:w:r:ijs");
+        int opt = getopt(argc, argv, "Bb:ghm:o:6:t:w:r:ijsH:");
         switch (opt) {
         case -1:
             goto GetoptDone;
@@ -160,6 +162,9 @@ int main(int argc, char* argv[]) {
         case 's':
             print_stat = true;
             break;
+        case 'H':
+            ptconfstr = fstring("?hugepage=") + optarg;
+            break;
         case '?':
         case 'h':
         default:
@@ -195,8 +200,8 @@ GetoptDone:
         }
     }
     SortableStrVec strVec;
-    MainPatricia trie(sizeof(size_t), maxMem, conLevel);
-    MainPatricia trie2(sizeof(size_t), maxMem, conLevel);
+    MainPatricia trie(sizeof(size_t), maxMem, conLevel, ptconfstr);
+    MainPatricia trie2(sizeof(size_t), maxMem, conLevel, ptconfstr);
     size_t sumkeylen = 0;
     long long t0 = pf.now();
     if (is_binary_input) {
@@ -226,7 +231,7 @@ GetoptDone:
             } else {
                 fprintf(stderr, "dup binary key, len = %zd\n", buf.size());
             }
-            if (token->value() == NULL) { // run out of maxMem
+            if (!token->has_value()) { // run out of maxMem
                 fprintf(stderr
                     , "write concurrent run out of maxMem = %zd, fragments = %zd (%.2f%%)\n"
                     , maxMem, trie.mem_frag_size(), 100.0*trie.mem_frag_size()/trie.mem_size());
@@ -256,7 +261,7 @@ GetoptDone:
 #if 0
             Patricia::WriterToken token(&trie);
             if (trie.insert(line, &nth, &token)) {
-                if (token.value()) {
+                if (token.has_value()) {
                     nth++;
 #if 0
                     trie.print_output(stdout);
@@ -427,7 +432,7 @@ GetoptDone:
         Patricia::WriterToken& token = *trie.tls_writer_token_nn();
         token.acquire(&trie);
         if (trie.insert(s, &nth, &token)) {
-            if (token.value()) {
+            if (token.has_value()) {
                 nth++;
             } else { // Patricia run out of maxMem
                 fprintf(stderr
@@ -469,7 +474,7 @@ GetoptDone:
             for (size_t i = beg; i < end; ++i) {
                 fstring s = strVec[i];
                 if (trie2.insert(s, &i, &token)) {
-                    if (!token.value()) {
+                    if (!token.has_value()) {
                         // Patricia run out of maxMem
                         fprintf(stderr
                             , "thread-%02d write concurrent run out of maxMem = %zd, i = %zd, fragments = %zd\n"
@@ -488,7 +493,7 @@ GetoptDone:
             for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
                 fstring s = strVec[i];
                 if (trie2.insert(s, &i, &token)) {
-                    if (!token.value()) {
+                    if (!token.has_value()) {
                         // Patricia run out of maxMem
                         fprintf(stderr
                             , "thread-%02d write concurrent run out of maxMem = %zd, i = %zd, fragments = %zd\n"
@@ -615,6 +620,7 @@ if (write_thread_num > 0) {
         , pf.sf(t0, t1), pt->mem_size() / pf.uf(t0, t1), strVec.size() / pf.uf(t0, t1)
         , pt->mem_size() / 1e6
     );
+#if 0
     t0 = pf.now();
     //pt->print_output((std::string(patricia_trie_fname) + ".txt").c_str());
     t1 = pf.now();
@@ -640,16 +646,15 @@ if (write_thread_num > 0) {
         , "patricia   each: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
         , pf.sf(t0, t1), sumkeylen / pf.uf(t0, t1), strVec.size() / pf.uf(t0, t1)
     );
+#endif
     t0 = pf.now();
   {
     ADFA_LexIteratorUP iter(pt->adfa_make_iter());
-    bool ok = iter->seek_begin();
+    TERARK_VERIFY(iter->seek_begin());
     for (size_t i = 0; i < strVec.size(); ++i) {
-        assert(ok);
         assert(iter->word() == strVec[i]);
-        ok = iter->incr();
+        TERARK_VERIFY(iter->incr());
     }
-    TERARK_UNUSED_VAR(ok);
   }
     t1 = pf.now();
     fprintf(stderr
@@ -788,8 +793,8 @@ if (write_thread_num > 0) {
         , "               |   capacity |           | %10zd | %9.2f%% |\n"
         , ms.capacity, 100.0*ms.capacity/ms.used_size
     );
-    assert(trie.mem_frag_size() - sum_fast_size == ms.huge_size);
-    assert(trie.mem_frag_size() == ms.frag_size);
-    assert(sum_fast_size == ms.frag_size - ms.huge_size);
+    TERARK_VERIFY_EQ(trie.mem_frag_size() - sum_fast_size, ms.huge_size);
+    TERARK_VERIFY_EQ(trie.mem_frag_size(), ms.frag_size);
+    TERARK_VERIFY_EQ(sum_fast_size, ms.frag_size - ms.huge_size);
     return 0;
 }

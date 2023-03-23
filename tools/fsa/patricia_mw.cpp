@@ -27,6 +27,7 @@ void usage(const char* prog) {
     fprintf(stderr, R"EOS(Usage: %s Options Input-TXT-File
 Options:
     -h Show this help information
+    -H HugePageEnum int value(kNone = 0, kMmap = 1, kTransparent = 2)
     -A set thread affinity
     -c commit/populate thread local mempool area
     -l lock input file's mmap area(needs permission)
@@ -96,10 +97,11 @@ int main(int argc, char* argv[]) {
     bool commitMemArea = false;
     bool lockMmap = false;
     bool pauseAfterReadInput = false;
+    std::string ptconfstr;
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "Ab:cdhlm:o:pt:w:r:ijsSVv:z");
+        int opt = getopt(argc, argv, "Ab:cdhlm:o:pt:w:r:ijsSVv:zH:");
         switch (opt) {
         case -1:
             goto GetoptDone;
@@ -166,6 +168,9 @@ int main(int argc, char* argv[]) {
         case 'z':
             zeroValue = true;
             break;
+        case 'H':
+            ptconfstr = fstring("?hugepage=") + optarg;
+            break;
         case '?':
         case 'h':
         default:
@@ -197,6 +202,7 @@ GetoptDone:
             bool writable = false;
             bool populate = true;
             mmap.base = mmap_load(input_fname, &mmap.size, writable, populate);
+          #if !defined(_MSC_VER)
             if (lockMmap) {
                 size_t sum = 0;
                 long long t0 = pf.now();
@@ -212,6 +218,7 @@ GetoptDone:
                     fprintf(stderr, "WARN: mlock(%s) = %s\n", input_fname, strerror(errno));
                 }
             }
+          #endif
             if (0 == maxMem)
                 maxMem = 2*st.st_size;
         }
@@ -222,8 +229,8 @@ GetoptDone:
     }
     intptr_t argMaxMem = useVirtualMem ? -maxMem : maxMem;
     SortableStrVec strVec;
-    MainPatricia trie1(sizeof(size_t), argMaxMem, conLevel);
-    MainPatricia trie2(sizeof(size_t), argMaxMem, Patricia::MultiWriteMultiRead);
+    MainPatricia trie1(sizeof(size_t), argMaxMem, conLevel, ptconfstr);
+    MainPatricia trie2(sizeof(size_t), argMaxMem, Patricia::MultiWriteMultiRead, ptconfstr);
     size_t sumkeylen = 0;
     size_t sumvaluelen = 0;
     size_t numkeys = 0;
@@ -369,6 +376,8 @@ GetoptDone:
             fstring s = fstrVec[i];
             if (!iter.seek_lower_bound(s))
                 fprintf(stderr, "pttrie lower_bound failed: %.*s\n", s.ilen(), s.data());
+            else
+                TERARK_VERIFY(iter.word() == s);
         }
         long long tt1 = pf.now();
         as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
@@ -407,7 +416,7 @@ GetoptDone:
             size_t sumvaluelen1 = 0;
             auto insert_v0 = [&](fstring key, size_t i) {
                 if (ptrie->insert(key, &i, &token)) {
-                    if (!token.value()) {
+                    if (!token.has_value()) {
                         // Patricia run out of maxMem
                         fprintf(stderr
                             , "thread-%02d write concurrent run out of maxMem = %zd, i = %zd, fragments = %zd\n"
@@ -440,7 +449,7 @@ GetoptDone:
                     }
                 }
                 if (ptrie->insert(key, &pl, &token)) {
-                    if (!token.value()) {
+                    if (!token.has_value()) {
                         // Patricia run out of maxMem
                         fprintf(stderr
                             , "thread-%02d write concurrent run out of maxMem = %zd, i = %zd, fragments = %zd\n"
@@ -500,7 +509,7 @@ GetoptDone:
                 for (size_t i = beg; i < end; ++i) {
                     fstring s = strVec[i];
                     if (ptrie->insert(s, &i, &token)) {
-                        if (!token.value()) {
+                        if (!token.has_value()) {
                             // Patricia run out of maxMem
                             fprintf(stderr
                                 , "thread-%02d write concurrent run out of maxMem = %zd, i = %zd, fragments = %zd\n"
@@ -526,7 +535,7 @@ GetoptDone:
 			for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
 				fstring s = strVec[i];
 				if (ptrie->insert(s, &i, &token)) {
-					if (!token.value()) {
+					if (!token.has_value()) {
 						// Patricia run out of maxMem
 						fprintf(stderr
 							, "thread-%02d write concurrent run out of maxMem = %zd, i = %zd, fragments = %zd\n"

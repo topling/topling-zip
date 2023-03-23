@@ -33,6 +33,7 @@ Options:
     -s indicate that input is sorted, the top level sort will be omitted
     -B Input is binary(bson) data
     -6 Input is base64 encoded data
+    -p CommonPrefix
     -U StrVecType, can be one of:
          t: SortThinStrVec, this is the default
          x: SortableStrVec,
@@ -102,7 +103,7 @@ int main(int argc, char* argv[]) {
 	conf.initFromEnv();
 	const char* rank_select_impl = "m-xl-256";
 	for (;;) {
-		int opt = getopt(argc, argv, "Bb:w:ghd:M:mn:o:R:T:U:s6F:");
+		int opt = getopt(argc, argv, "Bb:w:ghd:M:mn:o:R:T:U:s6F:p:");
 		switch (opt) {
 		case -1:
 			goto GetoptDone;
@@ -139,6 +140,9 @@ int main(int argc, char* argv[]) {
 		case 'o':
 			rlouds_trie_fname = optarg;
 			break;
+        case 'p':
+            conf.commonPrefix = optarg;
+            break;
 		case 'R':
 			rank_select_impl = optarg;
 			break;
@@ -685,7 +689,6 @@ int build_impl(int argc, char* argv[]) {
 		allstr.reserve(trie.num_words());
 		allstr.reserve_strpool(allstrlen);
 		valvec<uint32_t> strIdx(trie.num_words(), valvec_reserve());
-		/*
 		auto bench_for_each_word = [&](unsigned long long nth, fstring w) {
 			assert(nth == allstr.size());
 			unsigned long long idx = trie.index(w);
@@ -697,9 +700,7 @@ int build_impl(int argc, char* argv[]) {
 			strIdx.push_back(uint32_t(idx));
 		};
 		trie.for_each_word(ref(bench_for_each_word));
-		*/
 		long long t5 = pf.now();
-		/*
 		for (size_t i = 0; i < allstr.size(); ++i) {
 			fstring w = allstr[i];
 			bool bExists = false;
@@ -711,7 +712,6 @@ int build_impl(int argc, char* argv[]) {
 					, (long long)i, w.ilen(), w.data());
 			}
 		}
-		*/
 		long long t6 = pf.now();
 		for (size_t i = 0; i < allstr.size(); ++i) {
 			fstring w = allstr[i];

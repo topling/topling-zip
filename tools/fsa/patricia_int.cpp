@@ -180,7 +180,7 @@ GetoptDone:
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (!pt->lookup(s, &token))
                     fprintf(stderr, "pttrie lookup not found: %llu\n", cvtkey(keyvec[i]));
-                if (token.value_of<ullong>() != unaligned_load<ullong>(s.p))
+                if (pt->value_of<ullong>(token) != unaligned_load<ullong>(s.p))
                     fprintf(stderr, "pttrie lookup wrong value: %llu\n", cvtkey(keyvec[i]));
             }
         }
@@ -190,7 +190,7 @@ GetoptDone:
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (!pt->lookup(s, &token))
                     fprintf(stderr, "pttrie lookup not found: %llu\n", cvtkey(keyvec[i]));
-                if (token.value_of<ullong>() != unaligned_load<ullong>(s.p))
+                if (pt->value_of<ullong>(token) != unaligned_load<ullong>(s.p))
                     fprintf(stderr, "pttrie lookup wrong value: %llu\n", cvtkey(keyvec[i]));
                 token.idle();
             }
@@ -203,7 +203,7 @@ GetoptDone:
             fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
             if (!iter.seek_lower_bound(s) || iter.word() != s)
                 fprintf(stderr, "pttrie lower_bound failed: %lld\n", cvtkey(keyvec[i]));
-            if (iter.value_of<ullong>() != unaligned_load<ullong>(s.p))
+            if (pt->value_of<ullong>(iter) != unaligned_load<ullong>(s.p))
                 fprintf(stderr, "pttrie lower_bound wrong value: %llu\n", cvtkey(keyvec[i]));
         }
         iter.dispose();
@@ -230,7 +230,7 @@ GetoptDone:
             for (size_t i = beg; i < end; ++i) {
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (ptrie->insert(s, keyvec.data() + i, &token)) {
-                    if (!token.value()) {
+                    if (!token.has_value()) {
                         // Patricia run out of maxMem
                         fprintf(stderr
                             , "thread-%02zd write concurrent run out of maxMem = %zd, i = %zd, frag = %zd\n"
@@ -248,7 +248,7 @@ GetoptDone:
 			for (size_t i = tid, n = keyvec.size(); i < n; i += tnum) {
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (ptrie->insert(s, keyvec.data() + i, &token)) {
-					if (!token.value()) {
+					if (!token.has_value()) {
 						// Patricia run out of maxMem
 						fprintf(stderr
 							, "thread-%02zd write concurrent run out of maxMem = %zd, i = %zd, frag = %zd\n"
