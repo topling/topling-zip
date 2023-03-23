@@ -689,6 +689,7 @@ int build_impl(int argc, char* argv[]) {
 		allstr.reserve(trie.num_words());
 		allstr.reserve_strpool(allstrlen);
 		valvec<uint32_t> strIdx(trie.num_words(), valvec_reserve());
+		/*
 		auto bench_for_each_word = [&](unsigned long long nth, fstring w) {
 			assert(nth == allstr.size());
 			unsigned long long idx = trie.index(w);
@@ -700,7 +701,9 @@ int build_impl(int argc, char* argv[]) {
 			strIdx.push_back(uint32_t(idx));
 		};
 		trie.for_each_word(ref(bench_for_each_word));
+		*/
 		long long t5 = pf.now();
+		/*
 		for (size_t i = 0; i < allstr.size(); ++i) {
 			fstring w = allstr[i];
 			bool bExists = false;
@@ -712,6 +715,7 @@ int build_impl(int argc, char* argv[]) {
 					, (long long)i, w.ilen(), w.data());
 			}
 		}
+		*/
 		long long t6 = pf.now();
 		for (size_t i = 0; i < allstr.size(); ++i) {
 			fstring w = allstr[i];
