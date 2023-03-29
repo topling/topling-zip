@@ -2745,14 +2745,16 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		}
 		else {
 			// nextState=nextNodeNum-1 must be a linked node
-			size_t LowBits = FastLabel ? 0 : 8;
-			size_t nextLinkBits = UintVecMin0::compute_uintbits
-						(((nextNodeNum-1) >> LowBits) - next_link_min_val);
-			trie->m_next_link.risk_set_data(
-				mem.skip((next_link_mem_size + 7) & ~7),
-				trie->m_is_link.max_rank1(),
-				size_t(next_link_min_val),
-				nextLinkBits);
+			if (nextNodeNum) {
+				size_t LowBits = FastLabel ? 0 : 8;
+				size_t nextLinkBits = UintVecMin0::compute_uintbits
+							(((nextNodeNum-1) >> LowBits) - next_link_min_val);
+				trie->m_next_link.risk_set_data(
+					mem.skip((next_link_mem_size + 7) & ~7),
+					trie->m_is_link.max_rank1(),
+					size_t(next_link_min_val),
+					nextLinkBits);
+			}
 			TERARK_VERIFY_EQ(trie->m_next_link.size(), trie->m_is_link.max_rank1());
 			trie->m_label_data = mem.skip((node_num + 7) & ~7);
 			trie->m_core_data = NULL;
