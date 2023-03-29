@@ -2281,9 +2281,10 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
       #endif
         sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
         size_t strIncSize = prefixLen - (FastLabel ? ceiled_div(prefixLen, MAX_FRAG) : 0);
+		size_t oldsize = nestStrVec.m_strpool.size();
         nestStrVec.m_strpool.grow_no_init(strIncSize);
         byte_t* data = nestStrVec.m_strpool.data();
-        memmove(data + strIncSize, data, nestStrVec.m_strpool.size());
+        memmove(data + strIncSize, data, oldsize);
         fstring pref = conf.commonPrefix;
         size_t offset = 0;
         for (size_t i = 0; i < prefixNum; ++i) {
