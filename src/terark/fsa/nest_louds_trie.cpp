@@ -2100,6 +2100,8 @@ build_self_trie(SortableStrVec& strVec,
     strVec.swap(nestStrVec);
 }
 
+const size_t MAX_FRAG = TERARK_IF_DEBUG(6, 253);
+
 template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class StrVecType>
 void
@@ -2138,7 +2140,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	double fmaxFragLen1 = conf.minFragLen * pow(q, curNestLevel + 1);
 	double fmaxFragLen2 = fmaxFragLen1/q;
 	double fmaxFragLen3 = fmaxFragLen2/q;
-	size_t maxFragLen0 = std::min<size_t>(conf.maxFragLen, 253);
+	size_t maxFragLen0 = std::min<size_t>(conf.maxFragLen, MAX_FRAG);
 	size_t maxFragLen1 = ceil(fmaxFragLen1);
 	size_t maxFragLen2 = ceil(fmaxFragLen2);
 	size_t maxFragLen3 = ceil(fmaxFragLen3);
@@ -2152,9 +2154,9 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		);
 	}
 	TERARK_VERIFY_LE(minFragLen1, maxFragLen1);
-	maxFragLen1 = std::min<size_t>(maxFragLen1, 253);
-	maxFragLen2 = std::min<size_t>(maxFragLen2, 253);
-	maxFragLen3 = std::min<size_t>(maxFragLen3, 253);
+	maxFragLen1 = std::min<size_t>(maxFragLen1, MAX_FRAG);
+	maxFragLen2 = std::min<size_t>(maxFragLen2, MAX_FRAG);
+	maxFragLen3 = std::min<size_t>(maxFragLen3, MAX_FRAG);
 #endif
 	std::unique_ptr<TempFile> linkSeqStore;
 	const size_t strVecSize = strVec.size();
@@ -2249,14 +2251,14 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
     };
     const size_t prefixLen = conf.commonPrefix.size(); // whole prefix len
     const size_t prefixNum = conf.nestLevel == int(curNestLevel)
-                           ? prefixLen/253 + (prefixLen%253 > 1)
+                           ? prefixLen/MAX_FRAG + (prefixLen%MAX_FRAG > 1)
                            : 0;
     if (prefixLen && conf.nestLevel == int(curNestLevel)) {
         m_max_strlen += prefixLen;
         fstring pref = conf.commonPrefix;
-        while (pref.size() >= 253) {
-            writePrefixFrag(pref.substr(0, 253));
-            pref = pref.substr(253);
+        while (pref.size() >= MAX_FRAG) {
+            writePrefixFrag(pref.substr(0, MAX_FRAG));
+            pref = pref.substr(MAX_FRAG);
         }
         if (!pref.empty())
             writePrefixFrag(pref);
@@ -2278,33 +2280,26 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         }
       #endif
         sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
-        size_t strIncSize = prefixLen - (FastLabel ? prefixNum : 0);
+        size_t strIncSize = prefixLen - (FastLabel ? ceiled_div(prefixLen, MAX_FRAG) : 0);
         nestStrVec.m_strpool.ensure_unused(strIncSize);
         byte_t* data = nestStrVec.m_strpool.data();
         memmove(data + strIncSize, data, nestStrVec.m_strpool.size());
         nestStrVec.m_strpool.grow_no_init(strIncSize);
         fstring pref = conf.commonPrefix;
         size_t offset = 0;
-        for (size_t i = 0; i + 1 < prefixNum; ++i) {
+        for (size_t i = 0; i < prefixNum; ++i) {
             TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i);
+            size_t cut = std::min(MAX_FRAG, pref.size());
+            size_t len = cut - (FastLabel ? 1 : 0);
+            memcpy(data + offset, pref.p + (FastLabel?1:0), len);
             auto& x = nestStrVec.m_index[i];
             x.offset = offset;
-            if (FastLabel)
-                memcpy(data+offset, pref.p+1, 252), x.length=252, offset+=252;
-            else
-                memcpy(data+offset, pref.p+0, 253), x.length=253, offset+=253;
-
-            pref = pref.substr(253);
+            x.length = len;
+            offset += len;
+            pref = pref.substr(cut);
         }
-        TERARK_VERIFY_GT(pref.size(),   1);
-        TERARK_VERIFY_LT(pref.size(), 253);
-        auto& x = nestStrVec.m_index[prefixNum-1];
-        x.offset = offset;
-        x.length = uint32_t(pref.size() - (FastLabel ? 1 : 0));
-        if (FastLabel)
-            memcpy(data+offset, pref.p+1, pref.n-1), x.length=pref.size()-1;
-        else
-            memcpy(data+offset, pref.p+0, pref.n-0), x.length=pref.size()-0;
+        TERARK_VERIFY_LE(pref.size(), 1); // 1 or 0
+        TERARK_VERIFY_EQ(offset, strIncSize);
         for (size_t i = prefixNum; i < nestStrVecSize; i++) {
             nestStrVec.m_index[i].offset += strIncSize;
         }
@@ -2410,7 +2405,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 					assert(childBegCol > parentBegCol);
 				}
 				size_t fragStrLen = childBegCol - parentBegCol;
-				assert(fragStrLen <= 253);
+				assert(fragStrLen <= MAX_FRAG);
 				if (FastLabel)
 					fragStrLen--;
 				if (fragStrLen >= minLinkStrLen) {
