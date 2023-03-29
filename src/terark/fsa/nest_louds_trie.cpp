@@ -2130,7 +2130,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	if (conf.debugLevel >= 2) {
 		// must have been sorted
 		for (size_t i = 1; i < strVec.size(); ++i) {
-			assert(strVec[i-1] <= strVec[i]);
+			TERARK_VERIFY_F(strVec[i-1] <= strVec[i], "%zd of %zd", i, strVec.size());
 		}
 	}
 	size_t minLinkStrLen = getRealMinLinkStrLen(conf);
@@ -2515,15 +2515,9 @@ else
 		THROW_STD(length_error
 			, "nextStrVec is too large, size = %zd", olvec.size());
 	}
-	auto pSEntry = (SortableStrVec::SEntry*)
-		realloc(olvec.data(), sizeof(SortableStrVec::SEntry) * olvec.size());
-	if (!pSEntry) {
-		fprintf(stderr
-			, "FATAL: %s:%d: realloc(%zd bytes) for nextStrVec failed\n"
-			, __FILE__, __LINE__
-			, sizeof(SortableStrVec::SEntry) * olvec.size());
-		throw std::bad_alloc();
-	}
+	using SEntry = SortableStrVec::SEntry;
+	auto pSEntry = (SEntry*)realloc(olvec.data(), sizeof(SEntry) * olvec.size());
+	TERARK_VERIFY_F(pSEntry != nullptr, "nextStrVec realloc(%zd)", olvec.size());
 	auto pOffsetLength = (SortableStrVec::OffsetLength*)pSEntry;
 	for (size_t i = olvec.size(); i > 0; ) {
 		auto ol = pOffsetLength[--i];
