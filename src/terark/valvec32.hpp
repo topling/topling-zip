@@ -783,6 +783,17 @@ public:
         return p + oldsize;
     }
 
+    // T must be memmove-able
+    T* make_space_no_init(size_t pos, size_t len) {
+        TERARK_ASSERT_LE(n, c);
+        TERARK_VERIFY_LE(pos, n);
+        size_t movecnt = n - pos;
+        resize_no_init(n + len);
+        T* space = p + pos;
+        memmove(space + len, space, sizeof(T) * movecnt);
+        return space;
+    }
+
     void unchecked_push_back() {
         TERARK_ASSERT_LE(n, c);
         size_t oldsize = n;
