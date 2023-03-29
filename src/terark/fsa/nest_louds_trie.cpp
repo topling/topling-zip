@@ -2228,7 +2228,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         m_louds.push_back(false);
         if (frag.size() > 1) {
             nestStrVecSize++;
-            nestStrPoolSize += frag.size() - 1;
+            nestStrPoolSize += frag.size() - (FastLabel ? 1 : 0);
             if (nestStrPoolFile) {
                 if (FastLabel)
                   nestStrPoolFile->oTmpBuf << frag.substr(1);
