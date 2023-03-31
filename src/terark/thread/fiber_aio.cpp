@@ -62,7 +62,7 @@ TERARK_ENUM_CLASS(IoProvider, int,
 #if BOOST_OS_LINUX
 
 TERARK_DLL_EXPORT int get_linux_kernel_version(); // defined in vm_util.cpp
-static IoProvider g_io_provider = []{
+const static IoProvider g_io_provider = []{
   const char* env = getenv("TOPLING_IO_PROVIDER");
   IoProvider prov = enum_value(env ? env : "uring", IoProvider::uring);
 #if defined(TOPLING_IO_HAS_URING)
