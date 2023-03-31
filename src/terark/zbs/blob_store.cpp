@@ -24,6 +24,7 @@ BlobStore::BlobStore() {
     m_mmap_aio = false;
     m_min_prefetch_pages = 0;
     m_get_record_append = NULL;
+    m_get_record_append_fiber_vm_prefetch = NULL;
     m_get_record_append_CacheOffsets = NULL;
     m_fspread_record_append = NULL;
     m_pread_record_append = &BlobStore::pread_record_append_default_impl;

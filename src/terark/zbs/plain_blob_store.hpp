@@ -18,6 +18,7 @@ class TERARK_DLL_EXPORT PlainBlobStore : public AbstractBlobStore {
     valvec<byte_t> m_content;
     UintVecMin0    m_offsets;
 
+    template<bool FiberVmPrefetch>
     void get_record_append_imp(size_t recID, valvec<byte_t>* recData) const;
     void fspread_record_append_imp(pread_func_t fspread, void* lambda,
                                    size_t baseOffset, size_t recID,

@@ -190,6 +190,9 @@ private:
     template<bool ZipOffset, int CheckSumLevel, EntropyAlgo Entropy, int EntropyInterLeave>
 	void get_record_append_tpl(size_t recId, valvec<byte_t>* recData) const;
 
+    template<bool ZipOffset, int CheckSumLevel, EntropyAlgo Entropy, int EntropyInterLeave>
+    void get_record_append_fiber_vm_prefetch_tpl(size_t recId, valvec<byte_t>* recData) const;
+
     template<int CheckSumLevel, EntropyAlgo Entropy, int EntropyInterLeave>
     void get_record_append_CacheOffsets_tpl(size_t recId, CacheOffsets*) const;
 

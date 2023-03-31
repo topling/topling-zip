@@ -150,14 +150,18 @@ void MixedLenBlobStoreTpl<rank_select_t>::set_func_ptr() {
 	if (m_isFixedLen.empty()) {
 		if (size_t(-1) != m_fixedLen) {
             m_get_record_append = static_cast<get_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::getFixLenRecordAppend);
+                      (&MixedLenBlobStoreTpl::getFixLenRecordAppend<false>);
+            m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
+                      (&MixedLenBlobStoreTpl::getFixLenRecordAppend<true>);
             m_fspread_record_append = static_cast<fspread_record_append_func_t>
                       (&MixedLenBlobStoreTpl::fspread_FixLenRecordAppend);
             m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getFixLenRecordSize);
 		}
 		else {
             m_get_record_append = static_cast<get_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::getVarLenRecordAppend);
+                      (&MixedLenBlobStoreTpl::getVarLenRecordAppend<false>);
+            m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
+                      (&MixedLenBlobStoreTpl::getVarLenRecordAppend<true>);
             m_fspread_record_append = static_cast<fspread_record_append_func_t>
                       (&MixedLenBlobStoreTpl::fspread_VarLenRecordAppend);
             m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getVarLenRecordSize);
@@ -165,7 +169,9 @@ void MixedLenBlobStoreTpl<rank_select_t>::set_func_ptr() {
 	}
 	else {
         m_get_record_append = static_cast<get_record_append_func_t>
-                  (&MixedLenBlobStoreTpl::get_record_append_has_fixed_rs);
+                  (&MixedLenBlobStoreTpl::get_record_append_has_fixed_rs<false>);
+        m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
+                  (&MixedLenBlobStoreTpl::get_record_append_has_fixed_rs<true>);
         m_fspread_record_append = static_cast<fspread_record_append_func_t>
                   (&MixedLenBlobStoreTpl::fspread_record_append_has_fixed_rs);
         m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getMixLenRecordSize);
@@ -177,44 +183,57 @@ void MixedLenBlobStoreTpl<rank_select_t>::set_func_ptr() {
 }
 
 template<class rank_select_t>
+template<bool FiberVmPrefetch>
 void
 MixedLenBlobStoreTpl<rank_select_t>::
 get_record_append_has_fixed_rs(size_t recID, valvec<byte_t>* recData) const {
 	assert(m_isFixedLen.size() == m_numRecords);
 	if (m_isFixedLen[recID]) {
 		size_t fixLenRecID = m_isFixedLen.rank1(recID);
-		getFixLenRecordAppend(fixLenRecID, recData);
+		getFixLenRecordAppend<FiberVmPrefetch>(fixLenRecID, recData);
 	}
 	else {
 		size_t varLenRecID = m_isFixedLen.rank0(recID);
-		getVarLenRecordAppend(varLenRecID, recData);
+		getVarLenRecordAppend<FiberVmPrefetch>(varLenRecID, recData);
 	}
 }
 
 template<class rank_select_t>
+template<bool FiberVmPrefetch>
 void MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordAppend(size_t fixLenRecID, valvec<byte_t>* recData)
 const {
 	assert(size_t(-1) != m_fixedLen);
 	assert(m_fixedLen == 0 || m_fixedLenValues.size() % m_fixedLen == 0);
 	assert((fixLenRecID + 1) * m_fixedLen <= m_fixedLenValues.size());
 	const byte_t* pData = m_fixedLenValues.data() + m_fixedLen * fixLenRecID;
-    if (this->m_mmap_aio) {
-        fiber_aio_need(pData, m_fixedLen);
+    if (!FiberVmPrefetch) {
+        if (this->m_mmap_aio) {
+            fiber_aio_need(pData, m_fixedLen);
+        }
     }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
+            if (FiberVmPrefetch) {
+                fiber_aio_vm_prefetch(pData, m_fixedLenWithoutCRC + 2);
+            }
             uint16_t crc1 = unaligned_load<uint16_t>(pData + m_fixedLenWithoutCRC);
             uint16_t crc2 = Crc16c_update(0, pData, m_fixedLenWithoutCRC);
             if (crc2 != crc1) {
                 throw BadCrc16cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         } else {
+            if (FiberVmPrefetch) {
+                fiber_aio_vm_prefetch(pData, m_fixedLenWithoutCRC + 4);
+            }
             uint32_t crc1 = unaligned_load<uint32_t>(pData + m_fixedLenWithoutCRC);
             uint32_t crc2 = Crc32c_update(0, pData, m_fixedLenWithoutCRC);
             if (crc2 != crc1) {
                 throw BadCrc32cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         }
+    }
+    else if (FiberVmPrefetch) {
+        fiber_aio_vm_prefetch(pData, m_fixedLenWithoutCRC);
     }
 	//recData->append(pData, m_fixedLenWithoutCRC);
     TERARK_VERIFY_EQ(recData->capacity(), 0);
@@ -223,6 +242,7 @@ const {
 }
 
 template<class rank_select_t>
+template<bool FiberVmPrefetch>
 void MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend(size_t varLenRecID, valvec<byte_t>* recData)
 const {
 	assert(varLenRecID + 1 < m_varLenOffsets.size());
@@ -234,11 +254,16 @@ const {
     const byte_t* pData = basePtr + offset0;
     size_t        nData = offset1 - offset0;
     AutoPrefaultMem rng;
-    if (m_min_prefetch_pages >= g_min_prefault_pages) {
-        rng.maybe_prefault(pData, nData, m_min_prefetch_pages);
+    if (FiberVmPrefetch) {
+        fiber_aio_vm_prefetch(pData, nData);
     }
-    else if (this->m_mmap_aio && false) {
-        fiber_aio_need(pData, nData);
+    else {
+        if (m_min_prefetch_pages >= g_min_prefault_pages) {
+            rng.maybe_prefault(pData, nData, m_min_prefetch_pages);
+        }
+        else if (this->m_mmap_aio && false) {
+            fiber_aio_need(pData, nData);
+        }
     }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {

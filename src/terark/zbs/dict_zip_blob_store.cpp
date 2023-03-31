@@ -2632,6 +2632,23 @@ const {
         Entropy, EntropyInterLeave>(recId, recData, readRaw);
 }
 
+template<bool ZipOffset, int CheckSumLevel,
+         DictZipBlobStore::EntropyAlgo Entropy,
+         int EntropyInterLeave>
+terark_flatten void
+DictZipBlobStore::get_record_append_fiber_vm_prefetch_tpl
+        (size_t recId, valvec<byte_t>* recData)
+const {
+    auto readRaw = [this](size_t offset, size_t length) {
+        auto base = (const byte_t*)this->m_mmapBase;
+        auto addr = base + offset;
+        fiber_aio_vm_prefetch(addr, length);
+        return addr;
+    };
+    read_record_append_tpl<ZipOffset, CheckSumLevel,
+        Entropy, EntropyInterLeave>(recId, recData, readRaw);
+}
+
 template<int CheckSumLevel,
          DictZipBlobStore::EntropyAlgo Entropy,
          int EntropyInterLeave>
@@ -3087,6 +3104,8 @@ ZipOffset                                                         \
 #define SetFunc(a,b,c,d) \
   m_get_record_append = static_cast<get_record_append_func_t> \
   (&DictZipBlobStore::get_record_append_tpl<a,b,c,d>); \
+  m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t> \
+  (&DictZipBlobStore::get_record_append_fiber_vm_prefetch_tpl<a,b,c,d>); \
   m_get_record_append_CacheOffsets = CacheOffsetFunc(a,b,c,d); \
   m_pread_record_append = static_cast<pread_record_append_func_t> \
   (&DictZipBlobStore::pread_record_append_tpl<a,b,c,d>); \

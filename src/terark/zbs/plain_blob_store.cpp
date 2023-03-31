@@ -9,6 +9,7 @@
 #include "blob_store_file_header.hpp"
 #include "zip_reorder_map.hpp"
 #include <terark/io/FileStream.hpp>
+#include <terark/thread/fiber_aio.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/checksum_exception.hpp>
 #include <terark/util/mmap.hpp>
@@ -159,7 +160,10 @@ PlainBlobStore::PlainBlobStore() {
     m_checksumLevel = 3;
     m_checksumType = 0;
     m_get_record_append = static_cast<get_record_append_func_t>
-                    (&PlainBlobStore::get_record_append_imp);
+                    (&PlainBlobStore::get_record_append_imp<false>);
+    m_get_record_append_fiber_vm_prefetch =
+                    static_cast<get_record_append_func_t>
+                    (&PlainBlobStore::get_record_append_imp<true>);
     m_fspread_record_append = static_cast<fspread_record_append_func_t>
                     (&PlainBlobStore::fspread_record_append_imp);
     // binary compatible:
@@ -206,6 +210,7 @@ size_t PlainBlobStore::mem_size() const {
     return m_content.size() + m_offsets.mem_size();
 }
 
+template<bool FiberVmPrefetch>
 void
 PlainBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
@@ -216,6 +221,9 @@ const {
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* p = m_content.data() + BegEnd[0];
+    if (FiberVmPrefetch) {
+        fiber_aio_vm_prefetch(p, len);
+    }
     if (2 == m_checksumLevel){
         if (kCRC16C == m_checksumType) {
             len -= sizeof(uint16_t);

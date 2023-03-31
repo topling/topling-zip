@@ -51,6 +51,8 @@ ZeroLengthBlobStore::ZeroLengthBlobStore() {
     m_supportZeroCopy = true;
     m_get_record_append = static_cast<get_record_append_func_t>
                (&ZeroLengthBlobStore::get_record_append_imp);
+    m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
+               (&ZeroLengthBlobStore::get_record_append_imp);
     // binary compatible:
     m_get_record_append_CacheOffsets =
         reinterpret_cast<get_record_append_CacheOffsets_func_t>

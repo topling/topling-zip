@@ -68,6 +68,12 @@ public:
         return recData;
     }
 
+    terark_forceinline
+    void get_record_append_fiber_vm_prefetch
+            (size_t recID, valvec<byte_t>* recData) const {
+        (this->*m_get_record_append_fiber_vm_prefetch)(recID, recData);
+    }
+
     /// Used for optimizing Iterator
     struct CacheOffsets {
         valvec<byte_t> recData;
@@ -177,6 +183,7 @@ protected:
 
     typedef void (BlobStore::*get_record_append_func_t)(size_t recID, valvec<byte_t>* recData) const;
     get_record_append_func_t m_get_record_append;
+    get_record_append_func_t m_get_record_append_fiber_vm_prefetch;
 
     typedef void (BlobStore::*get_record_append_CacheOffsets_func_t)(size_t recID, CacheOffsets*) const;
     get_record_append_CacheOffsets_func_t m_get_record_append_CacheOffsets;

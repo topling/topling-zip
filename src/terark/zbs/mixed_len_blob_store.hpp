@@ -18,10 +18,13 @@ class TERARK_DLL_EXPORT MixedLenBlobStoreTpl : public AbstractBlobStore {
 	terark::valvec<byte_t> m_varLenValues;
 	terark::UintVecMin0    m_varLenOffsets;
 
+    template<bool FiberVmPrefetch>
 	void getFixLenRecordAppend(size_t fixLenRecID, valvec<byte_t>* recData) const;
+    template<bool FiberVmPrefetch>
 	void getVarLenRecordAppend(size_t varLenRecID, valvec<byte_t>* recData) const;
 
     void set_func_ptr();
+    template<bool FiberVmPrefetch>
     void get_record_append_has_fixed_rs(size_t recID, valvec<byte_t>* recData) const;
 
     void fspread_record_append_has_fixed_rs(

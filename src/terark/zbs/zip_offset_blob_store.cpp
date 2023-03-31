@@ -11,6 +11,7 @@
 #include <terark/io/FileStream.hpp>
 #include <terark/io/MemStream.hpp>
 #include <terark/io/IStreamWrapper.hpp>
+#include <terark/thread/fiber_aio.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/checksum_exception.hpp>
 #include <terark/util/mmap.hpp>
@@ -195,6 +196,27 @@ ZipOffsetBlobStore::~ZipOffsetBlobStore() {
 }
 
 void ZipOffsetBlobStore::set_func() {
+#define FiberVmPrefetchSetFunc(Compress, ChecksumLen) \
+    m_get_record_append_fiber_vm_prefetch = \
+        static_cast<get_record_append_func_t> \
+        (&ZipOffsetBlobStore::get_record_append_imp<Compress, ChecksumLen, true>)
+    if (m_compressLevel > 0) {
+        if (2 == m_checksumLevel) {
+            if (kCRC16C == m_checksumType)
+                 FiberVmPrefetchSetFunc(true, 2);
+            else FiberVmPrefetchSetFunc(true, 4);
+        } else {
+            FiberVmPrefetchSetFunc(true, 0);
+        }
+    } else {
+        if (2 == m_checksumLevel) {
+            if (kCRC16C == m_checksumType)
+                 FiberVmPrefetchSetFunc(false, 2);
+            else FiberVmPrefetchSetFunc(false, 4);
+        } else {
+            FiberVmPrefetchSetFunc(false, 0);
+        }
+    }
 #define SetFunc(func) \
     if (m_compressLevel > 0) { \
         if (2 == m_checksumLevel) { \
@@ -243,7 +265,7 @@ static void ZipOffsetBlobStore_AppendDecompress(size_t id, const byte_t* data, s
   output->risk_set_size(curr_size + size);
 }
 
-template<bool Compress, int CheckSumLen>
+template<bool Compress, int CheckSumLen, bool FiberVmPrefetch>
 void
 ZipOffsetBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
@@ -254,6 +276,9 @@ const {
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
+    if (FiberVmPrefetch) {
+        fiber_aio_vm_prefetch(pData, len);
+    }
     if (Compress) {
         ZipOffsetBlobStore_AppendDecompress(recID, pData, len, recData);
         return;

@@ -15,6 +15,8 @@ template<class NestLoudsTrie>
 NestLoudsTrieBlobStore<NestLoudsTrie>::NestLoudsTrieBlobStore() {
     this->m_get_record_append = static_cast<get_record_append_func_t>
                   (&NestLoudsTrieBlobStore::get_record_append_imp);
+    m_get_record_append_fiber_vm_prefetch = m_get_record_append;
+
     // binary compatible:
     m_get_record_append_CacheOffsets =
         reinterpret_cast<get_record_append_CacheOffsets_func_t>
