@@ -339,6 +339,25 @@ public:
     return io_ret.len;
   }
 
+  intptr_t madv(void* addr, size_t len, int advice) {
+    io_return io_ret = {nullptr, 0, 0, false};
+    io_uring_sqe* sqe;
+    while (terark_unlikely((sqe = io_uring_get_sqe(&ring)) == nullptr)) {
+      io_reap();
+    }
+    // io_uring_prep_rw(cmd, sqe, fd, buf, len, offset);
+    // just this line diff to exec_io
+    io_uring_prep_madvise(sqe, addr, len, advice);
+    io_uring_sqe_set_data(sqe, &io_ret);
+    tobe_submit++;
+    m_fy.unchecked_wait(&io_ret.fctx);
+    assert(io_ret.done);
+    if (io_ret.err) {
+      errno = io_ret.err;
+    }
+    return io_ret.len;
+  }
+
   io_fiber_uring(boost::fibers::context** pp) : io_fiber_base(pp) {
     int queue_depth = (int)getEnvLong("TOPLING_IO_URING_QUEUE_DEPTH", 32);
     maximize(queue_depth, 1);
@@ -571,6 +590,25 @@ void fiber_aio_need(const void* buf, size_t len) {
             boost::this_fiber::yield(); // just yield once
         }
     }
+#endif
+}
+
+TERARK_DLL_EXPORT
+void fiber_aio_vm_prefetch(const void* buf, size_t len) {
+#if defined(__linux__)
+  size_t lower = size_t(buf) & ~(MY_AIO_PAGE_SIZE-1);
+  size_t upper = size_t(buf) + len;
+  len = upper - lower;
+  int populate_read = 22; // MADV_POPULATE_READ is just in kernel 5.14+
+  switch (g_io_provider) {
+  default: break; // do nothing
+  case IoProvider::sync: // ignore errno
+    madvise((void*)lower, len, populate_read);
+    break;
+  case IoProvider::uring: // ignore errno
+    tls_io_fiber_uring().madv((void*)lower, len, populate_read);
+    break;
+  }
 #endif
 }
 
