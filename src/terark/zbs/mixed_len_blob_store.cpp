@@ -206,29 +206,28 @@ const {
 	assert(m_fixedLen == 0 || m_fixedLenValues.size() % m_fixedLen == 0);
 	assert((fixLenRecID + 1) * m_fixedLen <= m_fixedLenValues.size());
 	const byte_t* pData = m_fixedLenValues.data() + m_fixedLen * fixLenRecID;
+    if (FiberVmPrefetch) {
+        fiber_aio_vm_prefetch(pData, m_fixedLen);
+    }
+    else {
+        if (m_min_prefetch_pages >= g_min_prefault_pages) {
+            vm_prefetch(pData, m_fixedLen, m_min_prefetch_pages);
+        }
+    }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
-            if (FiberVmPrefetch) {
-                fiber_aio_vm_prefetch(pData, m_fixedLenWithoutCRC + 2);
-            }
             uint16_t crc1 = unaligned_load<uint16_t>(pData + m_fixedLenWithoutCRC);
             uint16_t crc2 = Crc16c_update(0, pData, m_fixedLenWithoutCRC);
             if (crc2 != crc1) {
                 throw BadCrc16cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         } else {
-            if (FiberVmPrefetch) {
-                fiber_aio_vm_prefetch(pData, m_fixedLenWithoutCRC + 4);
-            }
             uint32_t crc1 = unaligned_load<uint32_t>(pData + m_fixedLenWithoutCRC);
             uint32_t crc2 = Crc32c_update(0, pData, m_fixedLenWithoutCRC);
             if (crc2 != crc1) {
                 throw BadCrc32cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         }
-    }
-    else if (FiberVmPrefetch) {
-        fiber_aio_vm_prefetch(pData, m_fixedLenWithoutCRC);
     }
 	//recData->append(pData, m_fixedLenWithoutCRC);
     TERARK_VERIFY_EQ(recData->capacity(), 0);
