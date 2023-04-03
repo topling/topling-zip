@@ -595,7 +595,7 @@ void fiber_aio_need(const void* buf, size_t len) {
 
 TERARK_DLL_EXPORT
 void fiber_aio_vm_prefetch(const void* buf, size_t len) {
-#if defined(__linux__)
+#if defined(TOPLING_IO_HAS_URING)
   size_t lower = size_t(buf) & ~(MY_AIO_PAGE_SIZE-1);
   size_t upper = size_t(buf) + len;
   len = upper - lower;
