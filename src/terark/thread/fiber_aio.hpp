@@ -14,9 +14,6 @@ TERARK_DLL_EXPORT
 intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset);
 
 TERARK_DLL_EXPORT
-void fiber_aio_need(const void* buf, size_t len);
-
-TERARK_DLL_EXPORT
 void fiber_aio_vm_prefetch(const void* buf, size_t len);
 
 TERARK_DLL_EXPORT

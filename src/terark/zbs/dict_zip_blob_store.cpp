@@ -2616,14 +2616,10 @@ template<bool ZipOffset, int CheckSumLevel,
 terark_flatten void
 DictZipBlobStore::get_record_append_tpl(size_t recId, valvec<byte_t>* recData)
 const {
-    AutoPrefaultMem rng;
-    auto readRaw = [this,&rng](size_t offset, size_t length) {
+    auto readRaw = [this](size_t offset, size_t length) {
         auto base = (const byte_t*)this->m_mmapBase;
-        if (this->m_mmap_aio && false) { // disable this branch
-            fiber_aio_need(base + offset, length);
-        }
-        else if (m_min_prefetch_pages >= g_min_prefault_pages) {
-            rng.maybe_prefault(base + offset, length, m_min_prefetch_pages);
+        if (m_min_prefetch_pages >= g_min_prefault_pages) {
+            vm_prefetch(base + offset, length, m_min_prefetch_pages);
             //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;
@@ -2655,14 +2651,10 @@ template<int CheckSumLevel,
 terark_flatten void
 DictZipBlobStore::get_record_append_CacheOffsets_tpl(size_t recId, CacheOffsets* co)
 const {
-    AutoPrefaultMem rng;
-    auto readRaw = [this,&rng](size_t offset, size_t length) {
+    auto readRaw = [this](size_t offset, size_t length) {
         auto base = (const byte_t*)this->m_mmapBase;
-        if (this->m_mmap_aio && false) { // disable this branch
-            fiber_aio_need(base + offset, length);
-        }
-        else if (m_min_prefetch_pages >= g_min_prefault_pages) {
-            rng.maybe_prefault(base + offset, length, m_min_prefetch_pages);
+        if (m_min_prefetch_pages >= g_min_prefault_pages) {
+            vm_prefetch(base + offset, length, m_min_prefetch_pages);
             //prefetch_more_than_one_page(base + offset, length);
         }
         return base + offset;

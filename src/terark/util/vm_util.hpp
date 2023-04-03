@@ -11,14 +11,6 @@ TERARK_DLL_EXPORT extern const int g_linux_kernel_version;
 TERARK_DLL_EXPORT extern const bool g_has_madv_populate;
 TERARK_DLL_EXPORT extern const size_t g_min_prefault_pages;
 
-struct TERARK_DLL_EXPORT AutoPrefaultMem {
-    void maybe_prefault(const void* p, size_t n, size_t min_pages);
-    inline ~AutoPrefaultMem() {
-        if (ptr)
-            munlock(ptr, len);
-    }
-    void*  ptr = nullptr;
-    size_t len = 0;
-};
+TERARK_DLL_EXPORT void vm_prefetch(const void* addr, size_t len, size_t min_pages);
 
 } // namespace terark

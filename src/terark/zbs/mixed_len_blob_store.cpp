@@ -206,11 +206,6 @@ const {
 	assert(m_fixedLen == 0 || m_fixedLenValues.size() % m_fixedLen == 0);
 	assert((fixLenRecID + 1) * m_fixedLen <= m_fixedLenValues.size());
 	const byte_t* pData = m_fixedLenValues.data() + m_fixedLen * fixLenRecID;
-    if (!FiberVmPrefetch) {
-        if (this->m_mmap_aio) {
-            fiber_aio_need(pData, m_fixedLen);
-        }
-    }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
             if (FiberVmPrefetch) {
@@ -253,16 +248,12 @@ const {
 	assert(offset0 <= offset1);
     const byte_t* pData = basePtr + offset0;
     size_t        nData = offset1 - offset0;
-    AutoPrefaultMem rng;
     if (FiberVmPrefetch) {
         fiber_aio_vm_prefetch(pData, nData);
     }
     else {
         if (m_min_prefetch_pages >= g_min_prefault_pages) {
-            rng.maybe_prefault(pData, nData, m_min_prefetch_pages);
-        }
-        else if (this->m_mmap_aio && false) {
-            fiber_aio_need(pData, nData);
+            vm_prefetch(pData, nData, m_min_prefetch_pages);
         }
     }
     if (2 == m_checksumLevel) {

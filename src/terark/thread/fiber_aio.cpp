@@ -563,37 +563,6 @@ intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 static const size_t MY_AIO_PAGE_SIZE = 4096;
 
 TERARK_DLL_EXPORT
-void fiber_aio_need(const void* buf, size_t len) {
-#if BOOST_OS_WINDOWS
-		WIN32_MEMORY_RANGE_ENTRY vm;
-		vm.VirtualAddress = (void*)buf;
-		vm.NumberOfBytes  = len;
-		PrefetchVirtualMemory(GetCurrentProcess(), 1, &vm, 0);
-#elif !defined(__CYGWIN__)
-    len += size_t(buf) & (MY_AIO_PAGE_SIZE-1);
-    buf  = (const void*)(size_t(buf) & ~(MY_AIO_PAGE_SIZE-1));
-    size_t len2 = std::min<size_t>(len, 8*MY_AIO_PAGE_SIZE);
-    union {
-        uint64_t val;
-    #if BOOST_OS_LINUX
-        unsigned char  vec[8];
-    #else
-        char  vec[8];
-    #endif
-    } uv;  uv.val = 0x0101010101010101ULL;
-    int err = mincore((void*)buf, len2, uv.vec);
-    if (0 == err) {
-        if (0x0101010101010101ULL != uv.val) {
-            posix_madvise((void*)buf, len, POSIX_MADV_WILLNEED);
-        }
-        if (0 == uv.vec[0]) {
-            boost::this_fiber::yield(); // just yield once
-        }
-    }
-#endif
-}
-
-TERARK_DLL_EXPORT
 void fiber_aio_vm_prefetch(const void* buf, size_t len) {
 #if defined(TOPLING_IO_HAS_URING)
   size_t lower = size_t(buf) & ~(MY_AIO_PAGE_SIZE-1);
