@@ -390,9 +390,9 @@ class TERARK_DLL_EXPORT FixedLenStrVec {
     size_t (*m_lower_bound_prefix)(const FixedLenStrVec*, size_t, size_t, size_t, const void*);
     size_t (*m_upper_bound_prefix)(const FixedLenStrVec*, size_t, size_t, size_t, const void*);
 public:
-    size_t m_fixlen;
-    size_t m_size;
     MemType m_strpool_mem_type;
+    uint32_t m_fixlen;
+    size_t m_size;
     valvec<byte_t> m_strpool;
 
     explicit FixedLenStrVec(size_t fixlen = 0);

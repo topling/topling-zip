@@ -52,7 +52,7 @@ namespace terark {
 	using std::remove_reference;
 #endif
 
-    enum class MemType {
+    enum class MemType : unsigned char {
         Malloc,
         Mmap,
         User,
