@@ -478,19 +478,17 @@ NestTrieDAWG<NestTrie, DawgType>::dict_rank_to_state(size_t rank) const noexcept
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::finish_load_mmap(const DFA_MmapHeader* base) {
-	if (m_trie) {
-		THROW_STD(invalid_argument, "m_trie is not NULL");
-	}
+	TERARK_VERIFY_EQ(m_trie, nullptr);
 	byte_t* bbase = (byte_t*)base;
 	m_trie = new NestTrie();
 	size_t i = 0;
 	if (!NestTrie::is_link_rs_mixed::value) {
 		i = 1;
 		getIsTerm().risk_mmap_from(bbase + base->blocks[0].offset, base->blocks[0].length);
-		assert(2 == base->num_blocks);
+		TERARK_VERIFY_EQ(base->num_blocks, 2);
 	}
 	else {
-		assert(1 == base->num_blocks);
+		TERARK_VERIFY_EQ(base->num_blocks, 1);
 	}
 	m_trie->load_mmap(bbase + base->blocks[i].offset, base->blocks[i].length);
     m_trie->init_for_term(getIsTerm());
@@ -499,10 +497,10 @@ NestTrieDAWG<NestTrie, DawgType>::finish_load_mmap(const DFA_MmapHeader* base) {
         // will over allocate memory for Iterator
         m_trie->m_max_strlen = (m_trie->m_layer_id_rank.size() + 1) * 256;
     }
-	assert(getIsTerm().size() == m_trie->total_states());
+	TERARK_VERIFY_EQ(getIsTerm().size(), m_trie->total_states());
 	this->n_words = size_t(base->dawg_num_words);
 	this->m_zpNestLevel = m_trie->nest_level();
-	assert(m_trie->m_is_link.max_rank1() == base->zpath_states);
+	TERARK_VERIFY_EQ(m_trie->m_is_link.max_rank1(), base->zpath_states);
 }
 
 template<class NestTrie, class DawgType>

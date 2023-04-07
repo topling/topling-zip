@@ -426,7 +426,7 @@ init_for_term(const RankSelectTerm& is_term) {
         pos = m_louds.select0(id) + 1;
         rank = is_term.rank1(id);
     }
-    assert(id == m_louds.max_rank1());
+    TERARK_VERIFY_EQ(id, m_louds.max_rank1());
 
     index_t layer_max = m_layer_id_rank.size();
     m_layer_ref.resize_no_init(layer_max);
