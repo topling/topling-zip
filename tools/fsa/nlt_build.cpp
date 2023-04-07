@@ -279,7 +279,7 @@ void StrVec_sanitize(FixedLenStrVec& strVec, size_t keylen) {
         strVec.m_fixlen = keylen;
     }
     else if (keylen != strVec.m_fixlen) {
-        fprintf(stderr, "ERROR: %s: keylen = %zd, must be %zd\n"
+        fprintf(stderr, "ERROR: %s: keylen = %zd, must be %d\n"
             , BOOST_CURRENT_FUNCTION, keylen, strVec.m_fixlen);
         exit(1);
     }

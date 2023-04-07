@@ -1130,7 +1130,7 @@ void FixedLenStrVec::push_back(fstring str) {
     assert(str.size() == m_fixlen);
     if (str.size() != m_fixlen) {
         THROW_STD(length_error,
-            "expected: %zd, real: %zd", m_fixlen, str.size());
+            "expected: %d, real: %zd", m_fixlen, str.size());
     }
     m_strpool.append(str.data(), str.size());
     m_size++;
@@ -1465,7 +1465,7 @@ static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
-	auto fixlen = sv->m_fixlen;
+	size_t fixlen = sv->m_fixlen;
 	auto data = sv->m_strpool.data();
     if (IsFixed) {
         assert(kn <= fixlen);
@@ -1491,7 +1491,7 @@ static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
-	auto fixlen = sv->m_fixlen;
+	size_t fixlen = sv->m_fixlen;
 	auto data = sv->m_strpool.data();
     if (IsFixed) {
         assert(kn <= fixlen);
