@@ -754,14 +754,13 @@ state_prev(size_t state, const RankSelectTerm& is_term) const noexcept {
 #endif
                 lcount = m_louds.one_seq_len(bitpos + 1);
             }
-            if (is_term[state])
-                return state;
-            continue;
         }
-        size_t parent = bitpos - state;
-        assert(m_louds.rank1(bitpos) == state);
-        assert(m_louds.is1(bitpos));
-        state = parent - 1;
+        else {
+            size_t parent = bitpos - state;
+            assert(m_louds.rank1(bitpos) == state);
+            assert(m_louds.is1(bitpos));
+            state = parent - 1;
+        }
         if (is_term[state])
             return state;
     }
