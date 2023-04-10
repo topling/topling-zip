@@ -29,7 +29,6 @@ override CXXFLAGS += -Wall -Wextra
 #override CXXFLAGS += -Wno-alloc-size-larger-than # unrecognize
 override CXXFLAGS += -Wno-unused-parameter
 override CXXFLAGS += -D_GNU_SOURCE
-override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
 #override CXXFLAGS += -Wno-unused-variable
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
 
