@@ -3755,8 +3755,13 @@ void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(AcquireDone == m_flags.state || AcquireIdle == m_flags.state);
-    if (conLevel >= SingleThreadShared || trie->m_token_qlen) {
+    if (conLevel >= SingleThreadShared) {
         TERARK_ASSERT_LE(m_link.verseq, trie->m_token_tail->m_link.verseq);
+        mt_release(trie);
+    }
+    else if (trie->m_token_qlen) {
+        // does not need this assert
+        // TERARK_ASSERT_LE(m_link.verseq, trie->m_token_tail->m_link.verseq);
         mt_release(trie);
     }
     else {
