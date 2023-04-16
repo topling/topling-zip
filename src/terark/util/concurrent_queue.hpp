@@ -152,6 +152,13 @@ public:
 		explicit is_not_full(Container& q, size_t n) : cq(q), max_size(n) {}
 		bool operator()() const { return !is_full(cq, max_size); }
 	};
+	template<class Pred>
+	struct is_not_empty_and {
+		Container& cq;
+		Pred pr;
+		is_not_empty_and(Container& q, Pred pr1) : cq(q), pr(pr1) {}
+		bool operator()() const { return !cq.empty() && pr(); }
+	};
 public:
 
 	/**
@@ -366,6 +373,21 @@ public:
 		value_type value;
 		pop_front(value);
 		return value;
+	}
+	template<class Pred>
+	value_type pop_front_if(Pred pr) {
+		value_type value;
+		pop_front_if<Pred>(value, pr);
+		return value;
+	}
+	template<class Pred>
+	void pop_front_if(value_type& result, Pred pr) {
+		UniqueLock lock(m_mtx);
+		m_popCond.wait(lock, is_not_empty_and<Pred>(m_queue, pr));
+		assert(!m_queue.empty());
+		result = m_queue.front();
+		m_queue.pop_front(); // require this method
+		m_pushCond.notify_one();
 	}
 	size_t pop_front_n(value_type* vec, size_t cap)
 	{
