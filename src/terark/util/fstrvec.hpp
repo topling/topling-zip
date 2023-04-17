@@ -97,7 +97,7 @@ public:
 	typename std::enable_if<!std::is_fundamental<String>::value>::type
 	push_back(const String& str) {
 		basic_fstrvec_check_overflow(str.size());
-		strpool.append(str.begin(), str.end());
+		strpool.append(str.data(), str.size());
 		offsets.push_back(OffsetOp::make(strpool.size()));
 	}
 	void push_back(basic_fstring<Char> fstr) {
