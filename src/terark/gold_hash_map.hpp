@@ -267,6 +267,21 @@ public:
 		for (auto& e : list)
 			this->insert_i(e);
 	}
+	template<class Iter>
+	gold_hash_tab(Iter first, Iter last
+				, HashEqual he = HashEqual()
+				, KeyExtractor keyExtr = KeyExtractor())
+	  : HashEqual(he), KeyExtractor(keyExtr) {
+		init();
+		if (std::is_same<std::random_access_iterator_tag,
+				typename std::iterator_traits<Iter>::iterator_category>::value) {
+			reserve(std::distance(first, last));
+		}
+		for (; first != last; ++first) {
+			this->insert_i(*first);
+		}
+	}
+
 	/// ensured not calling HashEqual and KeyExtractor
 	gold_hash_tab(const gold_hash_tab& y)
 	  : HashEqual(y), KeyExtractor(y) {
@@ -1354,6 +1369,7 @@ public:
 #endif
 //	typedef std::pair<const Key, Value> value_type;
 	typedef Value mapped_type;
+	using super::super;
 	using super::insert;
 	using super::insert_i;
 	std::pair<size_t, bool>
