@@ -359,7 +359,7 @@ public:
   }
 
   io_fiber_uring(boost::fibers::context** pp) : io_fiber_base(pp) {
-    int queue_depth = (int)getEnvLong("TOPLING_IO_URING_QUEUE_DEPTH", 32);
+    int queue_depth = (int)getEnvLong("TOPLING_IO_URING_QUEUE_DEPTH", 64);
     maximize(queue_depth, 1);
     minimize(queue_depth, 1024);
     FIBER_AIO_VERIFY(io_uring_queue_init(queue_depth, &ring, 0));
