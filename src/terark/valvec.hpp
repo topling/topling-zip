@@ -246,8 +246,8 @@ public:
         if (&y == this)
             return *this;
         assert(!is_object_overlap(this, &y));
-        this->clear();
-        new(this)valvec(y);
+        this->~valvec();
+        new(this)valvec(std::move(y));
         return *this;
     }
 
