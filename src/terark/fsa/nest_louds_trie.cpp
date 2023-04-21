@@ -2761,6 +2761,9 @@ static void
 load_mmap_debug_check(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
                       size_t trieNum, size_t i) {
 #if !defined(NDEBUG)
+	if (getEnvLong("NestLoudsTrie_debugLevel") < 2) {
+		return;
+	}
 	size_t next_node_num = trie->m_next_trie
 		? trie->m_next_trie->total_states()	: 0;
 	for (size_t j = 0; j < trie->m_is_link.size(); ++j) {
