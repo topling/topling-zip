@@ -5358,6 +5358,9 @@ Patricia::MemStat Patricia::mem_get_stat() const {
 struct GetPatriciaMemPool : MainPatricia {
     using MainPatricia::m_mempool;
 };
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
 const size_t Patricia::s_mempool_offset = offsetof(GetPatriciaMemPool, m_mempool);
 
 Patricia::Iterator::Iterator(Patricia* trie)
