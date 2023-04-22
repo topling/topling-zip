@@ -3377,10 +3377,13 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 if (trie->m_head_lock || !cas_weak(trie->m_head_lock, false, true)) {
                     // be wait free
-                    m_flags = {ReleaseWait, false};
-                    trie->m_head_is_dead = true;
-                    trie->m_head_is_idle = false;
-                    return;
+                    // may race with reclaim_head's case AcquireDone
+                    if (cas_weak(m_flags, flags, {ReleaseWait, false})) {
+                        trie->m_head_is_dead = true;
+                        trie->m_head_is_idle = false;
+                        return;
+                    }
+                    break; // retry
                 }
                 //false positive: if reclaim_head was called before here!
                 //TERARK_VERIFY_EQ(next, this->m_link.next);
