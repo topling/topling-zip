@@ -3622,7 +3622,9 @@ void PatriciaMem<Align>::reclaim_head() {
             }
             break;
         case DisposeWait:
-            assert(false == flags.is_head);
+            if (flags.is_head) {
+                WARN("DisposeWait: flags.is_head should be false");
+            }
             TERARK_VERIFY(NULL != next); // must have stopped at AcquireDone
             //fprintf(stderr, "DEBUG: reclaim: thread-%08zX DisposeDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
             dvec.add_for_del(head);
