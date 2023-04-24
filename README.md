@@ -1,7 +1,13 @@
 This repo is `topling-zip`, but for compatibility and keep all commit history gracefully, we keep using namespace `terark`, do not change it.
 
-# 0. Disallow Bytedance Inc.
-All changes after 2021-06-01 is disallowed to be used by bytedance, see [LICENSE](LICENSE).
+To conform open source license, the following term of disallowing bytedance is deleted since 2023-04-24,
+that is say: bytedance using this software is no longer illeagal and is not a shame.
+
+# ~~0. Disallow Bytedance Inc.~~
+~~All changes after 2021-06-01 is disallowed to be used by bytedance,~~ see [LICENSE](LICENSE).
+
+The term of disallowing bytedance is also deleted in [LICENSE](LICENSE).
+
 # 1. Compile
 ```bash
  make -j `nproc` pkg
