@@ -693,24 +693,28 @@ public:
             TERARK_DIE("VirtualAlloc(ptr=%zX, len=%fMiB, COMMIT) = %d",
                        beg, numMiB, GetLastError());
         }
-      #else
+      #elif defined(__linux__)
         if (m_mmap_hugepage) {
             TERARK_VERIFY_AL(size_t(base), ArenaSize);
             size_t beg = pow2_align_down(size_t(base + oldn), m_chunk_size);
             size_t end = pow2_align_up(size_t(base + oldn + chunk_len), m_chunk_size);
             size_t len = end - beg;
-            while (mlock((void*)beg, len) != 0) {
+            const int POPULATE_WRITE = 23; // older kernel has no MADV_POPULATE_WRITE
+            while (madvise((void*)beg, len, POPULATE_WRITE) != 0) {
                 int err = errno;
-                if (ENOMEM == err) {
-                    TERARK_DIE("ENOMEM: m_mmap_hugepage is true but vm.nr_hugepages is insufficient");
+                if (EFAULT == err) {
+                    TERARK_DIE("EFAULT: m_mmap_hugepage is true but vm.nr_hugepages is insufficient");
                     break;
                 }
                 else if (EAGAIN == err) {
                     continue; // try again
                 }
+                else if (EINVAL == err) {
+                    break; // old kernel, or other errors, ignore
+                }
                 else {
                     double numMiB = double(len) / (1<<20);
-                    TERARK_DIE("mlock(ptr=%zX, len=%fMiB) = %m", beg, numMiB);
+                    TERARK_DIE("madvise(ptr=%zX, len=%fMiB, POPULATE_WRITE) = %m", beg, numMiB);
                 }
             }
         }
