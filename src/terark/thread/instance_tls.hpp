@@ -9,6 +9,14 @@
 #include <terark/valvec.hpp>
 #include <terark/util/atomic.hpp>
 
+#ifdef __GNUC__
+  #define TERARK_RAW_TLS __thread
+#elif defined(_MSC_VER)
+  #define TERARK_RAW_TLS __declspec(thread)
+#else
+  #define TERARK_RAW_TLS thread_local
+#endif
+
 namespace terark {
 
 template<class T>
@@ -90,15 +98,13 @@ public:
       s_mutex.unlock();
     }
 
-    T& get() const {
+    terark_forceinline T& get() const {
         size_t i = m_id / Cols;
         size_t j = m_id % Cols;
-        Matrix* pMatrix = tls_matrix.get();
-        if (terark_likely(nullptr != pMatrix)) {
-            T* pOneRow = pMatrix->A[i];
-            if (terark_likely(nullptr != pOneRow))
-                return pOneRow[j];
-        }
+        Matrix* pMatrix = tls_matrix ?: init_tls_matrix();
+        T* pOneRow = pMatrix->A[i];
+        if (terark_likely(nullptr != pOneRow))
+            return pOneRow[j];
         return get_slow(i, j);
     }
 
@@ -106,20 +112,12 @@ private:
     terark_no_inline static
     T& get_slow(size_t i, size_t j) {
         T* pOneRow = tls_born<T>(Cols);
-        std::unique_ptr<Matrix>& pMatrix = tls_matrix;
+        auto pMatrix = tls_matrix;
+        TERARK_VERIFY(pMatrix != nullptr);
         // s_mutex protect for instance_tls::~instance_tls()
-        if (terark_likely(NULL != pMatrix)) {
-          s_mutex.lock();
-            pMatrix->A[i] = pOneRow;
-          s_mutex.unlock();
-        }
-        else {
-            pMatrix.reset(new Matrix());
-          s_mutex.lock();
-            pMatrix->insert_to_list_in_lock();
-            pMatrix->A[i] = pOneRow;
-          s_mutex.unlock();
-        }
+      s_mutex.lock();
+        pMatrix->A[i] = pOneRow;
+      s_mutex.unlock();
         return pOneRow[j];
     }
 
@@ -172,7 +170,19 @@ private:
         }
     };
     static MatrixLink s_matrix_head;
-    static thread_local std::unique_ptr<Matrix> tls_matrix TERARK_STATIC_TLS;
+    static TERARK_RAW_TLS TERARK_STATIC_TLS Matrix* tls_matrix; // fast
+    terark_no_inline static Matrix* init_tls_matrix() {
+        // thread_local is slow for complex object, so we define an simple tls
+        // raw ptr and a complex object to speed up, this should done by
+        // compilers, but compiler does not do it well, so we do it ourselves.
+        assert(nullptr == tls_matrix);
+        static thread_local Matrix tls; // init on first access
+        auto pMatrix = tls_matrix = &tls;
+        s_mutex.lock();
+            pMatrix->insert_to_list_in_lock();
+        s_mutex.unlock();
+        return pMatrix;
+    }
 };
 
 template<class T, uint32_t Rows, uint32_t Cols>
@@ -201,8 +211,8 @@ instance_tls<T, Rows, Cols>::MatrixLink
 instance_tls<T, Rows, Cols>::s_matrix_head(0); // init as head
 
 template<class T, uint32_t Rows, uint32_t Cols>
-thread_local
-std::unique_ptr<typename instance_tls<T, Rows, Cols>::Matrix>
-instance_tls<T, Rows, Cols>::tls_matrix;
+TERARK_RAW_TLS TERARK_STATIC_TLS
+typename instance_tls<T, Rows, Cols>::Matrix*
+instance_tls<T, Rows, Cols>::tls_matrix = nullptr;
 
 } // namespace terark

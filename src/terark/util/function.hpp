@@ -190,7 +190,7 @@ inline size_t larger_capacity(size_t oldcap) {
 
 /// destroy Num objects and free(Ptr) if Ptr was allocated by alloca,
 /// destroy needs to know Num, but free need not to know bytes to be freed,
-/// if Ptr is trivially destructable, std::destroy_n() justdo nothing.
+/// if Ptr is trivially destructable, std::destroy_n() just do nothing.
 #define TERARK_FAST_CLEAN_EX(Ptr, NumCons, NumAlloc, MaxStackBytes) \
   std::destroy_n(Ptr, NumCons); \
   if (NumAlloc > (MaxStackBytes) / sizeof(*(Ptr))) ::free(Ptr)
