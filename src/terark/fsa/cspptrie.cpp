@@ -243,8 +243,8 @@ PatriciaMem<Align>::lazy_free_list(ConcurrentLevel conLevel) {
 
 template<size_t Align>
 Patricia::WriterTokenPtr&
-PatriciaMem<Align>::tls_writer_token() {
-    if (MultiWriteMultiRead == m_mempool_concurrent_level) {
+PatriciaMem<Align>::tls_writer_token() noexcept {
+    if (terark_likely(MultiWriteMultiRead == m_mempool_concurrent_level)) {
         auto tc = m_mempool_lock_free.tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
         return lzf->m_writer_token;
@@ -290,9 +290,9 @@ ReaderTokenTLS_Holder::init_for_reuse(ReaderTokenTLS_Object* token) const {
 }
 
 template<size_t Align>
-Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() {
+Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() noexcept {
     ReaderToken* tok = NULL;
-    if (MultiWriteMultiRead == m_mempool_concurrent_level) {
+    if (terark_likely(MultiWriteMultiRead == m_mempool_concurrent_level)) {
         auto tc = m_mempool_lock_free.tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
         assert(NULL != lzf->m_reader_token.get());

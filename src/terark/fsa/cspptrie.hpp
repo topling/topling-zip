@@ -205,14 +205,16 @@ public:
     virtual bool lookup(fstring key, TokenBase* token) const = 0;
     virtual void set_readonly() = 0;
     virtual bool  is_readonly() const = 0;
-    virtual WriterTokenPtr& tls_writer_token() = 0;
-    virtual ReaderToken* tls_reader_token() = 0;
+    virtual WriterTokenPtr& tls_writer_token() noexcept = 0;
+    virtual ReaderToken* tls_reader_token() noexcept = 0;
 
+    terark_forceinline
     WriterToken* tls_writer_token_nn() {
         return tls_writer_token_nn<WriterToken>();
     }
     /// '_nn' suffix means 'not null'
     template<class WriterTokenType>
+    terark_forceinline
     WriterTokenType* tls_writer_token_nn() {
         // WriterToken can be used for read, m_writing_concurrent_level may
         // be set to NoWriteReadOnly after insert phase, it is valid to use
@@ -230,6 +232,7 @@ public:
         return static_cast<WriterTokenType*>(token.get());
     }
     template<class NewFunc>
+    terark_forceinline
     auto tls_writer_token_nn(NewFunc New) -> decltype(New()) {
         // WriterToken can be used for read, m_writing_concurrent_level may
         // be set to NoWriteReadOnly after insert phase, it is valid to use
