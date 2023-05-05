@@ -71,6 +71,7 @@ protected:
         });
     }
     template<class NewTLS>
+    terark_no_inline
     TlsMember* fill_tls(TlsPtr& tls, NewTLS New) const {
       #if defined(TERARK_INSTANCE_TLS_LOCK_FREE)
         #error "TERARK_INSTANCE_TLS_LOCK_FREE" is not fully implemented
