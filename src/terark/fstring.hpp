@@ -225,8 +225,8 @@ struct TERARK_DLL_EXPORT basic_fstring {
 	size_t length() const { return n; }
 
 	bool empty() const { return 0 == n; }
-	void chomp();
-	void trim();
+	basic_fstring& chomp();
+	basic_fstring& trim();
 
 	basic_fstring substr(size_t pos, size_t len) const {
 		assert(pos <= size());

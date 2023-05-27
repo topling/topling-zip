@@ -171,23 +171,27 @@ unsigned char gtab_ascii_toupper[256] = {
 };
 
 template<>
-void basic_fstring<char>::chomp() {
+basic_fstring<char>& basic_fstring<char>::chomp() {
 	while (n && isspace((unsigned char)(p[n-1]))) n--;
+	return *this;
 }
 template<>
-void basic_fstring<uint16_t>::chomp() {
+basic_fstring<uint16_t>& basic_fstring<uint16_t>::chomp() {
 	while (n && iswspace(p[n-1])) n--;
+	return *this;
 }
 
 template<>
-void basic_fstring<char>::trim() {
+basic_fstring<char>& basic_fstring<char>::trim() {
 	while (n && isspace((unsigned char)(p[n-1]))) n--;
 	while (n && isspace((unsigned char)(*p))) p++, n--;
+	return *this;
 }
 template<>
-void basic_fstring<uint16_t>::trim() {
+basic_fstring<uint16_t>& basic_fstring<uint16_t>::trim() {
 	while (n && iswspace(p[n-1])) n--;
 	while (n && iswspace(*p)) p++, n--;
+	return *this;
 }
 
 template struct basic_fstring<char>;
