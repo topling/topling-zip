@@ -115,6 +115,7 @@ struct string_appender : public String {
 	using String::String;
 
 	const String& str() const { return *this; }
+	String& str() { return *this; }
 
 	template<class T>
 	string_appender& operator&(const T& x) { return (*this) << x; }
