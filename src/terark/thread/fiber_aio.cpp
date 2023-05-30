@@ -34,7 +34,7 @@
       #include <liburing.h>
       #define TOPLING_IO_HAS_URING
     #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0)
-      #pragma message "the kernel support io uring but it is mandatory disabled by -D TOPLING_IO_WITH_URING=0"
+      #pragma message "the kernel support io uring but it is mandatory disabled by -D TOPLING_IO_WITH_URING=0, maybe liburing was not detected in Makefile"
     #endif
   #else
     #if LINUX_VERSION_CODE >= KERNEL_VERSION(5,1,0)

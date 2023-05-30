@@ -45,7 +45,6 @@ COMMON_C_FLAGS  += -Wformat=2 -Wcomment
 COMMON_C_FLAGS  += -Wall -Wextra
 COMMON_C_FLAGS  += -Wno-unused-parameter
 #COMMON_C_FLAGS  += -Wno-alloc-size-larger-than # unrecognize
-LINK_LIBURING ?= -luring
 
 gen_sh := $(dir $(lastword ${MAKEFILE_LIST}))gen_env_conf.sh
 
@@ -77,6 +76,35 @@ else
   FPIC = -fPIC
   CYG_DLL_FILE = $@
 endif
+
+ifeq (Linux,${UNAME_System})
+  # Allow users set -Iincdir (for liburing) in CXXFLAGS
+  # Allow users set -Llibdir (for liburing) in LDFLAGS
+  HAS_LIBURING := $(shell ${CXX} -x c - ${CXXFLAGS} ${LDFLAGS} -luring \
+                    -o /dev/null <<< "int main(){return 0;}" \
+                    2> /dev/null && echo 1)
+  ifeq (${TOPLING_IO_WITH_URING},1)
+    LINK_LIBURING := -luring
+    CXXFLAGS += -D TOPLING_IO_WITH_URING=1
+    ifneq (${HAS_LIBURING},1)
+      $(warning force TOPLING_IO_WITH_URING=1 but liburing is not detected)
+    endif
+  else ifeq (${TOPLING_IO_WITH_URING},0)
+    CXXFLAGS += -D TOPLING_IO_WITH_URING=0
+    ifeq (${HAS_LIBURING},1)
+      $(warning force TOPLING_IO_WITH_URING=0 but liburing is detected)
+    endif
+  else
+    ifeq (${HAS_LIBURING},1)
+      LINK_LIBURING := -luring
+      CXXFLAGS += -D TOPLING_IO_WITH_URING=1
+    else
+      CXXFLAGS += -D TOPLING_IO_WITH_URING=0
+      $(warning liburing is not detected)
+    endif
+  endif
+endif
+
 CFLAGS += ${FPIC}
 CXXFLAGS += ${FPIC}
 LDFLAGS += ${FPIC}
