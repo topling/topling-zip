@@ -1,7 +1,11 @@
 #include <terark/thread/fiber_aio.hpp>
 #include <terark/fstring.hpp>
+#include <terark/thread/fiber_yield.hpp>
 #include <terark/util/atomic.hpp>
 #include <terark/util/profiling.hpp>
+#include <boost/fiber/fiber.hpp>
+#include <boost/fiber/protected_fixedsize_stack.hpp>
+#include <boost/preprocessor/stringize.hpp>
 #include <random>
 #include <thread>
 #include <vector>
@@ -64,10 +68,18 @@ int main() {
         intptr_t sum = 0;
         while (sum < WriteSize / Threads) {
             intptr_t offset = rand() % FileSize & -BlockSize;
-            intptr_t n = fiber_put_write(fd, buf, BlockSize, offset);
+            for (intptr_t i = 0; i < BlockSize; i += 16) {
+                sprintf((char*)buf + i, "%16llX", (long long)rand());
+            }
+          #if 0
+            #define DO_WRITE fiber_put_write
+          #else
+            #define DO_WRITE fiber_aio_write
+          #endif
+            intptr_t n = DO_WRITE(fd, buf, BlockSize, offset);
             if (n != BlockSize) {
                 fprintf(stderr,
-                    "ERROR: fiber_put_wirte(offset = %zd, len = %zd) = %zd : %s\n",
+                    "ERROR: " BOOST_PP_STRINGIZE(DO_WRITE) "(offset = %zd, len = %zd) = %zd : %s\n",
                     offset, BlockSize, n, strerror(errno));
                 exit(1);
             }
@@ -77,6 +89,7 @@ int main() {
     };
     std::vector<std::thread> tv;
     profiling pf;
+    fprintf(stderr, "testing " BOOST_PP_STRINGIZE(DO_WRITE) "...\n");
     long long t0 = pf.now();
     for (intptr_t tno = 0; tno < Threads; ++tno) {
         tv.emplace_back(thr_fun, tno);
@@ -86,11 +99,72 @@ int main() {
     }
     long long t1 = pf.now();
 
-    close(fd);
-    remove(fname);
-
     fprintf(stderr, "wr time = %8.3f sec\n", pf.sf(t0,t1));
     fprintf(stderr, "wr iops = %8.3f K\n", WriteSize/BlockSize/pf.mf(t0,t1));
     fprintf(stderr, "wr iobw = %8.3f GiB\n", WriteSize/pf.sf(t0,t1)/(1L<<30));
+
+    //---------------------- fiber_aio_read -----------------
+    fprintf(stderr, "testing fiber_aio_read...\n");
+    std::mt19937_64 rnd;
+    auto read_fun = [&](intptr_t fb_id) {
+        void *buf1 = NULL, *buf2 = NULL;
+        int err = posix_memalign(&buf1, BlockSize, BlockSize);
+        if (err) {
+            fprintf(stderr,
+                "ERROR: fb_id = %zd, posix_memalign(%zd) = %s\n",
+                fb_id, BlockSize, strerror(err));
+            exit(1);
+        }
+        err = posix_memalign(&buf2, BlockSize, BlockSize);
+        if (err) {
+            fprintf(stderr,
+                "ERROR: fb_id = %zd, posix_memalign(%zd) = %s\n",
+                fb_id, BlockSize, strerror(err));
+            exit(1);
+        }
+        intptr_t sum = 0;
+        while (sum < ReadSize / Threads) {
+            intptr_t offset = rnd() % FileSize & -BlockSize;
+            intptr_t n1 = fiber_aio_read(fd, buf1, BlockSize, offset);
+            if (n1 != BlockSize) {
+                fprintf(stderr,
+                    "ERROR: fiber_aio_read(offset = %zd, len = %zd) = %zd : %s\n",
+                    offset, BlockSize, n1, strerror(errno));
+                exit(1);
+            }
+            intptr_t n2 = pread(fd, buf2, BlockSize, offset);
+            if (n2 != BlockSize) {
+                fprintf(stderr,
+                    "ERROR: pread(offset = %zd, len = %zd) = %zd : %s\n",
+                    offset, BlockSize, n2, strerror(errno));
+                exit(1);
+            }
+            if (memcmp(buf1, buf2, BlockSize) != 0) {
+                fprintf(stderr,
+                    "ERROR: offset = %zd, len = %zd, pread & fiber_aio_read result different\n",
+                    offset, BlockSize);
+                exit(1);
+            }
+            sum += BlockSize;
+        }
+        as_atomic(allsum) += sum;
+    };
+    std::vector<boost::fibers::fiber> fb_vec;
+    for (intptr_t i = 0; i < Threads; i++) {
+        size_t stack_size = 128 * 1024;
+        fb_vec.emplace_back(std::allocator_arg_t(),
+            boost::fibers::protected_fixedsize_stack(stack_size), read_fun, i);
+    }
+    for (intptr_t i = 0; i < Threads; i++) {
+        fb_vec[i].join();
+    }
+    long long t2 = pf.now();
+
+    fprintf(stderr, "rd time = %8.3f sec\n", pf.sf(t1,t2));
+    fprintf(stderr, "rd iops = %8.3f K\n", ReadSize/BlockSize/pf.mf(t1,t2));
+    fprintf(stderr, "rd iobw = %8.3f GiB\n", ReadSize/pf.sf(t1,t2)/(1L<<30));
+
+    close(fd);
+    remove(fname);
     return 0;
 }
