@@ -362,7 +362,15 @@ public:
     int queue_depth = (int)getEnvLong("TOPLING_IO_URING_QUEUE_DEPTH", 64);
     maximize(queue_depth, 1);
     minimize(queue_depth, 1024);
-    FIBER_AIO_VERIFY(io_uring_queue_init(queue_depth, &ring, 0));
+    int ret = io_uring_queue_init(queue_depth, &ring, 0);
+    if (ret != 0) {
+      errno = -ret; // for format string "%m"
+      if (g_linux_kernel_version < KERNEL_VERSION(5,12,0)) {
+        TERARK_DIE("io_uring_queue_init(%d, &ring, 0) = %m, maybe kernel too old, need 5.12+", queue_depth);
+      } else {
+        TERARK_DIE("io_uring_queue_init(%d, &ring, 0) = %m", queue_depth);
+      }
+    }
   }
 
   ~io_fiber_uring() {
