@@ -13,7 +13,7 @@ ssize_t easy_writev(int fd, iovec* iov, int num, int* next_idx) {
       ssize_t concat_end = concat_beg + iov[idx].iov_len;
       if (finished < concat_end) {
         ssize_t offset = finished - concat_beg;
-        iov[idx].iov_base = offset + (char*)iov->iov_base;
+        iov[idx].iov_base = offset + (char*)iov[idx].iov_base;
         iov[idx].iov_len -= offset;
         *next_idx = idx;
         break;
@@ -39,7 +39,7 @@ ssize_t easy_readv(int fd, iovec* iov, int num, int* next_idx) {
       ssize_t concat_end = concat_beg + iov[idx].iov_len;
       if (finished < concat_end) {
         ssize_t offset = finished - concat_beg;
-        iov[idx].iov_base = offset + (char*)iov->iov_base;
+        iov[idx].iov_base = offset + (char*)iov[idx].iov_base;
         iov[idx].iov_len -= offset;
         *next_idx = idx;
         break;
