@@ -209,6 +209,10 @@ bool getEnvBool(const char* envName, bool Default) noexcept {
 			return true;
 		if (strcasecmp(env, "false") == 0)
 			return false;
+		if (strcasecmp(env, "on" ) == 0) return true;
+		if (strcasecmp(env, "off") == 0) return false;
+		if (strcasecmp(env, "yes") == 0) return true;
+		if (strcasecmp(env, "no" ) == 0) return false;
 		fprintf(stderr
 			, "WARN: terark::getEnvBool(\"%s\") = \"%s\" is invalid, treat as Default = %s\n"
 			, envName, env, Default?"true":"false"
