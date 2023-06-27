@@ -338,13 +338,14 @@ void ZcMemMap::open(stream_position_t new_file_size, const std::string& fpath, i
         throw IOException("file already open");
 
     m_hFile = ::open(fpath.c_str(), mode, S_IRWXU);
-    if (-1 == m_hFile)
+    if (-1 == m_hFile) {
         cleanup_and_throw("failed opening file");
+	}
 	assert(-1 != m_hFile);
 
-    if (m_mode & O_TRUNC)
+    if (m_mode & O_TRUNC) {
 		set_fsize(new_file_size);
-
+	}
 	m_file_size = get_fsize();
 	return;
 }
