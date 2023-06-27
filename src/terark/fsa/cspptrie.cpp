@@ -4202,13 +4202,16 @@ void MainPatricia::IterImpl::reset1() {
         size_t cap = trie->m_max_word_len + 2;
         m_flag = 1;
         m_iter.reserve(cap);
-        m_word.reserve(cap);
+        // to allowing caller read beyound m_word's mem
+        // toplingdb may access fixed 64 bytes memory
+        m_word.resize(std::max<size_t>(cap + 16, 64), 0);
     }
     else {
         m_flag = 0;
         m_iter.reserve( 16); // fast malloc small
-        m_word.reserve(128);
+        m_word.resize(128, 0);
     }
+    m_word.risk_set_size(0);
 }
 
 MainPatricia::IterImpl::~IterImpl() {
