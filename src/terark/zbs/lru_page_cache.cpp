@@ -563,7 +563,8 @@ SingleLruReadonlyCache::~SingleLruReadonlyCache() {
 }
 
 static void
-do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bool aio) {
+do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bool aio)
+noexcept {
 #if defined(_MSC_VER)
 	OVERLAPPED ol; memset(&ol, 0, sizeof(ol));
 	ol.Offset = (DWORD)offset;
@@ -572,8 +573,7 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bo
 	// fd is HANDLE, which opened by `CreateFile`, not `open`
 	if (!ReadFile((HANDLE)(fd), buf, maxlen, &rdlen, &ol) || rdlen < minlen) {
 		int err = GetLastError();
-		THROW_STD(logic_error
-			, "ReadFile(offset = %zd, len = %zd) = %u, LastError() = %d(0x%X)"
+		TERARK_DIE("ReadFile(offset = %zd, len = %zd) = %u, LastError() = %d(0x%X)"
 			, offset, maxlen, rdlen, err, err);
 	}
 #else
@@ -585,8 +585,7 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bo
 	    rdlen = pread(fd, buf, maxlen, offset);
 
 	if (rdlen < ssize_t(minlen)) {
-		THROW_STD(logic_error
-			, "pread(offset = %zd, len = %zd) = %zd (minlen = %zd), err = %s"
+		TERARK_DIE("pread(offset = %zd, len = %zd) = %zd (minlen = %zd), err = %s"
 			, offset, maxlen, rdlen, minlen, strerror(errno));
 	}
 #endif
@@ -807,13 +806,10 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
             return bufptr;
 		}
 		byte_t* bufptr = m_bufmem + PAGE_SIZE*(p-1);
-		bool    isOK = false;
-		TERARK_SCOPE_EXIT(if (!isOK) nodes[p].ref_count--);
 		do_pread(fd, bufptr
 				   , align_down(offset, PAGE_SIZE)
 				   , pg_offset + len, PAGE_SIZE, m_use_aio);
 		nodes[p].is_loaded = true;
-		isOK = true;
         b->index = p;
         assert(p > 0);
         return bufptr + pg_offset;
