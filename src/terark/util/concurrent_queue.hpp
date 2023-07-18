@@ -389,6 +389,16 @@ public:
 		m_queue.pop_front(); // require this method
 		m_pushCond.notify_one();
 	}
+	template<class Pred>
+	bool pop_front_if(value_type& result, Pred pr, int timeout) {
+		UniqueLock lock(m_mtx);
+		if (!m_popCond.wait_for(lock, MilliSec(timeout), is_not_empty_and<Pred>(m_queue, pr))) return false;
+		assert(!m_queue.empty());
+		result = m_queue.front();
+		m_queue.pop_front(); // require this method
+		m_pushCond.notify_one();
+		return true;
+	}
 	size_t pop_front_n(value_type* vec, size_t cap)
 	{
 		UniqueLock lock(m_mtx);
