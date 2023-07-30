@@ -706,6 +706,9 @@ public:
     // for debug purpose
     void dump_token_list() const;
 
+    using Patricia::str_stat;
+    void str_stat(std::string*) const final;
+
 	typedef MainPatricia MyType;
 
 #if defined(TerarkFSA_HighPrivate)

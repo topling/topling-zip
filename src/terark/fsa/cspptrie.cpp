@@ -5390,6 +5390,25 @@ Patricia::MemStat Patricia::mem_get_stat() const {
     return ms;
 }
 
+void MainPatricia::str_stat(std::string* str) const {
+    MemStat ms = mem_get_stat();
+    auto& oss = static_cast<string_appender<>&>(*str);
+    oss|"num_words: "|m_n_words|"\n";
+    oss|"num_nodes: "|m_n_nodes|"\n";
+    oss|"max_word_len: "|m_max_word_len|"\n";
+    oss|"live_iter_num: "|m_live_iter_num|"\n";
+    oss|"total_zpath_len: "|m_total_zpath_len|"\n";
+    oss|"total_words_len: "|m_adfa_total_words_len|"\n";
+    oss|"----------------\n";
+    oss|"used_size: "|ms.used_size|"\n";
+    oss|"capacity: "|ms.capacity|"\n";
+    oss|"frag_size: "|ms.frag_size|"\n";
+    oss|"huge_size: "|ms.huge_size|"\n";
+    oss|"huge_cnt: "|ms.huge_cnt|"\n";
+    oss|"lazy_free_sum: "|ms.lazy_free_sum|"\n";
+    oss|"lazy_free_cnt: "|ms.lazy_free_cnt|"\n";
+}
+
 struct GetPatriciaMemPool : MainPatricia {
     using MainPatricia::m_mempool;
 };
