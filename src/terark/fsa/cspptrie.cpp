@@ -663,7 +663,12 @@ try
                 m_mempool_lock_free.set_chunk_size(valval);
             }
         }
-        fpath = "";
+        if (const char* valstr = fpath.strstr("file_path=")) {
+            valstr += strlen("file_path="); // file_path=... must be last
+            fpath = fstring(valstr, fpath.end()); // must be last
+        } else {
+            fpath = "";
+        }
     }
     if (NoWriteReadOnly == concurrentLevel) {
         if (fpath.empty()) {
