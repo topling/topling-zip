@@ -185,6 +185,7 @@ protected:
 	virtual void finish_load_mmap(const DFA_MmapHeader*);
 	virtual long prepare_save_mmap(DFA_MmapHeader*, const void**) const;
 	static BaseDFA* load_mmap_fmt(const DFA_MmapHeader*);
+	static void fill_mmap_fmt(const DFA_MmapHeader*, BaseDFA*);
 
 public:
 	terark_warn_unused_result
@@ -216,6 +217,13 @@ public:
 	static BaseDFA* load_mmap_user_mem(fstring mem) {
 		return load_mmap_user_mem(mem.data(), mem.size());
 	}
+
+	void self_mmap(int fd);
+	void self_mmap(int fd, bool mmapPopulate);
+	void self_mmap(fstring fname);
+	void self_mmap(fstring fname, bool mmapPopulate);
+	void self_mmap_user_mem(const void* baseptr, size_t length);
+	void self_mmap_user_mem(fstring mem) { self_mmap_user_mem(mem.p, mem.n); }
 
 	void save_mmap(function<void(const void*, size_t)> write) const;
 	void save_mmap(int fd) const;

@@ -742,7 +742,7 @@ BaseDFA* BaseDFA::load_mmap(int fd) {
 	return load_mmap(fd, mmapPopulate);
 }
 
-BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
+static const DFA_MmapHeader* dfa_open_mmap(int fd, bool mmapPopulate) {
 	if (fd < 0) {
 		THROW_STD(invalid_argument,	"fd=%d < 0", fd);
 	}
@@ -802,9 +802,16 @@ BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
 	ullong fsize = st.st_size;
 #endif
 	if (fsize < base->file_size) {
+		long long header_file_size = base->file_size;
+		mmap_close((void*)base, fsize);
 		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
-			, fsize, (long long)base->file_size);
+			, fsize, header_file_size);
 	}
+	return base;
+}
+
+BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
+	const DFA_MmapHeader* base = dfa_open_mmap(fd, mmapPopulate);
 	BaseDFA* dfa = load_mmap_fmt(base);
 	dfa->m_mmap_type = DFA_MmapType::is_mmap;
 	return dfa;
@@ -821,7 +828,7 @@ BaseDFA* BaseDFA::load_mmap_user_mem(const void* baseptr, size_t length) {
 	return dfa;
 }
 
-BaseDFA* BaseDFA::load_mmap_fmt(const DFA_MmapHeader* base) {
+static const DFA_ClassMetaInfo* dfa_check_mmap(const DFA_MmapHeader* base) {
 	if (strcmp(base->magic, "nark-dfa-mmap") != 0) {
 		THROW_STD(invalid_argument, "file is not nark-dfa-mmap, but is: %.19s", base->magic);
 	}
@@ -845,7 +852,15 @@ BaseDFA* BaseDFA::load_mmap_fmt(const DFA_MmapHeader* base) {
 				, base->file_crc32, file_crc32);
 		}
 	}
+	return meta;
+}
+BaseDFA* BaseDFA::load_mmap_fmt(const DFA_MmapHeader* base) {
+	auto meta = dfa_check_mmap(base);
 	std::unique_ptr<BaseDFA> dfa(meta->create());
+	fill_mmap_fmt(base, dfa.get());
+	return dfa.release();
+}
+void BaseDFA::fill_mmap_fmt(const DFA_MmapHeader* base, BaseDFA* dfa) {
 	dfa->finish_load_mmap(base);
 	dfa->mmap_base  = base;
 	dfa->m_is_dag   = base->is_dag ? 1 : 0;
@@ -853,7 +868,43 @@ BaseDFA* BaseDFA::load_mmap_fmt(const DFA_MmapHeader* base) {
 	dfa->m_zpath_states = base->zpath_states;
 	dfa->m_total_zpath_len = base->zpath_length;
 	dfa->m_adfa_total_words_len = base->adfa_total_words_len;
-	return dfa.release();
+}
+
+void BaseDFA::self_mmap(int fd) {
+	bool mmapPopulate = getEnvBool("DFA_MAP_POPULATE", false);
+	self_mmap(fd, mmapPopulate);
+}
+void BaseDFA::self_mmap(int fd, bool mmapPopulate) {
+	auto base = dfa_open_mmap(fd, mmapPopulate);
+	fill_mmap_fmt(base, this);
+	m_mmap_type = DFA_MmapType::is_mmap;
+}
+void BaseDFA::self_mmap(fstring fname) {
+	bool populate = getEnvBool("DFA_MAP_POPULATE", false);
+	self_mmap(fname, populate);
+}
+void BaseDFA::self_mmap(fstring fname, bool mmapPopulate) {
+	bool writable = false;
+	size_t fsize = 0;
+	void* base = mmap_load(fname, &fsize, writable, mmapPopulate);
+	auto header = (const DFA_MmapHeader*)base;
+	if (fsize < header->file_size) {
+		long long header_file_size = header->file_size;
+		mmap_close(base, fsize);
+		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
+			, (long long)fsize, header_file_size);
+	}
+	fill_mmap_fmt(header, this);
+	m_mmap_type = DFA_MmapType::is_mmap;
+}
+void BaseDFA::self_mmap_user_mem(const void* baseptr, size_t length) {
+	auto header = reinterpret_cast<const DFA_MmapHeader*>(baseptr);
+	if (length < header->file_size) {
+		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
+			, (long long)length, (long long)header->file_size);
+	}
+	fill_mmap_fmt(header, this);
+	m_mmap_type = DFA_MmapType::is_user_mem;
 }
 
 long BaseDFA::stat_impl(DFA_MmapHeader* pHeader, const void** dataPtrs) const {
