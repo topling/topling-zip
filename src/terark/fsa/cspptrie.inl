@@ -110,6 +110,9 @@ public:
         return *(T*)(m_mempool.data() + valpos);
     }
 
+    intptr_t mmap_fd() const { return m_fd; }
+    const std::string& mmap_fpath() const { return m_mmap_fpath; }
+
 protected:
     struct LazyFreeItem {
         ullong   age;
@@ -161,7 +164,7 @@ protected:
         ThreadCacheMemPool<AlignSize> m_mempool_lock_free;
     };
 
-    char padding2[32];
+    std::string m_mmap_fpath;
     // ---------------------------------------------------------
     // following fields are frequently updating
     TokenBase  m_dummy; // m_dummy.m_next is real head
@@ -296,6 +299,7 @@ public:
     static const uint32_t s_skip_slots[16];
 
     class IterImpl; friend class IterImpl;
+    ~MainPatricia();
     MainPatricia();
 
     explicit

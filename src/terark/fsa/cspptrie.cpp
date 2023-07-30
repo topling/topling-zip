@@ -546,8 +546,10 @@ void PatriciaMem<Align>::mempool_set_readonly() {
 #else
     size_t filesize = sizeof(DFA_MmapHeader) + m_mempool.capacity();
     size_t alignedsize = pow2_align_up(realsize, 4*1024);
-    msync(base, realsize, MS_ASYNC);
-    munmap(base + alignedsize, filesize - alignedsize);
+    //msync(base, realsize, MS_ASYNC);
+    if (filesize > alignedsize) {
+        munmap(base + alignedsize, filesize - alignedsize);
+    }
     ftruncate(m_fd, realsize);
     m_mempool.risk_set_capacity(m_mempool.size());
 #endif
@@ -584,6 +586,10 @@ static const size_t MAX_STATE_SIZE = 4 * (10 + 256) + 256 + MAX_VALUE_SIZE;
 static const size_t MAX_STATE_SIZE = 256;
 #endif
 
+MainPatricia::~MainPatricia() {
+    destroy();
+}
+
 MainPatricia::MainPatricia() : PatriciaMem<4>()
 {
     set_insert_func(m_writing_concurrent_level);
@@ -592,6 +598,10 @@ MainPatricia::MainPatricia(size_t valsize, intptr_t maxMem,
                            ConcurrentLevel concurrentLevel, fstring fpath)
   : PatriciaMem<4>(valsize, maxMem, concurrentLevel, fpath)
 {
+    if (m_is_virtual_alloc && mmap_base) {
+        TERARK_VERIFY_GE(m_fd, 0);
+        get_stat((DFA_MmapHeader*)mmap_base); // init header
+    }
     set_insert_func(m_writing_concurrent_level);
 }
 
@@ -695,22 +705,36 @@ try
             alloc_mempool_space(maxMem, use_hugepage);
         }
         else {
-            TERARK_VERIFY_GT(maxMem, 0);
+            // negtive maxMem indicate "virtual memory", which use mmap
+            // for annonymous alloc, for mmap backed by file, ignore neg
+            // value for "virtual memory" flag
+            //
+            // TERARK_VERIFY_GT(maxMem, 0);
+            maxMem = abs(maxMem);
             maximize(maxMem, 2<<20); // min is 2M
             MmapWholeFile mmap;
+            mmap.size = size_t(maxMem);
             mmap.base = mmap_write(fpath, &mmap.size, &m_fd);
-            get_stat((DFA_MmapHeader*)mmap.base);
+            //ERR("maxMem = %zd, mmap.size = %zd", maxMem, mmap.size); // log
+
+            // now 'this' is PatriciaMem, it is not the correct class,
+            // let derived class to call get_stat
+            // get_stat((DFA_MmapHeader*)mmap.base);
             mmap_base = (DFA_MmapHeader*)mmap.base;
             m_mempool.risk_set_data((byte_t*)mmap.base + sizeof(DFA_MmapHeader));
-            m_mempool.risk_set_capacity(maxMem - sizeof(DFA_MmapHeader));
+            m_mempool.risk_set_capacity(mmap.size - sizeof(DFA_MmapHeader));
             m_is_virtual_alloc = true;
             mmap.base = nullptr; // release ownership
+            m_mmap_fpath = fpath.str();
         }
         size_t root = new_root(valsize);
         TERARK_VERIFY_F(0 == root, "real root = %zd", root);
     }
 }
-catch (const std::exception&) {
+catch (const std::exception& ex) {
+    fprintf(stderr, "%s:%d: %s: ex.what = %s\n",
+            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ex.what());
+    // destroy may be coredump since PatriciaMem is not the most derived class
     destroy();
     throw;
 }
@@ -806,7 +830,7 @@ size_t PatriciaMem<Align>::new_root(size_t valsize) {
 
 template<size_t Align>
 PatriciaMem<Align>::~PatriciaMem() {
-    destroy();
+    //destroy(); // must be called in most derived class
 }
 
 template<size_t Align>
@@ -864,6 +888,7 @@ void PatriciaMem<Align>::destroy() {
         TERARK_VERIFY_EQ(m_mempool.data(), (byte_t*)(mmap_base + 1));
         size_t fsize = sizeof(DFA_MmapHeader) + m_mempool.capacity();
         mmap_close((void*)mmap_base, fsize, m_fd);
+        m_fd = -1;
         mmap_base = nullptr;
         m_mempool.risk_release_ownership();
     }

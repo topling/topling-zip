@@ -239,7 +239,10 @@ void* mmap_write(const char* fname, size_t* fsize, intptr_t* pfd) {
 		close(fd);
 		THROW_STD(logic_error, "stat(fname=%s) = %s", fname, strerror(errno));
 	}
-	if (0 == st.st_size) {
+	//fprintf(stderr, "st.st_size = %zd\n", st.st_size);
+	// st_size of new file is not zero
+	// if (0 == st.st_size) //< delete the condition
+	{
 		st.st_size = std::max(size_t(4*1024), *fsize);
 		int err = ftruncate(fd, st.st_size);
 		if (err) {
