@@ -221,6 +221,25 @@ bool getEnvBool(const char* envName, bool Default) noexcept {
 	return Default;
 }
 
+bool parseBooleanRelaxed(const char* str, bool Default) noexcept {
+	if (isdigit(str[0])) {
+		return atoi(str) != 0;
+	}
+	if (strcasecmp(str, "true") == 0)
+		return true;
+	if (strcasecmp(str, "false") == 0)
+		return false;
+	if (strcasecmp(str, "on" ) == 0) return true;
+	if (strcasecmp(str, "off") == 0) return false;
+	if (strcasecmp(str, "yes") == 0) return true;
+	if (strcasecmp(str, "no" ) == 0) return false;
+	fprintf(stderr
+		, "WARN: terark::parseBooleanRelaxed(\"%s\") fail, use Default = %s\n"
+		, str, Default?"true":"false"
+	);
+	return Default;
+}
+
 long getEnvLong(const char* envName, long Default) noexcept {
 	if (const char* env = getenv(envName)) {
 		int base = 0; // env can be oct, dec, hex

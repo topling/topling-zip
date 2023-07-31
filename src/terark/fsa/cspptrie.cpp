@@ -672,6 +672,11 @@ try
                 int valval = atoi(valstr);
                 m_mempool_lock_free.set_chunk_size(valval);
             }
+            if (const char* valstr = fpath.strstr("vm_explicit_commit=")) {
+                valstr += strlen("vm_explicit_commit=");
+                bool valval = parseBooleanRelaxed(valstr, false);
+                m_mempool_lock_free.m_vm_explicit_commit = valval;
+            }
         }
         if (const char* valstr = fpath.strstr("file_path=")) {
             valstr += strlen("file_path="); // file_path=... must be last
@@ -798,7 +803,6 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, HugePageEnum use_h
             }
         }
 #endif
-        m_mempool_lock_free.m_mmap_hugepage = HugePageEnum::kMmap == use_hugepage;
         m_mempool.risk_set_data(mem);
         m_mempool.risk_set_capacity(maxMem);
     }

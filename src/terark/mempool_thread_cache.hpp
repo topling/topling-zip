@@ -522,7 +522,7 @@ public:
 
     std::function<TCMemPoolOneThread<AlignSize>*(ThreadCacheMemPool*)> m_new_tc;
 
-    bool m_mmap_hugepage = false;
+    bool m_vm_explicit_commit = false;
 
     void set_chunk_size(size_t sz) {
         TERARK_VERIFY_F((sz & (sz-1)) == 0, "%zd(%#zX)", sz, sz);
@@ -685,6 +685,7 @@ public:
         } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
 
       #if defined(_MSC_VER)
+        // Windows requires explicit commit virtual memory
         size_t beg = pow2_align_down(size_t(base + oldn), 4096);
         size_t end = pow2_align_up(size_t(base + oldn + chunk_len), 4096);
         size_t len = end - beg;
@@ -694,7 +695,11 @@ public:
                        beg, numMiB, GetLastError());
         }
       #elif defined(__linux__)
-        if (m_mmap_hugepage) {
+        // linux is implicit commit virtual memory, if memory is insufficient,
+        // SIGFAULT/SIGBUS will be generated. We allow users explicit commit
+        // virtual memory by madvise(POPULATE_WRITE), POPULATE_WRITE is a new
+        // feature since kernel version 5.14
+        if (m_vm_explicit_commit) {
             TERARK_VERIFY_AL(size_t(base), ArenaSize);
             size_t beg = pow2_align_down(size_t(base + oldn), m_chunk_size);
             size_t end = pow2_align_up(size_t(base + oldn + chunk_len), m_chunk_size);
@@ -703,7 +708,7 @@ public:
             while (madvise((void*)beg, len, POPULATE_WRITE) != 0) {
                 int err = errno;
                 if (EFAULT == err) {
-                    TERARK_DIE("EFAULT: m_mmap_hugepage is true but vm.nr_hugepages is insufficient");
+                    TERARK_DIE("EFAULT: is vm.nr_hugepages insufficient?");
                     break;
                 }
                 else if (EAGAIN == err) {
