@@ -225,6 +225,7 @@ public:
 	void self_mmap_user_mem(const void* baseptr, size_t length);
 	void self_mmap_user_mem(fstring mem) { self_mmap_user_mem(mem.p, mem.n); }
 
+	void save_mmap(function<void(fstring)> write) const;
 	void save_mmap(function<void(const void*, size_t)> write) const;
 	void save_mmap(int fd) const;
 	void save_mmap(fstring fname) const;

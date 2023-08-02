@@ -981,6 +981,11 @@ void BaseDFA::save_mmap(int fd) const {
 	Do_save_mmap(this, fd, ref(Throw));
 }
 
+void BaseDFA::save_mmap(function<void(fstring)> write) const {
+	save_mmap([&](const void* p, size_t n) {
+		write(fstring((const char*)p, n));
+	});
+}
 void BaseDFA::save_mmap(function<void(const void*, size_t)> write)
 const {
 	const void* dataPtrs[DFA_MmapHeader::MAX_BLOCK_NUM] = { NULL };
