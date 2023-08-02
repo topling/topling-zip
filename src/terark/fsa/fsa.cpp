@@ -951,6 +951,9 @@ void Do_save_mmap(const BaseDFA* dfa, int fd,
 			if (terark_likely(len2 > 0)) {
 				written += len2;
 			}
+			else if (EINTR == errno) {
+				continue;
+			}
 			else {
 				Throw(len1, len2);
 			}
