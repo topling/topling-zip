@@ -1,4 +1,5 @@
-#include <terark/bitmap.hpp>
+#include <terark/bitmanip.hpp>
+#include <stdint.h>
 #include <time.h>
 #include "nolocks_localtime.hpp"
 
