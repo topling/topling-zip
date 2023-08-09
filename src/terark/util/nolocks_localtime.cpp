@@ -116,7 +116,14 @@ static long long calc_year_of_day_fast(long long& day) {
     assert(day1 == 0);
     // do nothing
   }
-  day -= day1;
+  assert(day >= day1);
+  assert(day - day1 <= 365);
+  if (day - day1 == 365 && !is_leap_year(year)) {
+    assert(is_leap_year(year + 1));
+    day = 0, year++;
+  } else {
+    day -= day1;
+  }
   return year;
 }
 
