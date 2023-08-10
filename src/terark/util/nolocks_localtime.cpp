@@ -101,13 +101,21 @@ static long long calc_year_of_day_fast(long long& day) {
   auto year = day * 400 / days_per_400_years;
   auto day1 = epoch_day_of_year(year);
   if (day1 < day) {
-    long long day2;
-    while ((day2 = epoch_day_of_year(year + 1)) < day)
-      day1 = day2, year++;
+    if (day - day1 >= 365) {
+      auto day2 = epoch_day_of_year(year + 1);
+      if (day2 <= day) {
+        day1 = day2, year++;
+      } else {
+        assert(is_leap_year(year));
+      }
+    }
+  }
+  else if (day1 == day) {
+    // do nothing
   }
   else if (year > 0) {
     long long day2;
-    while ((day2 = epoch_day_of_year(year - 1)) > day)
+    while ((day2 = epoch_day_of_year(year - 1)) >= day)
       day1 = day2, year--;
   }
   else { // year == 0, is leap
@@ -118,12 +126,7 @@ static long long calc_year_of_day_fast(long long& day) {
   }
   assert(day >= day1);
   assert(day - day1 <= 365);
-  if (day - day1 == 365 && !is_leap_year(year)) {
-    assert(is_leap_year(year + 1));
-    day = 0, year++;
-  } else {
-    day -= day1;
-  }
+  day -= day1;
   return year;
 }
 
