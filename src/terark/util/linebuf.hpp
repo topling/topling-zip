@@ -26,6 +26,13 @@ struct TERARK_DLL_EXPORT LineBuf : boost::noncopyable {
 	LineBuf();
 	~LineBuf();
 
+	LineBuf(LineBuf&& y) : p(y.p), n(y.n), capacity(y.capacity) {
+		y.p = nullptr;
+		y.n = 0;
+		y.capacity = 0;
+	}
+	LineBuf& operator=(LineBuf&& y);
+
 	ptrdiff_t getline(FILE* f); ///<  is thread safe on glibc
 	ptrdiff_t getbson(FILE* f); ///< not thread safe
 

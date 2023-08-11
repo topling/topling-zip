@@ -37,6 +37,14 @@ LineBuf::~LineBuf() {
 		free(p);
 }
 
+LineBuf& LineBuf::operator=(LineBuf&& y) {
+	if (&y != this) {
+		this->~LineBuf();
+		new(this)LineBuf(std::move(y));
+	}
+	return *this;
+}
+
 void LineBuf::clear() {
 	if (p) {
 		free(p);

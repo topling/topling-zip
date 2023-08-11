@@ -430,6 +430,7 @@ void vfork_cmd(fstring cmd,
     share->proc.close();
 }
 
+TERARK_DLL_EXPORT
 std::future<std::string>
 vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
     VforkCmdPromise prom;
