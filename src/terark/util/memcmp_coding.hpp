@@ -5,16 +5,16 @@
 namespace terark {
 
 TERARK_DLL_EXPORT
-char* encode_00_0n(const char* ibeg, const char* iend, char* obeg, char* oend, char out_end_mark);
+char* encode_0_01_00(const char* ibeg, const char* iend, char* obeg, char* oend);
 
 TERARK_DLL_EXPORT
-char* decode_00_0n(const char* ibeg, const char**ires, char* obeg, char* oend);
+char* decode_01_00(const char* ibeg, const char**ires, char* obeg, char* oend);
 
 TERARK_DLL_EXPORT
-const char* end_of_00_0n(const char* encoded);
+const char* end_of_01_00(const char* encoded);
 
 TERARK_DLL_EXPORT
-const char* end_of_00_0n(const char* beg, const char* end);
+const char* end_of_01_00(const char* beg, const char* end);
 
 // float encoding/decoding intentinally use unsigned char*
 TERARK_DLL_EXPORT
