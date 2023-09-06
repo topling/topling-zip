@@ -260,7 +260,8 @@ public:
             }
             if (n2 != nullptr && n2->size >= request) {
                 assert((byte*)n2 >= base);
-                size_t remain = n2->size - request;
+                size_t n2_size = n2->size;
+                size_t remain = n2_size - request;
                 size_t res = size_t((byte*)n2 - base);
                 size_t res_shift = res >> offset_shift;
                 for (size_t k = 0; k < huge_list.size; ++k)
@@ -270,8 +271,8 @@ public:
                     ;
                 if (remain)
                     sfree(base, res + request, remain);
-                huge_size_sum -= request;
-                huge_node_cnt--;
+                huge_size_sum -= n2_size; // n2 is deleted from hugelist
+                huge_node_cnt -= 1;
                 fragment_size -= request;
                 m_frag_inc -= request;
                 if (m_frag_inc < -256 * 1024) {
@@ -414,7 +415,7 @@ public:
             mptc1t_debug_fill_free(n2 + 1, len - sizeof(*n2));
             ASAN_POISON_MEMORY_REGION(n2 + 1, len - sizeof(*n2));
             huge_size_sum += len;
-            huge_node_cnt++;
+            huge_node_cnt += 1;
         }
         fragment_size += len;
         m_frag_inc += len;
