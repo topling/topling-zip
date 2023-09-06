@@ -108,6 +108,15 @@ public:
     }
   #endif
 
+    void reduce_frag_size(size_t request) {
+        fragment_size -= request;
+        m_frag_inc -= request;
+        if (m_frag_inc < -256 * 1024) {
+            as_atomic(m_mempool->fragment_size).
+                fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
+            m_frag_inc = 0;
+        }
+    }
     terark_no_inline
     size_t alloc(byte_t* base, size_t request) {
         assert(request % AlignSize == 0);
@@ -117,13 +126,7 @@ public:
             size_t next = list.head;
             if (list_tail != next) {
                 size_t pos = size_t(next) * AlignSize;
-                fragment_size -= request;
-                m_frag_inc -= request;
-                if (m_frag_inc < -256 * 1024) {
-                    as_atomic(m_mempool->fragment_size).
-                        fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
-                    m_frag_inc = 0;
-                }
+                reduce_frag_size(request);
                 ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 list.cnt--;
                 list.head = *(link_size_t*)(base + pos);
@@ -138,13 +141,7 @@ public:
                     next = list2.head;
                     if (list_tail != next) {
                         size_t pos = size_t(next) * AlignSize;
-                        fragment_size -= request;
-                        m_frag_inc -= request;
-                        if (m_frag_inc < -256 * 1024) {
-                            as_atomic(m_mempool->fragment_size).
-                                fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
-                            m_frag_inc = 0;
-                        }
+                        reduce_frag_size(request);
                         ASAN_UNPOISON_MEMORY_REGION(base + pos, 2*request);
                         list2.cnt--;
                         list2.head = *(link_size_t*)(base + pos);
@@ -208,13 +205,7 @@ public:
                 m_hot_end = res + rlen;
                 huge_size_sum -= rlen;
                 huge_node_cnt -= 1;
-                fragment_size -= rlen;
-                m_frag_inc -= rlen;
-                if (m_frag_inc < -256 * 1024) {
-                    as_atomic(m_mempool->fragment_size).
-                        fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
-                    m_frag_inc = 0;
-                }
+                reduce_frag_size(rlen);
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
@@ -232,13 +223,7 @@ public:
                     m_hot_end = res + rlen;
                     huge_size_sum -= rlen;
                     huge_node_cnt -= 1;
-                    fragment_size -= rlen;
-                    m_frag_inc -= rlen;
-                    if (m_frag_inc < -256 * 1024) {
-                        as_atomic(m_mempool->fragment_size).
-                            fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
-                        m_frag_inc = 0;
-                    }
+                    reduce_frag_size(rlen);
                     ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                     mptc1t_debug_fill_alloc(base + res, request);
                     return res;
@@ -273,13 +258,7 @@ public:
                     sfree(base, res + request, remain);
                 huge_size_sum -= n2_size; // n2 is deleted from hugelist
                 huge_node_cnt -= 1;
-                fragment_size -= request;
-                m_frag_inc -= request;
-                if (m_frag_inc < -256 * 1024) {
-                    as_atomic(m_mempool->fragment_size).
-                        fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
-                    m_frag_inc = 0;
-                }
+                reduce_frag_size(request);
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
@@ -292,13 +271,7 @@ public:
                     huge_list.next[0] = ((huge_link_t*)(base + res))->next[0];
                     huge_size_sum -= rlen;
                     huge_node_cnt -= 1;
-                    fragment_size -= rlen;
-                    m_frag_inc -= rlen;
-                    if (m_frag_inc < -256 * 1024) {
-                        as_atomic(m_mempool->fragment_size).
-                            fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
-                        m_frag_inc = 0;
-                    }
+                    reduce_frag_size(rlen);
                     if (rlen > request) {
                         sfree(base, res + request, rlen - request);
                     }
