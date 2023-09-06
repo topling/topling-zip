@@ -609,6 +609,36 @@ public:
         });
     }
 
+    void print_stat(FILE* fp) const {
+        size_t ti = 0, computed_frag_size = 0, computed_hot_size = 0;
+        fprintf(fp, "threads=%zd, frag=%zd\n", this->m_tls_vec.size(), fragment_size);
+        this->for_each_tls([&,this](TCMemPoolOneThread<AlignSize>* tc) {
+            auto _p = tc->m_freelist_head.data();
+            auto _n = tc->m_freelist_head.size();
+            size_t frag_num = tc->huge_node_cnt;
+            for (size_t i = 0; i < _n; ++i) {
+                frag_num += _p[i].cnt;
+            }
+            size_t hotlen = tc->m_hot_end - tc->m_hot_pos;
+            fprintf(fp, "  thread %zd: frag{num=%zd,len=%zd,inc=%zd}, huge{num=%zd,len=%zd}, hotlen=%zd\n    fastbin: ",
+                ti, frag_num, tc->fragment_size, tc->m_frag_inc, tc->huge_node_cnt, tc->huge_size_sum, hotlen);
+            size_t len = 0;
+            for (size_t i = 0; i < _n; ++i) {
+                if (_p[i].cnt) {
+                    fprintf(fp, "(%zd, %zd), ", i, size_t(_p[i].cnt));
+                    len += AlignSize * (i + 1) * _p[i].cnt;
+                    computed_frag_size += len;
+                }
+            }
+            computed_frag_size += tc->huge_size_sum;
+            computed_hot_size += hotlen;
+            fprintf(fp, "len = %zd\n", len);
+            ti++;
+        });
+        fprintf(fp, "computed_frag_size = %zd, computed_hot_size = %zd, plus the two = %zd\n",
+                     computed_frag_size, computed_hot_size, computed_frag_size + computed_hot_size);
+    }
+
     size_t get_huge_stat(size_t* huge_memsize) const {
         size_t huge_size_sum = 0;
         size_t huge_node_cnt = 0;

@@ -567,6 +567,18 @@ size_t PatriciaMem<Align>::get_token_qlen() const noexcept {
     return m_token_qlen;
 }
 
+template<size_t Align>
+void PatriciaMem<Align>::print_mempool_stat(FILE* fp) const noexcept {
+    switch (m_mempool_concurrent_level) {
+default: TERARK_DIE("Unknown == m_mempool_concurrent_level"); break;
+case NoWriteReadOnly    : fprintf(fp, "print_mempool_stat: TODO: NoWriteReadOnly\n");    break;
+case SingleThreadStrict : fprintf(fp, "print_mempool_stat: TODO: SingleThreadStrict\n"); break;
+case SingleThreadShared : fprintf(fp, "print_mempool_stat: TODO: SingleThreadShared\n"); break;
+case OneWriteMultiRead  : fprintf(fp, "print_mempool_stat: TODO: OneWriteMultiRead\n");  break;
+case MultiWriteMultiRead: m_mempool_lock_free.print_stat(fp); break;
+    }
+}
+
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
 default: TERARK_DIE("Unknown == conLevel"); break;
