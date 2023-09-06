@@ -258,7 +258,7 @@ public:
                     sfree(base, res + request, remain);
                 huge_size_sum -= n2_size; // n2 is deleted from hugelist
                 huge_node_cnt -= 1;
-                reduce_frag_size(request);
+                reduce_frag_size(n2_size);
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
