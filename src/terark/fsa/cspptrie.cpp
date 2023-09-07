@@ -2987,6 +2987,7 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
     m_max_word_len = base->dfa_cluster_num;
     m_appdata_offset = size_t(base->louds_dfa_min_zpath_id) * AlignSize;
     m_appdata_length = size_t(base->louds_dfa_cache_states) * AlignSize;
+    m_mempool.risk_set_frag_size(size_t(base->numFreeStates) * AlignSize);
 }
 
 template<size_t Align>
@@ -3002,6 +3003,7 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
     header->dfa_cluster_num         = uint32_t(m_max_word_len);
     header->louds_dfa_min_zpath_id  = uint32_t(m_appdata_offset / AlignSize);
     header->louds_dfa_cache_states  = uint32_t(m_appdata_length / AlignSize);
+    header->numFreeStates = m_mempool.frag_size() / AlignSize;
 
     header->blocks[0].offset = sizeof(DFA_MmapHeader);
     header->blocks[0].length = m_mempool.size();

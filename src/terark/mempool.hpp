@@ -30,6 +30,7 @@ public:
     using mem::risk_set_capacity;
     using mem::risk_release_ownership;
     size_t frag_size() const { return fragment_size; }
+    void risk_set_frag_size(size_t s) { fragment_size = s; }
 //  void   sfree(size_t,size_t) { assert(false); }
 //  size_t alloc(size_t) { assert(false); return 0; }
 //  size_t alloc3(size_t,size_t,size_t) { assert(false); return 0; }
