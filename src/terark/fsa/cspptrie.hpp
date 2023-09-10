@@ -155,11 +155,9 @@ public:
         bool insert(fstring key, void* value);
     };
     using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
-    class SingleWriterToken : public WriterToken {
+    class TERARK_DLL_EXPORT SingleWriterToken : public WriterToken {
     public:
-        ~SingleWriterToken() {
-            this->m_flags.state = DisposeDone;
-        }
+        ~SingleWriterToken();
     };
     class TERARK_DLL_EXPORT Iterator : public ReaderToken, public ADFA_LexIterator {
     protected:

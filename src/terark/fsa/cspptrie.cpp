@@ -3927,6 +3927,10 @@ Patricia::WriterToken::~WriterToken() {
     TERARK_VERIFY(DisposeDone == m_flags.state);
 }
 
+Patricia::SingleWriterToken::~SingleWriterToken() {
+    this->m_flags.state = DisposeDone;
+}
+
 /// Iterator
 size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
   #if !defined(NDEBUG)
