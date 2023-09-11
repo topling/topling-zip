@@ -134,14 +134,8 @@ public:
     using ReaderTokenPtr = std::unique_ptr<ReaderToken, DisposeAsDelete>;
     class SingleReaderToken : public TokenBase {
     public:
-        explicit SingleReaderToken(Patricia* trie) {
-            assert(trie->concurrent_level() <= SingleThreadStrict);
-            m_trie = trie;
-            m_flags.state = AcquireDone;
-        }
-        ~SingleReaderToken() override {
-            this->m_flags.state = DisposeDone;
-        }
+        explicit SingleReaderToken(Patricia* trie);
+        ~SingleReaderToken() override;
     };
 
     class TERARK_DLL_EXPORT WriterToken : public TokenBase {

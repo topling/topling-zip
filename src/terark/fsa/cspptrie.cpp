@@ -3897,8 +3897,18 @@ void Patricia::TokenBase::acquire(Patricia* trie1) {
     }
 }
 
-Patricia::ReaderToken::~ReaderToken() {
+terark_flatten Patricia::ReaderToken::~ReaderToken() {
     TERARK_VERIFY(DisposeDone == m_flags.state);
+}
+
+terark_flatten Patricia::SingleReaderToken::SingleReaderToken(Patricia* trie) {
+    assert(trie->concurrent_level() <= SingleThreadStrict);
+    m_trie = trie;
+    m_flags.state = AcquireDone;
+}
+
+terark_flatten Patricia::SingleReaderToken::~SingleReaderToken() {
+    this->m_flags.state = DisposeDone;
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -3919,15 +3929,15 @@ noexcept {
     // do nothing by default
 }
 
-Patricia::WriterToken::WriterToken() {
+terark_flatten Patricia::WriterToken::WriterToken() {
     m_thread_id = ThisThreadID();
 }
 
-Patricia::WriterToken::~WriterToken() {
+terark_flatten Patricia::WriterToken::~WriterToken() {
     TERARK_VERIFY(DisposeDone == m_flags.state);
 }
 
-Patricia::SingleWriterToken::~SingleWriterToken() {
+terark_flatten Patricia::SingleWriterToken::~SingleWriterToken() {
     this->m_flags.state = DisposeDone;
 }
 
