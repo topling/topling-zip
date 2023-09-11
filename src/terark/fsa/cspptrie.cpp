@@ -3852,8 +3852,7 @@ Patricia::ReaderToken::ReaderToken() {
     m_thread_id = ThisThreadID();
 }
 
-terark_flatten
-void Patricia::TokenBase::acquire(Patricia* trie1) {
+terark_flatten void Patricia::TokenBase::acquire(Patricia* trie1) {
     assert(NULL != trie1);
     assert(NULL == m_trie || trie1 == m_trie);
     auto trie = static_cast<MainPatricia*>(trie1);
