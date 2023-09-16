@@ -605,6 +605,7 @@ static int& g_zipThreads() {
 }
 static bool g_isPipelineStarted = false;
 
+static int g_debugLevel = (int)getEnvLong("DictZipBlobStore_debugLevel", 0);
 static int g_pipelineLogLevel = (int)getEnvLong("DictZipBlobStore_pipelineLogLevel", 1);
 static bool g_printEntropyCount = getEnvBool("DictZipBlobStore_printEntropyCount", false);
 
@@ -2438,27 +2439,28 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
     m_gOffsetBits = My_bsr_size_t(m_strDict.size() - gMinLen) + 1;
     set_func_ptr();
 
-#if !defined(NDEBUG)
+  if (g_debugLevel >= 2) {
+    fprintf(stderr, "DictZipBlobStore::setDataMemory(%s): checking offsets\n", m_fpath.c_str());
 	if (offsetsIsSortedUintVec()) {
 		for(size_t i = 0; i < m_numRecords; ++i) {
 			auto BegEnd = m_zOffsets.get2(i);
             size_t offsetBeg = BegEnd[0];
             size_t offsetEnd = BegEnd[1];
-			assert(offsetBeg <= offsetEnd);
+			TERARK_VERIFY_LE(offsetBeg, offsetEnd);
 		}
 		size_t maxOffsets = m_zOffsets[m_numRecords];
-		assert(align_up(maxOffsets, 16) == m_ptrList.size());
+		TERARK_VERIFY_EQ(align_up(maxOffsets, 16), m_ptrList.size());
 	}
 	else {
 		for(size_t i = 0; i < m_numRecords; ++i) {
             size_t offsetBeg = m_offsets[i + 0];
             size_t offsetEnd = m_offsets[i + 1];
-			assert(offsetBeg <= offsetEnd);
+			TERARK_VERIFY_LE(offsetBeg, offsetEnd);
 		}
         size_t maxOffsets = m_offsets[m_numRecords];
-		assert(align_up(maxOffsets, 16) == m_ptrList.size());
+		TERARK_VERIFY_EQ(align_up(maxOffsets, 16), m_ptrList.size());
 	}
-#endif
+  }
 }
 
 void DictZipBlobStore::load_mmap(fstring fpath) {
