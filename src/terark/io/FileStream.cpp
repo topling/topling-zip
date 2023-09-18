@@ -199,7 +199,21 @@ size_t FileStream::read(void* buf, size_t size) noexcept
 size_t FileStream::write(const void* buf, size_t size) noexcept
 {
 	assert(m_fp);
-	return ::fwrite(buf, 1, size, m_fp);
+	size_t pos = 0;
+	while (true) {
+		size_t request = size - pos;
+		size_t written = ::fwrite((const char*)buf + pos, 1, request, m_fp);
+		pos += written;
+		if (written == request) {
+			break;
+		}
+		if (0 == errno || EAGAIN == errno) {
+			// do nothing
+		} else {
+			break;
+		}
+	}
+	return pos;
 }
 
 #if defined(__GLIBC__) || defined(_MSC_VER) && _MSC_VER <= 1800
