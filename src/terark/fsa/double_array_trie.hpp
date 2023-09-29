@@ -136,6 +136,24 @@ public:
 		states.swap(y.states);
 	}
 
+	///@note the time complexity is O(sigma)
+	size_t num_children(state_id_t curr) const {
+	#if 1
+		TERARK_DIE("shouldnot goes here");
+	#else
+		assert(!states[curr].is_free());
+		state_id_t child0 = states[curr].child0();
+		size_t num = 0;
+		for (int ch = 0; ch < sigma; ++ch) {
+			state_id_t next = child0 + ch;
+			if (states[next].parent() == curr)
+				num++;
+		}
+		return num;
+	#endif
+	}
+	size_t v_num_children(size_t s) const override { return num_children(s); }
+
 	/// this is much slower than Automata::for_each_move
 	template<class OP>
 	void for_each_move(state_id_t curr, OP op) const {

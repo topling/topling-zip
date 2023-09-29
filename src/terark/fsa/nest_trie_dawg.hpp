@@ -148,7 +148,7 @@ public:
 	bool   is_free(size_t s) const noexcept { return false; }
 	bool   is_pzip(size_t s) const noexcept { return m_trie->is_pzip(s); }
 	bool   v_has_children(size_t) const override final;
-	size_t v_num_children(size_t s) const;
+	size_t v_num_children(size_t s) const override final;
 	size_t v_gnode_states() const override final;
 	size_t zp_nest_level() const override final;
 

@@ -363,6 +363,7 @@ public:
         assert(1 == a[s].meta.n_cnt_type);
         return a[s].meta.c_label[0];
     }
+    size_t v_num_children(size_t s) const override;
     size_t num_children(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
         assert(s < total_states());

@@ -267,7 +267,7 @@ public:
 	virtual size_t v_max_state() const = 0;
 	virtual size_t mem_size() const = 0;
 	virtual size_t v_state_move(size_t curr, auchar_t ch) const = 0;
-//	virtual size_t v_num_children(size_t) const = 0; // time: O(1) or O(n)
+	virtual size_t v_num_children(size_t) const = 0; // time: O(1) or O(n)
 	virtual bool   v_has_children(size_t) const = 0; // time: O(1)
 
 	typedef function<void(size_t child, auchar_t)> OnMove;
@@ -290,6 +290,9 @@ public:
 	/// output @param keys are unsorted, .seq_id is the final state for that key
 	virtual void dfa_get_random_keys_append(SortableStrVec* keys, size_t max_keys) const;
 	void dfa_get_random_keys(SortableStrVec* keys, size_t max_keys) const;
+
+	/// @return relative rank of key, ratio of keys less than @param key in the dfa
+	virtual double dfa_approximate_rank(fstring key, bool deep1 = false) const;
 
 	virtual size_t max_strlen() const noexcept;
 

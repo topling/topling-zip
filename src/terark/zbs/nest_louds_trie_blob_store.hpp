@@ -40,6 +40,7 @@ public:
 
 	bool has_freelist() const override { return false; }
 	bool v_has_children(size_t s) const override { return NestLoudsTrie::has_children(s); }
+	size_t v_num_children(size_t s) const override { return NestLoudsTrie::num_children(s); }
 	size_t v_gnode_states() const override { return NestLoudsTrie::gnode_states(); }
 
 	bool is_term(size_t) const { return false; }

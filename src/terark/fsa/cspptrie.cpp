@@ -1015,6 +1015,10 @@ size_t PatriciaMem<Align>::get_cur_tls_free_size() const {
 
 template<size_t Align>
 void PatriciaMem<Align>::shrink_to_fit() {}
+
+size_t MainPatricia::v_num_children(size_t s) const {
+    return num_children(s);
+}
 void MainPatricia::compact() {}
 
 size_t

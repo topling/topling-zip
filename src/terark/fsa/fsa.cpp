@@ -1228,6 +1228,83 @@ void BaseDFA::dfa_get_random_keys(SortableStrVec* keys, size_t num) const {
     dfa_get_random_keys_append(keys, num);
 }
 
+/// The result may be inaccurate because dfa may be not balanced, some nodes
+/// have many keys, some have few keys.
+///
+/// If the keys are random, the result should be pretty accurate.
+///
+/// @param deep1 is used for estimate in children's num_children, because the
+///              dfa may be not balanced, estimate is more accurate if search
+///              deeper, but this is slow, so we just search deep 1 layer, now
+///              deep1 = true is buggy, we force to deep1 = false
+double BaseDFA::dfa_approximate_rank(fstring key, bool deep1) const {
+    /// @param deep1 is ignored and always act as false for now
+    deep1 = false; // true yield non-monotonic rank, now force to false
+    MatchContext ctx;
+    double rank = 0;
+    double step = 1.0;
+    size_t s = initial_state;
+    AutoFree<CharTarget<size_t> > children(m_dyn_sigma);
+    for (size_t pos = 0; ; pos++) {
+        if (v_is_pzip(s)) {
+            fstring zp = v_get_zpath_data(s, &ctx);
+            size_t  nn = std::min(zp.size(), key.size() - pos);
+            for(size_t j = 0; j < nn; j++) {
+                byte_t c = zp.p[j];
+                byte_t k = key.p[pos + j];
+                if (k < c) {
+                    goto Done;
+                } else if (k > c) {
+                    rank += step;
+                    goto Done;
+                }
+            }
+            // must be _________ <=
+            if (key.size() - pos <= zp.size()) {
+                // key is smaller/equal beause key is shorter/equal
+                break;
+            }
+            pos += zp.size();
+        }
+        else if (pos == key.size()) {
+            break; // exact match
+        }
+        size_t nc = get_all_move(s, children.p);
+        if (0 == nc) { // has no child
+            // key is greater beause key is longer
+            return rank + step / 2.0;
+        }
+        byte_t kc = key.p[pos];
+        size_t lo = lower_bound_ex_0(children.p, nc, kc, [](auto& x){return x.ch;});
+        //printf("pos = %zd, lo = %zd, nc = %zd, %s\n", pos, lo, nc, key.c_str());
+        if (deep1) {
+            // num_children of each children may be different.
+            // this may yield non-monotonic approximate rank to real rank, we
+            // may find a way to resolve this issue in the future.
+            size_t lo2 = 0, nc2 = 0;
+            for(size_t j = 0; j < nc; j++) {
+                size_t g = v_num_children(children.p[j].target);
+                g = g ? g : 1; // a son with zero grandson is still a son
+                nc2 += g;
+                if (j < lo)
+                    lo2 += g;
+            }
+            rank += step * lo2 / nc2;
+            step /= nc;
+        }
+        else {
+            step /= nc;
+            rank += lo * step;
+        }
+        if (lo < nc && kc == children.p[lo].ch) {
+            s = children.p[lo].target;
+        } else break;
+    }
+ Done:
+    //rank = std::min(rank, 1.0); // when deep1 is true, may be > 1.0
+    return rank;
+}
+
 size_t BaseDFA::max_strlen() const noexcept {
 	return size_t(-1); // unbounded
 }

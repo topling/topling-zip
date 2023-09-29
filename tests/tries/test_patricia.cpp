@@ -104,6 +104,21 @@ int main() {
   DO_INSERT("ddab"); TERARK_VERIFY(ret_ok);
   TERARK_VERIFY(trie->trie_stat().n_add_state_move == 5+66+2);
 
+  std::vector<std::string> keys_vec;
+  TERARK_VERIFY(iter->seek_begin());
+  do keys_vec.push_back(iter->word().str());
+  while (iter->incr());
+
+  for (bool deep1 : {false}) {
+    double prev_rank = trie->dfa_approximate_rank(keys_vec[0], deep1);
+    for (size_t i = 1, n = keys_vec.size(); i < n; i++) {
+      double curr_rank = trie->dfa_approximate_rank(keys_vec[i], deep1);
+      TERARK_VERIFY_F(prev_rank <= curr_rank, "%zd: %f , %f ; %s , %s", i, prev_rank, curr_rank, keys_vec[i-1].c_str(), keys_vec[i].c_str());
+      //printf("%03zd: rank = %.8f , i/n = %.8f, %s\n", i, curr_rank, double(i)/n, keys_vec[i].c_str());
+      prev_rank = curr_rank;
+    }
+  }
+
   wtok->release();
   iter->dispose();
 

@@ -71,14 +71,12 @@ public:
         { _mm_prefetch((const char*)&rankCache[bitpos/LineBits], _MM_HINT_T0); }
 };
 
-inline size_t rank_select_se::
-rank0(size_t bitpos) const noexcept {
+inline size_t rank_select_se::rank0(size_t bitpos) const noexcept {
     assert(bitpos <= m_size);
     return bitpos - rank1(bitpos);
 }
 
-inline size_t rank_select_se::
-rank1(size_t bitpos) const noexcept {
+inline size_t rank_select_se::rank1(size_t bitpos) const noexcept {
     assert(bitpos <= m_size);
     RankCache rc = m_rank_cache[bitpos / LineBits];
     return rc.lev1 + rc.lev2[(bitpos / 64) % 4] +
