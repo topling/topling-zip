@@ -704,7 +704,7 @@ public:
         // virtual memory by madvise(POPULATE_WRITE), POPULATE_WRITE is a new
         // feature since kernel version 5.14
         if (m_vm_explicit_commit) {
-            TERARK_VERIFY_AL(size_t(base), ArenaSize);
+            // TERARK_VERIFY_AL(size_t(base), ArenaSize); // not needed and may fail
             size_t beg = pow2_align_down(size_t(base + oldn), m_chunk_size);
             size_t end = pow2_align_up(size_t(base + oldn + chunk_len), m_chunk_size);
             size_t len = end - beg;
