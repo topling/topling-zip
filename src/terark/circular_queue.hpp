@@ -9,7 +9,6 @@
 *********************************************************************/
 #pragma once
 
-#include <boost/swap.hpp>
 #include <terark/util/throw.hpp>
 
 namespace terark {
@@ -33,7 +32,7 @@ class circular_queue
 	ptrdiff_t m_tail; // point to next push_back position
 	ptrdiff_t m_nlen;
 
-	ptrdiff_t prev(ptrdiff_t current) const throw()
+	ptrdiff_t prev(ptrdiff_t current) const noexcept
 	{
 		if (CapIsPower2) {
 			return (current-1) & (m_nlen-1);
@@ -42,7 +41,7 @@ class circular_queue
 		return i >=0 ? i : i + m_nlen; // == (i + m_nlen) % m_nlen, but more fast
 	//	return (current + m_vec.size() - 1) % m_vec.size();
 	}
-	ptrdiff_t next(ptrdiff_t current) const throw()
+	ptrdiff_t next(ptrdiff_t current) const noexcept
 	{
 		if (CapIsPower2) {
 			return (current+1) & (m_nlen-1);
@@ -51,7 +50,7 @@ class circular_queue
 		return i < m_nlen ? i : i - m_nlen; // == i % m_nlen, but more fast
 	//	return (current + 1) % m_vec.size();
 	}
-	ptrdiff_t prev_n(ptrdiff_t current, ptrdiff_t n) const throw()
+	ptrdiff_t prev_n(ptrdiff_t current, ptrdiff_t n) const noexcept
 	{
 		assert(n < m_nlen);
 		if (CapIsPower2) {
@@ -61,7 +60,7 @@ class circular_queue
 		return i >=0 ? i : i + m_nlen; // == i % c, but more fast
 //		return (current + m_vec.size() - n) % m_vec.size();
 	}
-	ptrdiff_t next_n(ptrdiff_t current, ptrdiff_t n) const throw()
+	ptrdiff_t next_n(ptrdiff_t current, ptrdiff_t n) const noexcept
 	{
 		assert(n < m_nlen);
 		if (CapIsPower2) {
@@ -88,55 +87,55 @@ public:
 		friend class circular_queue;
 		const ElemT* p;
 		const circular_queue* queue;
-		const ElemT* base() const throw() { return &queue->m_vec[0]; }
+		const ElemT* base() const noexcept { return &queue->m_vec[0]; }
 		typedef const_iterator my_type;
 
 	public:
-		my_type operator++()    const throw()
+		my_type operator++()    const noexcept
 		{ p = base() + queue->next(p - base()); return *this; }
-		my_type operator++(int) const throw()
+		my_type operator++(int) const noexcept
 		{ my_type temp = ++(*this); return temp; }
 
-		my_type operator--()    const throw()
+		my_type operator--()    const noexcept
 		{ p = base() + queue->prev(p - base()); return *this; }
-		my_type operator--(int) const throw()
+		my_type operator--(int) const noexcept
 		{ my_type temp = --(*this); return temp; }
 
-		my_type& operator+=(ptrdiff_t distance) throw()
+		my_type& operator+=(ptrdiff_t distance) noexcept
 		{ p = base() + queue->next_n(p - base()); return *this; }
-		my_type& operator-=(ptrdiff_t distance) throw()
+		my_type& operator-=(ptrdiff_t distance) noexcept
 		{ p = base() + queue->prev_n(p - base()); return *this; }
 
-		my_type operator+(ptrdiff_t distance) throw()
+		my_type operator+(ptrdiff_t distance) noexcept
 		{ my_type temp = *this; temp += distance; return temp; }
-		my_type operator-(ptrdiff_t distance) throw()
+		my_type operator-(ptrdiff_t distance) noexcept
 		{ my_type temp = *this; temp -= distance; return temp; }
 
-		bool operator==(const my_type& r) const throw() { return p == r.p; }
-		bool operator!=(const my_type& r) const throw() { return p != r.p; }
-		bool operator< (const my_type& r) const throw()
+		bool operator==(const my_type& r) const noexcept { return p == r.p; }
+		bool operator!=(const my_type& r) const noexcept { return p != r.p; }
+		bool operator< (const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) <
 				queue->virtual_index(r.p - base());
 		}
-		bool operator> (const my_type& r) const throw()
+		bool operator> (const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) >
 				queue->virtual_index(r.p - base());
 		}
-		bool operator<=(const my_type& r) const throw()
+		bool operator<=(const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) <=
 				queue->virtual_index(r.p - base());
 		}
-		bool operator>=(const my_type& r) const throw()
+		bool operator>=(const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) >=
 				queue->virtual_index(r.p - base());
 		}
 
-		const ElemT& operator *() const throw() { return *p; }
-		const ElemT* operator->() const throw() { return  p; }
+		const ElemT& operator *() const noexcept { return *p; }
+		const ElemT* operator->() const noexcept { return  p; }
 
 		friend inline
 		my_type
@@ -148,57 +147,57 @@ public:
 		friend class circular_queue;
 		ElemT* p;
 		circular_queue* queue;
-		ElemT* base() const throw() { return &queue->m_vec[0]; }
+		ElemT* base() const noexcept { return &queue->m_vec[0]; }
 		typedef iterator my_type;
 
 	public:
-		my_type operator++()    const throw()
+		my_type operator++()    const noexcept
 		{ p = base() + queue->next(p - base()); return *this; }
-		my_type operator++(int) const throw()
+		my_type operator++(int) const noexcept
 		{ my_type temp = ++(*this); return temp; }
 
-		my_type operator--()    const throw()
+		my_type operator--()    const noexcept
 		{ p = base() + queue->prev(p - base()); return *this; }
-		my_type operator--(int) const throw()
+		my_type operator--(int) const noexcept
 		{ my_type temp = --(*this); return temp; }
 
-		my_type& operator+=(ptrdiff_t distance) throw()
+		my_type& operator+=(ptrdiff_t distance) noexcept
 		{ p = base() + queue->next_n(p - base()); return *this; }
-		my_type& operator-=(ptrdiff_t distance) throw()
+		my_type& operator-=(ptrdiff_t distance) noexcept
 		{ p = base() + queue->prev_n(p - base()); return *this; }
 
-		my_type operator+(ptrdiff_t distance) throw()
+		my_type operator+(ptrdiff_t distance) noexcept
 		{ my_type temp = *this; temp += distance; return temp; }
-		my_type operator-(ptrdiff_t distance) throw()
+		my_type operator-(ptrdiff_t distance) noexcept
 		{ my_type temp = *this; temp -= distance; return temp; }
 
-		bool operator==(const my_type& r) const throw() { return p == r.p; }
-		bool operator!=(const my_type& r) const throw() { return p != r.p; }
-		bool operator< (const my_type& r) const throw()
+		bool operator==(const my_type& r) const noexcept { return p == r.p; }
+		bool operator!=(const my_type& r) const noexcept { return p != r.p; }
+		bool operator< (const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) <
 				   queue->virtual_index(r.p - base());
 		}
-		bool operator> (const my_type& r) const throw()
+		bool operator> (const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) >
 				   queue->virtual_index(r.p - base());
 		}
-		bool operator<=(const my_type& r) const throw()
+		bool operator<=(const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) <=
 				   queue->virtual_index(r.p - base());
 		}
-		bool operator>=(const my_type& r) const throw()
+		bool operator>=(const my_type& r) const noexcept
 		{
 			return queue->virtual_index(p - base()) >=
 				   queue->virtual_index(r.p - base());
 		}
 
-		ElemT& operator *() const throw() { return *p; }
-		ElemT* operator->() const throw() { return  p; }
+		ElemT& operator *() const noexcept { return *p; }
+		ElemT* operator->() const noexcept { return  p; }
 
-		operator const const_iterator&() const throw()
+		operator const const_iterator&() const noexcept
 		{ return *reinterpret_cast<const const_iterator*>(this); }
 
 		friend inline
@@ -261,7 +260,7 @@ public:
 	 - 前条件：无
 	 @return true 表示队列为空，false 表示非空
 	 */
-	bool empty() const throw() { return m_head == m_tail; }
+	bool empty() const noexcept { return m_head == m_tail; }
 
 	/**
 	 @brief 测试队列是否已满
@@ -269,7 +268,7 @@ public:
 	 - 前条件：无
 	 @return true 表示队列已满，false 表示未满
 	 */
-	bool full() const throw() { return next(m_tail) == m_head; }
+	bool full() const noexcept { return next(m_tail) == m_head; }
 
 	/**
 	 @brief 返回队列当前尺寸
@@ -277,7 +276,7 @@ public:
 	 - 前条件：无
 	 @return 队列中有效元素的个数，总小于等于 capacity
 	 */
-	size_type size() const throw() {
+	size_type size() const noexcept {
 		if (CapIsPower2) {
 			return (m_tail - m_head) & (m_nlen - 1);
 		}
@@ -290,7 +289,7 @@ public:
 	 - 前条件：无
 	 @return 即构造该对象时传入的参数，或者 resize 后的新容量
 	 */
-	size_type capacity() const throw() { return m_nlen; }
+	size_type capacity() const noexcept { return m_nlen; }
 
 	/**
 	 @brief 在队列尾部加入一个新元素
@@ -326,12 +325,12 @@ public:
 
 	 - 前条件：队列不空
 	 */
-	const ElemT& front() const throw()
+	const ElemT& front() const noexcept
 	{
 		assert(!empty());
 		return m_vec[m_head];
 	}
-	ElemT& front() throw()
+	ElemT& front() noexcept
 	{
 		assert(!empty());
 		return m_vec[m_head];
@@ -347,7 +346,7 @@ public:
 	void pop_front(ElemT& val)
 	{
 		assert(!empty());
-		boost::swap(val, m_vec);
+		val = std::move(m_vec[m_head]);
 		m_vec[m_head].~ElemT();
 		m_head = next(m_head);
 	}
@@ -424,12 +423,12 @@ public:
 
 	//@{
 	/** 返回队列尾部元素 前条件：队列不空 */
-	ElemT& back() throw()
+	ElemT& back() noexcept
 	{
 		assert(!empty());
 		return m_vec[prev(m_tail)];
 	}
-	const ElemT& back() const throw()
+	const ElemT& back() const noexcept
 	{
 		assert(!empty());
 		return m_vec[prev(m_tail)];
@@ -445,7 +444,7 @@ public:
 	{
 		assert(!empty());
 		m_tail = prev(m_tail);
-		boost::swap(val, m_vec[m_tail]);
+		val = std::move(m_vec[m_tail]);
 		m_vec[m_tail].~ElemT();
 	}
 
@@ -485,28 +484,28 @@ public:
 	 @name iterator 相关成员
 	 @{
 	 */
-	iterator begin() throw()
+	iterator begin() noexcept
 	{
 		iterator iter;
 		iter.queue = this;
 		iter.p = m_vec + m_head;
 		return iter;
 	}
-	const_iterator begin() const throw()
+	const_iterator begin() const noexcept
 	{
 		iterator iter;
 		iter.queue = this;
 		iter.p = m_vec + m_head;
 		return iter;
 	}
-	iterator end() throw()
+	iterator end() noexcept
 	{
 		iterator iter;
 		iter.queue = this;
 		iter.p = m_vec + m_tail;
 		return iter;
 	}
-	const_iterator end() const throw()
+	const_iterator end() const noexcept
 	{
 		iterator iter;
 		iter.queue = this;
@@ -518,7 +517,7 @@ public:
 	/**
 	 @brief 通过real_index取得元素相对于队头的偏移
 	 */
-	ptrdiff_t virtual_index(ptrdiff_t real_index) const throw()
+	ptrdiff_t virtual_index(ptrdiff_t real_index) const noexcept
 	{
 		if (CapIsPower2) {
 			ptrdiff_t i = (real_index - m_head) & (m_nlen - 1);
@@ -539,7 +538,7 @@ public:
 	 @brief 通过virtual_index取得元素的序列号
 	        virtual_index can equal to size()
 	 */
-	ptrdiff_t real_index(ptrdiff_t virtual_index) const throw()
+	ptrdiff_t real_index(ptrdiff_t virtual_index) const noexcept
 	{
 		assert(virtual_index >= 0);
 		assert(virtual_index <= (ptrdiff_t)size());
@@ -554,11 +553,11 @@ public:
 	/**
 	 @brief 队头的序列号
 	 */
-	ptrdiff_t head_real_index() const throw() { return m_head; }
+	ptrdiff_t head_real_index() const noexcept { return m_head; }
 	/**
 	 @brief 队尾的序列号
 	 */
-	ptrdiff_t tail_real_index() const throw() { return m_tail; }
+	ptrdiff_t tail_real_index() const noexcept { return m_tail; }
 
 	/**
 	 @brief 通过 virtual_index 取得元素
