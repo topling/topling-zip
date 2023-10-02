@@ -1,4 +1,4 @@
-/* vim: set tabstop=4 : */
+﻿/* vim: set tabstop=4 : */
 /********************************************************************
 	@file circular_queue.hpp
 	@brief 循环队列的实现
@@ -305,6 +305,21 @@ public:
 		m_tail = next(m_tail);
 	}
 
+	void push_back(ElemT&& val)
+	{
+		assert(!full());
+		new(&m_vec[m_tail])ElemT(std::move(val));
+		m_tail = next(m_tail);
+	}
+
+	template<class... Args>
+	void emplace_back(Args&&... args)
+	{
+		assert(!full());
+		new(&m_vec[m_tail])ElemT(std::forward<Args>(args)...);
+		m_tail = next(m_tail);
+	}
+
 	//@{
 	/**
 	 @brief 返回队列头部的那个元素
@@ -387,6 +402,23 @@ public:
 		assert(!full());
 		auto head = prev(m_head);
 		new(&m_vec[head])ElemT(val);
+		m_head = head;
+	}
+
+	void push_front(ElemT&& val)
+	{
+		assert(!full());
+		auto head = prev(m_head);
+		new(&m_vec[head])ElemT(std::move(val));
+		m_head = head;
+	}
+
+	template<class... Args>
+	void emplace_front(Args&&... args)
+	{
+		assert(!full());
+		auto head = prev(m_head);
+		new(&m_vec[head])ElemT(std::forward<Args>(args)...);
 		m_head = head;
 	}
 
