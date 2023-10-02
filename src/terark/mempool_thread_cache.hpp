@@ -497,6 +497,8 @@ public:
     std::function<TCMemPoolOneThread<AlignSize>*(ThreadCacheMemPool*)> m_new_tc;
 
     bool m_vm_explicit_commit = false;
+    size_t m_vm_commit_fail_cnt = 0;
+    size_t m_vm_commit_fail_len = 0;
 
     void set_chunk_size(size_t sz) {
         TERARK_VERIFY_F((sz & (sz-1)) == 0, "%zd(%#zX)", sz, sz);
@@ -712,7 +714,7 @@ public:
             while (madvise((void*)beg, len, POPULATE_WRITE) != 0) {
                 int err = errno;
                 if (EFAULT == err) {
-                    TERARK_DIE("EFAULT: is vm.nr_hugepages insufficient?");
+                    TERARK_DIE("MADV_POPULATE_WRITE(%zd) = EFAULT: is vm.nr_hugepages insufficient?", len);
                     break;
                 }
                 else if (EAGAIN == err) {
@@ -720,6 +722,11 @@ public:
                 }
                 else if (EINVAL == err) {
                     break; // old kernel, or other errors, ignore
+                }
+                else if (true) {
+                    as_atomic(m_vm_commit_fail_cnt).fetch_add(1, std::memory_order_relaxed);
+                    as_atomic(m_vm_commit_fail_len).fetch_add(len, std::memory_order_relaxed);
+                    break;
                 }
                 else {
                     double numMiB = double(len) / (1<<20);

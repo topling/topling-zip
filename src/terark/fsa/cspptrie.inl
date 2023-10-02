@@ -288,6 +288,7 @@ public:
 
     void mempool_tc_populate(size_t) override;
     void mempool_set_readonly();
+    auto& risk_get_mempool_mwmr() { return m_mempool_lock_free; }
 
     size_t get_token_qlen() const noexcept override;
     void print_mempool_stat(FILE*) const noexcept override;
