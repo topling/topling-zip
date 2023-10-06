@@ -11,6 +11,7 @@
 #else
 #include <sys/mman.h>
 #endif
+#include <terark/util/profiling.hpp>
 
 #if defined(__SANITIZE_ADDRESS__)
   #include <sanitizer/asan_interface.h>
@@ -120,6 +121,11 @@ public:
     terark_no_inline
     size_t alloc(byte_t* base, size_t request) {
         assert(request % AlignSize == 0);
+        size_t loop_cnt = 0;
+        #define MPTC_CHECK_loop_cnt() do { \
+            if (loop_cnt > 200) { \
+                fprintf(stderr, "%s:%d: loop_cnt = %zd\n", __FILE__, __LINE__, loop_cnt); \
+            }} while (0)
         if (request <= m_freelist_head.size() * AlignSize) {
             size_t idx = request / AlignSize - 1;
             auto& list = m_freelist_head[idx];
@@ -177,7 +183,9 @@ public:
                 size_t k = huge_list.size - 1;
                 huge_link_t* n1 = nullptr;
                 while (true) {
+                    loop_cnt++;
                     while (n2->next[k] != list_tail) {
+                      loop_cnt++;
                       n1 = n2;
                       n2 = (huge_link_t*)(base + (size_t(n2->next[k]) << offset_shift));
                     }
@@ -193,11 +201,12 @@ public:
                 size_t res = size_t((byte*)n2 - base);
                 size_t res_shift = res >> offset_shift;
                 for (size_t k = 0; k < huge_list.size; ++k) {
+                    loop_cnt++;
                     if (update[k]->next[k] == res_shift)
                         update[k]->next[k] = n2->next[k];
                 }
                 while (huge_list.next[huge_list.size - 1] == list_tail && --huge_list.size > 0)
-                    ;
+                    loop_cnt++;
                 if (m_hot_pos < m_hot_end) {
                     sfree(base, m_hot_pos, m_hot_end - m_hot_pos);
                 }
@@ -208,6 +217,7 @@ public:
                 reduce_frag_size(rlen);
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
+                MPTC_CHECK_loop_cnt();
                 return res;
             }
           #else
@@ -238,8 +248,10 @@ public:
             huge_link_t* n1 = &huge_list;
             huge_link_t* n2 = nullptr;
             for (size_t k = huge_list.size; k > 0; ) {
+                loop_cnt++;
                 k--;
                 while (n1->next[k] != list_tail && (n2 = ((huge_link_t*)(base + (size_t(n1->next[k]) << offset_shift))))->size < request)
+                    loop_cnt++,
                     n1 = n2;
                 update[k] = n1;
             }
@@ -251,9 +263,10 @@ public:
                 size_t res_shift = res >> offset_shift;
                 for (size_t k = 0; k < huge_list.size; ++k)
                     if ((n1 = update[k])->next[k] == res_shift)
+                        loop_cnt++,
                         n1->next[k] = n2->next[k];
                 while (huge_list.next[huge_list.size - 1] == list_tail && --huge_list.size > 0)
-                    ;
+                    loop_cnt++;
                 if (remain)
                     sfree(base, res + request, remain);
                 huge_size_sum -= n2_size; // n2 is deleted from hugelist
@@ -261,6 +274,7 @@ public:
                 reduce_frag_size(n2_size);
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
+                MPTC_CHECK_loop_cnt();
                 return res;
             }
           #else
@@ -289,9 +303,11 @@ public:
                 m_hot_pos = End;
                 ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 mptc1t_debug_fill_alloc(base + pos, request);
+                MPTC_CHECK_loop_cnt();
                 return pos;
             }
         }
+        MPTC_CHECK_loop_cnt();
         return size_t(-1); // fail
     }
 
@@ -352,6 +368,7 @@ public:
             list.cnt++;
         }
         else {
+            size_t loop_cnt = 0;
             assert(len >= sizeof(huge_link_t));
           #if defined(TERARK_MPTC_USE_SKIPLIST)
             huge_link_t* update[skip_list_level_max];
@@ -360,7 +377,9 @@ public:
             size_t rand_lev = random_level();
             size_t k = huge_list.size;
             while (k-- > 0) {
+                loop_cnt++;
                 while (n1->next[k] != list_tail && (n2 = ((huge_link_t*)(base + (size_t(n1->next[k]) << offset_shift))))->size < len)
+                    loop_cnt++,
                     n1 = n2;
                 update[k] = n1;
             }
@@ -374,6 +393,7 @@ public:
             n2 = (huge_link_t*)(base + pos);
             size_t pos_shift = pos >> offset_shift;
             do {
+                loop_cnt++;
                 n1 = update[k];
                 n2->next[k] = n1->next[k];
                 n1->next[k] = pos_shift;
@@ -389,6 +409,7 @@ public:
             ASAN_POISON_MEMORY_REGION(n2 + 1, len - sizeof(*n2));
             huge_size_sum += len;
             huge_node_cnt += 1;
+            MPTC_CHECK_loop_cnt();
         }
         fragment_size += len;
         m_frag_inc += len;
@@ -706,6 +727,7 @@ public:
         // virtual memory by madvise(POPULATE_WRITE), POPULATE_WRITE is a new
         // feature since kernel version 5.14
         if (m_vm_explicit_commit) {
+            auto t0 = qtime::now();
             // TERARK_VERIFY_AL(size_t(base), ArenaSize); // not needed and may fail
             size_t beg = pow2_align_down(size_t(base + oldn), m_chunk_size);
             size_t end = pow2_align_up(size_t(base + oldn + chunk_len), m_chunk_size);
@@ -732,6 +754,12 @@ public:
                     double numMiB = double(len) / (1<<20);
                     TERARK_DIE("madvise(ptr=%zX, len=%fMiB, POPULATE_WRITE) = %m", beg, numMiB);
                 }
+            }
+            auto t1 = qtime::now();
+            if (t1.us(t0) > 100) {
+                extern const char* StrDateTimeNow(); // defined in cspptrie.cpp
+                fprintf(stderr, "%s: WARN: %s: POPULATE_WRITE(%zd) = %.3f ms\n",
+                        StrDateTimeNow(), "ThreadCacheMemPool::chunk_alloc", len, t1.mf(t0));
             }
         }
       #endif

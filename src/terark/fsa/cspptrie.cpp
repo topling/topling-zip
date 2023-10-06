@@ -43,6 +43,7 @@
     //#include <linux/getcpu.h>
     #include <syscall.h>
     #include <linux/mman.h>
+    #include <sched.h>
 #elif BOOST_OS_WINDOWS
 #elif BOOST_OS_MACOS
     #include <cpuid.h>
@@ -163,6 +164,97 @@ const uint32_t MainPatricia::s_skip_slots[16] = {
 
 static profiling g_pf;
 
+static const bool forceLeakMem = getEnvBool("csppForceLeakMem", false);
+#if !defined(NDEBUG)
+// falseConcurrent for 'ConLevel is MultiWrite but the real writer num is 1'
+// this is just for debug
+static const bool falseConcurrent = getEnvBool("csppMultiWriteFalse", false);
+#endif
+static const long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
+
+const char* StrDateTimeNow() {
+  static thread_local char buf[64];
+  time_t rawtime;
+  time(&rawtime);
+  struct tm* timeinfo = localtime(&rawtime);
+  strftime(buf, sizeof(buf), "%F %T",timeinfo);
+  return buf;
+}
+
+///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+#define PTrieLog(level, type, fmt, ...) do { \
+    if (csppDebugLevel >= level) \
+        fprintf(stderr, "%s: " type ": %s:%d: %s: " fmt "\n", StrDateTimeNow(), \
+            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
+    } while (0)
+
+#undef  ERR
+#define ERR(...) PTrieLog(0, "ERROR", __VA_ARGS__)
+#undef  WARN
+#define WARN(...) PTrieLog(1, "WARN", __VA_ARGS__)
+#undef  INFO
+#define INFO(...) PTrieLog(2, "INFO", __VA_ARGS__)
+#undef  DBUG
+#define DBUG(...) PTrieLog(3, "DBUG", __VA_ARGS__)
+
+#if 1
+struct busy_loop_measure {
+    inline ~busy_loop_measure() {
+        if (terark_unlikely(m_pause_cnt > 1000 || m_yield_cnt > 10)) {
+            print_cnt();
+        }
+    }
+    terark_no_inline void print_cnt() {
+        if (csppDebugLevel < 1) { // 1 is WARN
+            return;
+        }
+        llong  now = g_pf.now();
+        double dur = g_pf.uf(m_start_time, now);
+        if (dur < 100.0) {
+            return;
+        }
+        if (m_pause_cnt && m_yield_cnt)
+            WARN("%d: %9.3f us, pause_cnt = %zd, yield_cnt = %zd",
+                 m_line, dur, m_pause_cnt, m_yield_cnt);
+        else if (m_pause_cnt)
+            WARN("%d: %9.3f us, pause_cnt = %zd", m_line, dur, m_pause_cnt);
+        else
+            WARN("%d: %9.3f us, yield_cnt = %zd", m_line, dur, m_yield_cnt);
+    }
+    void pause(int line) {
+        if (terark_unlikely(0 == m_start_time)) {
+            m_start_time = g_pf.now();
+        }
+        m_line = line;
+        m_pause_cnt++;
+        _mm_pause();
+    }
+    void yield(int line) {
+        if (terark_unlikely(0 == m_start_time)) {
+            m_start_time = g_pf.now();
+        }
+        m_line = line;
+        m_yield_cnt++;
+      #ifdef __linux__
+        sched_yield();
+      #else
+        std::this_thread::yield();
+      #endif
+    }
+    int m_line = -1;
+    llong  m_start_time = 0;
+    size_t m_pause_cnt = 0;
+    size_t m_yield_cnt = 0;
+};
+#define use_busy_loop_measure busy_loop_measure loop_measure
+#undef _mm_pause
+#define _mm_pause() loop_measure.pause(__LINE__)
+#define std__this_thread__yield() loop_measure.yield(__LINE__)
+#else
+#define use_busy_loop_measure
+#define std__this_thread__yield std::this_thread::yield
+#endif
+
 #define m_token_tail m_tail.next
 
 template<size_t Align>
@@ -263,6 +355,7 @@ template<size_t Align>
 void PatriciaMem<Align>::
 ReaderTokenTLS_Holder::clean_for_reuse(ReaderTokenTLS_Object* token) {
     TERARK_VERIFY(NULL != token->m_token.get());
+    use_busy_loop_measure;
     switch (token->m_token->m_flags.state) {
     default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
     case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
@@ -274,7 +367,7 @@ ReaderTokenTLS_Holder::clean_for_reuse(ReaderTokenTLS_Object* token) {
     case AcquireLock:
         while (as_atomic(token->m_token->m_flags.state)
                    .load(std::memory_order_acquire) == AcquireLock) {
-            std::this_thread::yield();
+            std__this_thread__yield();
         }
         TERARK_VERIFY_EQ(token->m_token->m_flags.state, AcquireIdle);
         token->m_token->release();
@@ -360,39 +453,6 @@ PatriciaMem<Align>::LazyFreeListTLS::LazyFreeListTLS(PatriciaMem<Align>* trie)
     m_reader_token.reset(new ReaderToken());
 }
 
-static const bool forceLeakMem = getEnvBool("csppForceLeakMem", false);
-#if !defined(NDEBUG)
-// falseConcurrent for 'ConLevel is MultiWrite but the real writer num is 1'
-// this is just for debug
-static const bool falseConcurrent = getEnvBool("csppMultiWriteFalse", false);
-#endif
-static const long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
-
-const char* StrDateTimeNow() {
-  static thread_local char buf[64];
-  time_t rawtime;
-  time(&rawtime);
-  struct tm* timeinfo = localtime(&rawtime);
-  strftime(buf, sizeof(buf), "%F %T",timeinfo);
-  return buf;
-}
-
-///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
-#define PTrieLog(level, type, fmt, ...) do { \
-    if (csppDebugLevel >= level) \
-        fprintf(stderr, "%s: " type ": %s:%d: %s: " fmt "\n", StrDateTimeNow(), \
-            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
-    } while (0)
-
-#undef  ERR
-#define ERR(...) PTrieLog(0, "ERROR", __VA_ARGS__)
-#undef  WARN
-#define WARN(...) PTrieLog(1, "WARN", __VA_ARGS__)
-#undef  INFO
-#define INFO(...) PTrieLog(2, "INFO", __VA_ARGS__)
-#undef  DBUG
-#define DBUG(...) PTrieLog(3, "DBUG", __VA_ARGS__)
-
 template<size_t Align>
 PatriciaMem<Align>::LazyFreeListTLS::~LazyFreeListTLS() {
     m_writer_token.reset();
@@ -408,6 +468,7 @@ PatriciaMem<Align>::LazyFreeListTLS::~LazyFreeListTLS() {
 template<size_t Align>
 void PatriciaMem<Align>::LazyFreeListTLS::clean_for_reuse() {
     {
+        use_busy_loop_measure;
         TokenFlags flags = m_reader_token->m_flags;
         switch (flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
@@ -420,7 +481,7 @@ void PatriciaMem<Align>::LazyFreeListTLS::clean_for_reuse() {
         case AcquireLock:
             while (as_atomic(m_reader_token->m_flags.state)
                        .load(std::memory_order_acquire) == AcquireLock) {
-                std::this_thread::yield();
+                std__this_thread__yield();
             }
             TERARK_VERIFY_EQ(m_reader_token->m_flags.state, AcquireIdle);
             m_reader_token->release();
@@ -430,6 +491,7 @@ void PatriciaMem<Align>::LazyFreeListTLS::clean_for_reuse() {
         }
     }
     if (m_writer_token) {
+        use_busy_loop_measure;
         TokenFlags flags = m_writer_token->m_flags;
         switch (flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
@@ -442,7 +504,7 @@ void PatriciaMem<Align>::LazyFreeListTLS::clean_for_reuse() {
         case AcquireLock:
             while (as_atomic(m_writer_token->m_flags.state)
                        .load(std::memory_order_acquire) == AcquireLock) {
-                std::this_thread::yield();
+                std__this_thread__yield();
             }
             TERARK_VERIFY_EQ(m_writer_token->m_flags.state, AcquireIdle);
             m_writer_token->release();
@@ -918,6 +980,7 @@ void PatriciaMem<Align>::destroy() {
     }
     // delete waiting tokens, and check errors
     TERARK_VERIFY_EQ(m_token_tail->m_link.next, NULL);
+    use_busy_loop_measure;
     while (!cas_weak(m_head_lock, false, true)) {
         _mm_pause();
     }
@@ -2265,6 +2328,7 @@ MarkFinalStateOnFastNode: {
     if (as_atomic(a[curr].flags).fetch_or(FLAG_set_final, std::memory_order_acq_rel) & FLAG_set_final) {
       // very rare: other thread set final
       // FLAG_set_final is permanent for FastNode: once set, never clear
+      use_busy_loop_measure;
       while (!(as_atomic(a[curr].flags).load(std::memory_order_relaxed) & FLAG_final)) {
           _mm_pause();
       }
@@ -3075,6 +3139,7 @@ public:
 void Patricia::TokenBase::dispose() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     int retry = 0;
+    use_busy_loop_measure;
     while (true) {
         auto flags = as_atomic(m_flags).load(std::memory_order_relaxed);
         switch (flags.state) {
@@ -3127,6 +3192,9 @@ void Patricia::TokenBase::dispose() {
             }
             break;
         case ReleaseWait:
+            if (flags.is_head) {
+                WARN("ReleaseWait: is_head should be false");
+            }
             if (cas_weak(m_flags, flags, {DisposeWait, flags.is_head})) {
                 auto old = as_atomic(trie->m_dead_token_in_queue)
                           .fetch_add(1, std::memory_order_relaxed);
@@ -3147,7 +3215,7 @@ gc:
     TokenPtrVec dvec;
 #if 0
     while (!cas_weak(trie->m_head_lock, false, true)) {
-        std::this_thread::yield();
+        std__this_thread__yield();
     }
 #else
     // just a try
@@ -3223,6 +3291,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenPtrVec* dvec) {
     assert(trie->m_head_lock);
     TokenBase* curr = this;
     int idx = 0, loop = 0;
+    use_busy_loop_measure;
     while (true) {
         TERARK_ASSERT_NE(NULL, curr);
         TokenBase* next = curr->m_link.next;
@@ -3311,12 +3380,14 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenPtrVec* dvec) {
     trie->m_dummy.m_link.next = curr;
     trie->m_dummy.m_min_age = min_age;
     curr->m_min_age = min_age;
+    loop_measure.m_line = __LINE__;
     return false;
 }
 
 void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     TERARK_VERIFY_EQ(m_thread_id, ThisThreadID());
     size_t n_attempt = 0;
+    use_busy_loop_measure;
   Retry:
     n_attempt++;
     auto trie = static_cast<MainPatricia*>(trie1);
@@ -3351,7 +3422,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     case ReleaseDone:
         m_flags = {AcquireDone, false};
         while (!cas_weak(trie->m_head_lock, false, true)) {
-            _mm_pause();
+            std__this_thread__yield();
         }
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         enqueue(trie);
@@ -3405,6 +3476,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     TERARK_VERIFY_EQ(ThisThreadID(), m_thread_id);
     auto trie = static_cast<MainPatricia*>(trie1);
     int retry = 0;
+    use_busy_loop_measure;
     TokenPtrVec dvec;
     while (true) {
         auto flags = as_atomic(m_flags).load(std::memory_order_acquire);
@@ -3654,6 +3726,7 @@ void PatriciaMem<Align>::reclaim_head() {
         cas_unlock(m_head_lock);
         return;
     }
+    use_busy_loop_measure;
     while (true) {
         TokenBase* next = head->m_link.next;
         auto flags = head->m_flags;
@@ -3706,7 +3779,7 @@ void PatriciaMem<Align>::reclaim_head() {
                 head = next;
             }
             else {
-            // std::this_thread::yield(); // yield may cause bad stall
+            // std__this_thread__yield(); // yield may cause bad stall
                 _mm_pause(); // retry loop
             }
             break;
@@ -3760,9 +3833,10 @@ void Patricia::TokenBase::idle() {
     }
     return;
   CleanForSetReadOnly:
+    use_busy_loop_measure;
     while (!cas_weak(trie->m_head_lock, false, true)) {
         //_mm_pause();
-        std::this_thread::yield();
+        std__this_thread__yield();
     }
     // another token X may call acquire in which call reclaim_head, this
     // makes tokens run a cycle, then X will be new head, and 'this' be
@@ -3811,6 +3885,7 @@ void Patricia::TokenBase::idle() {
 
 terark_flatten
 void Patricia::TokenBase::release() {
+    use_busy_loop_measure;
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(AcquireDone == m_flags.state || AcquireIdle == m_flags.state);
@@ -3868,6 +3943,7 @@ terark_flatten void Patricia::TokenBase::acquire(Patricia* trie1) {
     }
     else {
         // may be MultiReadMultiWrite some milliseconds ago
+        use_busy_loop_measure;
         switch (m_flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
         case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
