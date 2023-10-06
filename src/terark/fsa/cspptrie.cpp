@@ -172,15 +172,6 @@ static const bool falseConcurrent = getEnvBool("csppMultiWriteFalse", false);
 #endif
 static const long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
 
-const char* StrDateTimeNow() {
-  static thread_local char buf[64];
-  time_t rawtime;
-  time(&rawtime);
-  struct tm* timeinfo = localtime(&rawtime);
-  strftime(buf, sizeof(buf), "%F %T",timeinfo);
-  return buf;
-}
-
 ///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 #define PTrieLog(level, type, fmt, ...) do { \
     if (csppDebugLevel >= level) \

@@ -167,4 +167,7 @@ public:
 };
 #endif
 
+// defined in nolocks_localtime.cpp
+TERARK_DLL_EXPORT const char* StrDateTimeNow();
+
 }

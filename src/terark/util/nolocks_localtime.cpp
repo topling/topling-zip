@@ -193,4 +193,13 @@ struct tm* nolocks_localtime_r(const time_t* t, struct tm* result) {
   return result;
 }
 
+TERARK_DLL_EXPORT const char* StrDateTimeNow() {
+  static thread_local char buf[64];
+  time_t rawtime;
+  time(&rawtime);
+  struct tm* timeinfo = nolocks_localtime(&rawtime);
+  strftime(buf, sizeof(buf), "%F %T",timeinfo);
+  return buf;
+}
+
 } // namespace terark

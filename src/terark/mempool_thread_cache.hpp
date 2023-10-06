@@ -757,7 +757,7 @@ public:
             }
             auto t1 = qtime::now();
             if (t1.us(t0) > 100) {
-                extern const char* StrDateTimeNow(); // defined in cspptrie.cpp
+                extern const char* StrDateTimeNow(); // defined in nolocks_localtime.cpp
                 fprintf(stderr, "%s: WARN: %s: POPULATE_WRITE(%zd) = %.3f ms\n",
                         StrDateTimeNow(), "ThreadCacheMemPool::chunk_alloc", len, t1.mf(t0));
             }
