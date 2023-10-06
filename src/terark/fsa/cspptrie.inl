@@ -153,8 +153,6 @@ protected:
     size_t    m_appdata_offset;
     size_t    m_appdata_length;
 
-    bool      m_head_is_dead;
-
     union {
         MemPool_CompileX<AlignSize> m_mempool;
         MemPool_LockNone<AlignSize> m_mempool_lock_none;
@@ -168,12 +166,9 @@ protected:
     // ---------------------------------------------------------
     // following fields are frequently updating
     TokenBase  m_dummy; // m_dummy.m_next is real head
-    LinkType   m_tail;
     uint32_t   m_token_qlen;
-    uint32_t   m_dead_token_in_queue;
-    bool       m_head_lock;
-    bool       m_head_is_idle;
-    mutable size_t m_live_iter_num;
+    mutable uint32_t m_live_iter_num;
+    std::mutex m_head_mutex;
 
 //  std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
@@ -182,8 +177,6 @@ protected:
     size_t     m_n_nodes;
     size_t     m_n_words;
     Stat       m_stat;
-
-    void reclaim_head();
 
     enum class HugePageEnum { kNone = 0, kMmap = 1, kTransparent = 2 };
     void alloc_mempool_space(intptr_t maxMem, HugePageEnum);

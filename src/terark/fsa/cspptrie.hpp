@@ -45,45 +45,40 @@ protected:
     TERARK_ENUM_PLAIN_INCLASS(TokenState, byte_t,
         ReleaseDone,
         AcquireDone,
-        AcquireIdle, // only this  thread  can set to AcquireIdle
-        AcquireLock, // only other threads can set to AcquireLock
-        ReleaseWait,
-        DisposeWait,
-        DisposeDone
+        AcquireIdle // only this  thread  can set to AcquireIdle
     );
-    class TokenPtrVec;
     struct TokenFlags {
         // state and is_head must be set simultaneously as atomic
         TokenState  state;
         byte_t      is_head;
     };
     static_assert(sizeof(TokenFlags) == 2, "sizeof(TokenFlags) == 2");
-    struct alignas(16) LinkType {
-        TokenBase* next;
-        ullong     verseq;
-    };
     static const size_t s_mempool_offset;
 public:
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
-        friend class TokenPtrVec;
     protected:
         Patricia*     m_trie;
         size_t        m_valpos; // raw pos, not multiply by AlignSize
         void*         m_tls; // unused for ReaderToken
         ullong        m_live_verseq;
         size_t        m_thread_id;
-        struct alignas(16) { // will sync with other threads
-            LinkType      m_link;
-            ullong        m_min_age;
-            TokenFlags    m_flags;
-        };
-        void enqueue(Patricia*);
-        bool dequeue(Patricia*, TokenPtrVec*);
+
+        // frequently sync with other threads
+        TokenBase*    m_prev;
+        TokenBase*    m_next;
+        ullong        m_verseq;
+        ullong        m_min_verseq;
+        TokenFlags    m_flags;
+
+        void maybe_rotate(Patricia*, TokenState);
+        void rotate(Patricia*, TokenState);
+        void remove_self();
+        void add_to_back(Patricia*);
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
-        void mt_update(Patricia*);
         void init_tls(Patricia*) noexcept;
+        //void reset_null();
         TokenBase();
         virtual ~TokenBase();
     public:
@@ -94,7 +89,7 @@ public:
         void dispose(); ///< delete lazy
         bool is_valid() const {
             assert(AcquireDone == m_flags.state);
-            return m_min_age < m_live_verseq;
+            return m_min_verseq < m_live_verseq;
         }
 
         Patricia* trie() const { return m_trie; }
