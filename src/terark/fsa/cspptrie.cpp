@@ -3138,10 +3138,12 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     case AcquireIdle:
         trie->m_head_mutex.lock();
         if (terark_likely(nullptr != m_next)) {
-            // m_next may be m_dummy, it's ok in such case
-            m_next->m_flags.is_head = true;
+            if (this == trie->m_dummy.m_next) { // `this` is head
+                this->m_next->m_flags.is_head = true;
+            }
             trie->m_dummy.m_min_verseq = m_verseq;
             this->remove_self();
+            m_next = m_prev = nullptr;
             m_valpos = size_t(-1);
             trie->m_token_qlen--;
         } else {
