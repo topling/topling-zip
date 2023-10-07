@@ -3058,6 +3058,11 @@ void Patricia::TokenBase::dispose() {
         break;
     case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
     case AcquireIdle:
+        if (terark_unlikely(ThisThreadID() != m_thread_id)) {
+            WARN("ThisThreadID = %#zX, m_thread_id = %#zX, ignored",
+                  ThisThreadID(), m_thread_id);
+            m_thread_id = ThisThreadID(); // pass checking in release
+        }
         release();
         // fallthrough
     case ReleaseDone:
