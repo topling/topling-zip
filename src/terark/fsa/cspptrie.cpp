@@ -884,6 +884,7 @@ static void destroy_obj(T* p) { p->~T(); }
 
 template<size_t Align>
 void PatriciaMem<Align>::destroy() {
+    m_dummy.m_flags.state = ReleaseDone;
     auto conLevel = m_mempool_concurrent_level;
     if (NoWriteReadOnly != m_writing_concurrent_level) {
         set_readonly();
@@ -3045,8 +3046,11 @@ void Patricia::TokenBase::dispose() {
     case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
     case AcquireIdle:
         if (terark_unlikely(ThisThreadID() != m_thread_id)) {
-            WARN("ThisThreadID = %#zX, m_thread_id = %#zX, ignored",
-                  ThisThreadID(), m_thread_id);
+            auto trie = static_cast<MainPatricia*>(m_trie);
+            if (trie && ReleaseDone == !trie->m_dummy.m_flags.state) {
+                WARN("ThisThreadID = %#zX, m_thread_id = %#zX, ignored",
+                    ThisThreadID(), m_thread_id);
+            }
             m_thread_id = ThisThreadID(); // pass checking in release
         }
         release();
@@ -3132,7 +3136,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         trie->m_head_mutex.lock();
         // m_next may be m_dummy, it's ok in such case
         m_next->m_flags.is_head = true;
-        m_next->m_min_verseq = trie->m_dummy.m_min_verseq = m_next->m_verseq;
+        trie->m_dummy.m_min_verseq = m_verseq;
         this->remove_self();
         m_flags = {ReleaseDone, false};
         m_valpos = size_t(-1);
