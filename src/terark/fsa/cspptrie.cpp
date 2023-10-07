@@ -3047,12 +3047,15 @@ void Patricia::TokenBase::dispose() {
     case AcquireIdle:
         if (terark_unlikely(ThisThreadID() != m_thread_id)) {
             auto trie = static_cast<MainPatricia*>(m_trie);
-            // ReleaseDone == m_dummy.m_flags.state indicate trie is dying,
-            // when trie is dying, tls token may be destroyed in other threads,
-            // in other cases, destroy token in other threads are risky.
-            if (trie && ReleaseDone != trie->m_dummy.m_flags.state) {
-                WARN("ThisThreadID = %#zX, m_thread_id = %#zX, ignored",
-                      ThisThreadID(), m_thread_id);
+            if (trie) {
+                // ReleaseDone == m_dummy.m_flags.state indicate trie is dying,
+                // when trie is dying, tls token may be destroyed in other threads,
+                // in other cases, destroy token in other threads are risky.
+                bool is_trie_dying = ReleaseDone == trie->m_dummy.m_flags.state;
+                if (!is_trie_dying) {
+                    WARN("ThisThreadID = %#zX, m_thread_id = %#zX, ignored",
+                          ThisThreadID(), m_thread_id);
+                }
             }
             m_thread_id = ThisThreadID(); // pass checking in release
         }
