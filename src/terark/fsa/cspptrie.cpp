@@ -3180,11 +3180,16 @@ void Patricia::TokenBase::idle() {
     }
     else { // should be after set_readonly
         trie->m_head_mutex.lock();
-        m_flags = {AcquireIdle, false};
-        m_valpos = size_t(-1);
-        this->remove_self();
-        m_next = m_prev = nullptr;
-        trie->m_token_qlen--;
+        if (terark_likely(nullptr != m_next)) {
+            m_flags = {AcquireIdle, false};
+            m_valpos = size_t(-1);
+            this->remove_self();
+            m_next = m_prev = nullptr;
+            trie->m_token_qlen--;
+        } else {
+            // very rare: race condition with release()
+            TERARK_VERIFY_EQ(ReleaseDone, m_flags.state);
+        }
         trie->m_head_mutex.unlock();
     }
 }
