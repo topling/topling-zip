@@ -3160,8 +3160,9 @@ void Patricia::TokenBase::idle() {
         maybe_rotate(trie, AcquireIdle);
     }
     else if (0 == trie->m_token_qlen) {
-        TERARK_VERIFY_EQ(trie->m_dummy.m_next, &trie->m_dummy);
-        TERARK_VERIFY_EQ(trie->m_dummy.m_prev, &trie->m_dummy);
+        //not in lock, so the 2 verify may fail by race conditions
+        //TERARK_VERIFY_EQ(trie->m_dummy.m_next, &trie->m_dummy);
+        //TERARK_VERIFY_EQ(trie->m_dummy.m_prev, &trie->m_dummy);
         m_flags.state = AcquireIdle;
     }
     else { // should be after set_readonly
