@@ -3187,8 +3187,9 @@ void Patricia::TokenBase::idle() {
             m_next = m_prev = nullptr;
             trie->m_token_qlen--;
         } else {
-            // very rare: race condition with release()
-            TERARK_VERIFY_EQ(ReleaseDone, m_flags.state);
+            // m_flags.state can be AcquireDone or ReleaseDone,
+            // if it is ReleaseDone, it is a race condition.
+            cas_strong(m_flags.state, AcquireDone, AcquireIdle);
         }
         trie->m_head_mutex.unlock();
     }
