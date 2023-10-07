@@ -940,16 +940,22 @@ void PatriciaMem<Align>::destroy() {
     }
     // delete waiting tokens, and check errors
     std::lock_guard<std::mutex> lock(m_head_mutex);
+    TERARK_VERIFY_EZ(m_live_iter_num);
     for(TokenBase* curr = m_dummy.m_next; curr != &m_dummy; ) {
         TokenBase* next = curr->m_next;
         auto flags = curr->m_flags;
         switch (flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
-        case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+        case AcquireDone:
+            assert(false && "AcquireDone == m_flags.state");
+            ERR("AcquireDone == m_flags.state, tolerated at best effort");
+            curr->m_thread_id = ThisThreadID();
+            curr->idle();
+            break;
+        case AcquireIdle: break;
         case ReleaseDone: break;
-        case AcquireIdle: curr->m_flags.state = ReleaseDone; break; // OK
         }
-        delete curr;
+        curr->dispose();
         curr = next;
     }
 }
