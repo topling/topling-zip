@@ -3566,7 +3566,7 @@ public:
         switch (m_flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
         case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
-        case AcquireIdle:
+        case AcquireIdle: ReaderToken::acquire(m_trie); break;
         case AcquireDone: break;
         }
     }
