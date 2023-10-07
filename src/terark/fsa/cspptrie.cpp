@@ -291,7 +291,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     }
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
-    m_dummy.m_flags = {ReleaseDone, false};
+    m_dummy.m_flags = {AcquireIdle, false}; // always in list
     m_dummy.m_next = m_dummy.m_prev = &m_dummy;
     m_dummy.m_trie = nullptr; // this;
     m_dummy.m_verseq = m_dummy.m_min_verseq = 1;
@@ -3084,14 +3084,11 @@ void Patricia::TokenBase::rotate(Patricia* trie1, TokenState target) {
     auto trie = static_cast<MainPatricia*>(trie1);
     trie->m_head_mutex.lock();
     const auto next = m_next; // old next
-    TERARK_ASSERT_LE(m_verseq, m_next->m_verseq);
+    TERARK_ASSERT_LT(m_verseq, next->m_verseq);
     this->remove_self();
     this->add_to_back(trie); assert(trie->m_dummy.m_next == next);
-    this->m_min_verseq = trie->m_dummy.m_min_verseq = next->m_min_verseq = this->m_verseq;
+    this->m_min_verseq = trie->m_dummy.m_min_verseq = next->m_min_verseq;
     this->m_verseq = trie->m_dummy.m_verseq++;
-    next->m_verseq++;
-    TERARK_ASSERT_LE(next->m_verseq, next->m_next->m_verseq);
-    TERARK_ASSERT_LE(next->m_next->m_verseq, trie->m_dummy.m_verseq);
     this->m_flags = {target, false};
     next->m_flags.is_head = true;
     trie->m_head_mutex.unlock();
