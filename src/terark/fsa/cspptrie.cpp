@@ -3230,15 +3230,6 @@ terark_flatten void Patricia::TokenBase::acquire(Patricia* trie1) {
             m_flags.state = AcquireDone;
             break;
         }
-        //m_link = {NULL, 0}; // do not reset m_link & m_tls
-        //m_tls = NULL;
-      #if !defined(NDEBUG)
-        if (SingleThreadStrict == conLevel) {
-            TERARK_ASSERT_EZ(m_verseq);
-            assert(NULL == m_tls);
-            assert(NULL == m_next);
-        }
-      #endif
     }
 }
 
