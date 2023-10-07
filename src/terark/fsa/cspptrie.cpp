@@ -3155,14 +3155,22 @@ void Patricia::TokenBase::idle() {
              this, enum_cstr(conLevel), enum_cstr(flags.state));
         return;
     }
-    if (conLevel >= SingleThreadShared || trie->m_token_qlen) {
+    if (conLevel >= SingleThreadShared) {
         TERARK_VERIFY_EQ(ThisThreadID(), m_thread_id);
         maybe_rotate(trie, AcquireIdle);
     }
-    else {
+    else if (0 == trie->m_token_qlen) {
         TERARK_VERIFY_EQ(trie->m_dummy.m_next, &trie->m_dummy);
         TERARK_VERIFY_EQ(trie->m_dummy.m_prev, &trie->m_dummy);
         m_flags.state = AcquireIdle;
+    }
+    else { // should be after set_readonly
+        trie->m_head_mutex.lock();
+        m_flags = {AcquireIdle, false};
+        m_valpos = size_t(-1);
+        this->remove_self();
+        trie->m_token_qlen--;
+        trie->m_head_mutex.unlock();
     }
 }
 
