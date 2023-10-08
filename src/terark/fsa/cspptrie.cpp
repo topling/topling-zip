@@ -570,9 +570,9 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       std::string str;
       for (auto& kv : retry_histgram) {
         char buf[64];
-        str.append(buf, sprintf(buf, "\t%5zd %5zd\n", kv.first, kv.second));
+        str.append(buf, sprintf(buf, "\t%5zd %7zd\n", kv.first, kv.second));
       }
-      DBUG("PatriciaMW: uni_retry[num = %zd, ratio = %f], retry_hist = {\n%s}\n"
+      DBUG("PatriciaMW: uni_retry[num = %zd, ratio = %f], retry_hist = {\n%s}"
           , uni_retry, double(uni_retry)/m_n_words, str.c_str());
     }
   }
