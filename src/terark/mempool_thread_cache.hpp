@@ -32,7 +32,7 @@
 
 namespace terark {
 
-#define TERARK_MPTC_USE_SKIPLIST
+//#define TERARK_MPTC_USE_SKIPLIST
 
 template<int AlignSize> class ThreadCacheMemPool; // forward declare
 template<int AlignSize>
