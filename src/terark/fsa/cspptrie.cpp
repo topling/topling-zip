@@ -172,11 +172,14 @@ static const bool falseConcurrent = getEnvBool("csppMultiWriteFalse", false);
 #endif
 static const long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
 
+#undef SMART_FUNC
+#define SMART_FUNC strlen(BOOST_CURRENT_FUNCTION) > 80 ? __func__ : BOOST_CURRENT_FUNCTION
+
 ///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 #define PTrieLog(level, type, fmt, ...) do { \
     if (csppDebugLevel >= level) \
         fprintf(stderr, "%s: " type ": %s:%d: %s: %zd: " fmt "\n", StrDateTimeNow(), \
-            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ThisThreadID(), ##__VA_ARGS__); \
+            __FILE__, __LINE__, SMART_FUNC, ThisThreadID(), ##__VA_ARGS__); \
     } while (0)
 
 #undef  ERR
