@@ -1891,7 +1891,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
-        CheckLazyFreeListSize(*lzf, BOOST_CURRENT_FUNCTION);
+        CheckLazyFreeListSize(*lzf, SMART_FUNC);
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
@@ -2928,7 +2928,7 @@ void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
         auto& lzf = lazy_free_list(conLevel);
         lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
-        CheckLazyFreeListSize(lzf, BOOST_CURRENT_FUNCTION);
+        CheckLazyFreeListSize(lzf, SMART_FUNC);
     }
     else {
         mem_free(loc, size);
