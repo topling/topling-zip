@@ -195,6 +195,8 @@ long CSPP_GetDebugLevel() { return csppDebugLevel; }
 #define INFO(...) PTrieLog(2, "INFO", __VA_ARGS__)
 #undef  DBUG
 #define DBUG(...) PTrieLog(3, "DBUG", __VA_ARGS__)
+#undef  TRAC
+#define TRAC(...) PTrieLog(4, "TRAC", __VA_ARGS__)
 
 #if 1
 struct busy_loop_measure {
@@ -521,10 +523,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       lzf->m_zpath_states = 0;
 
       sum_retry += lzf->m_n_retry;
-      if (csppDebugLevel >= 2) {
-        INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd",
-             thread_nth, lzf->m_n_retry);
-      }
+      INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd", thread_nth, lzf->m_n_retry);
       lzf->m_n_retry = 0;
       if (csppDebugLevel >= 3) {
         for (auto& kv : lzf->m_retry_histgram) {
@@ -774,8 +773,7 @@ try
     }
 }
 catch (const std::exception& ex) {
-    fprintf(stderr, "%s:%d: %s: ex.what = %s\n",
-            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ex.what());
+    ERR("caught exception: %s", ex.what());
     // destroy may be coredump since PatriciaMem is not the most derived class
     destroy();
     throw;
@@ -953,14 +951,11 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
     ms->lazy_free_sum = 0;
     int thread_idx = 0;
     auto get_lzf = [&,ms](const LazyFreeList* lzf) {
-        if (csppDebugLevel >= 2) {
-            fprintf(stderr
-                , "trie = %p, thread-%03d, lazyfree: cnt = %7zd, sum = %10.6f M, avg = %8.3f\n"
-                , this, thread_idx, lzf->size(), lzf->m_mem_size / 1e6
-                , (lzf->m_mem_size + 0.001) / (lzf->size() + 0.001)
-            );
-            thread_idx++;
-        }
+        INFO("trie = %p, thread-%03d, lazyfree: cnt = %7zd, sum = %10.6f M, avg = %8.3f\n"
+            , this, thread_idx, lzf->size(), lzf->m_mem_size / 1e6
+            , (lzf->m_mem_size + 0.001) / (lzf->size() + 0.001)
+        );
+        thread_idx++;
         ms->lazy_free_cnt += lzf->size();
         ms->lazy_free_sum += lzf->m_mem_size;
     };
@@ -1900,7 +1895,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
       RaceCondition2:
         size_t min_verseq = (size_t)token->m_min_verseq;
         size_t age = (size_t)token->m_verseq;
-        if (csppDebugLevel >= 3) {
+        if (csppDebugLevel >= 4) { // TRAC
             if (a[parent].meta.b_lazy_free) {
                 fprintf(stderr,
                         "thread-%08zX: line: %d, age = %zd, min_verseq = %zd, retry%5zd, "
@@ -2116,10 +2111,7 @@ TERARK_ASSERT_LT(pos, key.size());
         if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
             free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
-            if (csppDebugLevel >= 3)
-                fprintf(stderr,
-                    "thread-%08zX: retry %zd, add_state_move confict(curr = %zd)\n",
-                    ThisThreadID(), n_retry, curr);
+            TRAC("retry %zd, add_state_move confict(curr = %zd)", n_retry, curr);
             goto retry;
         }
 #define init_token_value_mw(new1, new2, list) do {               \
@@ -2169,10 +2161,7 @@ TERARK_ASSERT_LT(pos, key.size());
     else { // curr has updated by other threads
         TERARK_ASSERT_LE(a[curr+1].big.n_children, 256);
         free_node<MultiWriteMultiRead>(suffix_node, node_size(a + suffix_node, valsize), lzf);
-        if (csppDebugLevel >= 3)
-            fprintf(stderr,
-                "thread-%08zX: retry %zd, set root child confict(root(=curr) = %zd)\n",
-                ThisThreadID(), n_retry, curr);
+        TRAC("retry %zd, set root child confict(root(=curr) = %zd)", n_retry, curr);
         goto retry;
     }
 }
@@ -2205,10 +2194,7 @@ ForkBranch: {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
-        if (csppDebugLevel >= 3)
-            fprintf(stderr,
-                "thread-%08zX: retry %zd, fork confict(curr = %zd)\n",
-                ThisThreadID(), n_retry, curr);
+        TRAC("retry %zd, fork confict(curr = %zd)", n_retry, curr);
         goto retry;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
@@ -2247,10 +2233,7 @@ SplitZpath: {
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
-        if (csppDebugLevel >= 3)
-            fprintf(stderr,
-                "thread-%08zX: retry %zd, split confict(curr = %zd)\n",
-                ThisThreadID(), n_retry, curr);
+        TRAC("retry %zd, split confict(curr = %zd)", n_retry, curr);
         goto retry;
     }
     init_token_value_mw(newCurr, ni.oldSuffixNode, -1);
@@ -2313,10 +2296,7 @@ MarkFinalStateOmitSetNodeInfo:
                         a->bytes + oldpos, ni.va_offset);
     if (a[newcur].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newcur, newlen, lzf);
-        if (csppDebugLevel >= 3)
-            fprintf(stderr,
-                "thread-%08zX: retry %zd, mark final confict(curr = %zd)\n",
-                ThisThreadID(), n_retry, curr);
+        TRAC("retry %zd, mark final confict(curr = %zd)", n_retry, curr);
         goto retry;
     }
     a[newcur].meta.b_is_final = true;
@@ -3081,8 +3061,7 @@ void Patricia::TokenBase::dispose() {
                 // in other cases, destroy token in other threads are risky.
                 bool is_trie_dying = ReleaseDone == trie->m_dummy.m_flags.state;
                 if (!is_trie_dying) {
-                    WARN("ThisThreadID = %#zX, m_thread_id = %#zX, ignored",
-                          ThisThreadID(), m_thread_id);
+                    WARN("m_thread_id = %#zX, ignored", m_thread_id);
                 }
             }
             m_thread_id = ThisThreadID(); // pass checking in release
