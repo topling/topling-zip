@@ -170,7 +170,12 @@ static const bool forceLeakMem = getEnvBool("csppForceLeakMem", false);
 // this is just for debug
 static const bool falseConcurrent = getEnvBool("csppMultiWriteFalse", false);
 #endif
-static const long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
+static long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
+
+void CSPP_SetDebugLevel(long level) {
+    csppDebugLevel = level;
+}
+long CSPP_GetDebugLevel() { return csppDebugLevel; }
 
 #undef SMART_FUNC
 #define SMART_FUNC strlen(BOOST_CURRENT_FUNCTION) > 80 ? __func__ : BOOST_CURRENT_FUNCTION
