@@ -151,6 +151,7 @@ public:
     size_t capacity() const { return m_cap; }
     size_t size() const { return (m_tail - m_head) & (m_cap - 1); }
     bool  empty() const { return m_head == m_tail; }
+    bool  needs_expand() const { return size() == m_cap - 1; }
 private:
     terark_no_inline
     void push_back_slow_path(const T& x) {
@@ -221,13 +222,13 @@ public:
     void pop_front() {
         assert(m_size > 0);
         m_queue.front().pop_front();
-        if (terark_unlikely(m_queue.empty())) {
+        if (terark_unlikely(m_queue.front().empty())) {
             m_queue.pop_front();
         }
         m_size--;
     }
     void push_back(const T& x) {
-        if (terark_unlikely(m_queue.empty())) {
+        if (terark_unlikely(m_queue.empty() || m_queue.back().needs_expand())) {
             m_queue.emplace_back(m_cap_col);
         }
         m_queue.back().push_back(x);
@@ -235,15 +236,17 @@ public:
     }
     template<class... Args>
     void emplace_back(Args&&... args) {
-        if (terark_unlikely(m_queue.empty())) {
+        if (terark_unlikely(m_queue.empty() || m_queue.back().needs_expand())) {
             m_queue.emplace_back(m_cap_col);
         }
         m_queue.back().emplace_back(std::forward<Args>(args)...);
         m_size++;
     }
-    size_t capacity() const { return (m_cap_col - 1) * (m_queue.capacity() - 1); }
     size_t size() const { return m_size; }
     bool  empty() const { return m_size == 0; }
+    // these two functions are wrong:
+    //size_t capacity() const { return (m_cap_col - 1) * m_queue.capacity(); }
+    //bool  needs_expand() const { return size() == capacity(); }
 };
 
 }
