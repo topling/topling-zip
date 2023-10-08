@@ -3121,14 +3121,13 @@ void Patricia::TokenBase::maybe_rotate(Patricia* trie1, TokenState target) {
 void Patricia::TokenBase::rotate(Patricia* trie1, TokenState target) {
     auto trie = static_cast<MainPatricia*>(trie1);
     trie->m_head_mutex.lock();
-    const auto next = m_next; // old next
-    TERARK_ASSERT_LT(m_verseq, next->m_verseq);
+    TERARK_ASSERT_LT(m_verseq, m_next->m_verseq);
     this->remove_self();
-    this->add_to_back(trie); assert(trie->m_dummy.m_next == next);
+    this->add_to_back(trie);
     this->m_min_verseq = trie->m_dummy.m_min_verseq = this->m_verseq;
     this->m_verseq = trie->m_dummy.m_verseq++;
     this->m_flags = {target, false};
-    next->m_flags.is_head = true;
+    trie->m_dummy.m_next->m_flags.is_head = true; // new head
     trie->m_head_mutex.unlock();
 }
 
