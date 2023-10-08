@@ -2645,8 +2645,9 @@ static long g_lazy_free_debug_level =
     }
     if (0 == revoke_size) {
         if (++lazy_free_list.m_revoke_fail_cnt % 1024 == 0) {
-            WARN("m_revoke_fail_cnt = %zd,  lazy_free_list.m_mem_size = %zd",
-                 lazy_free_list.m_revoke_fail_cnt, lazy_free_list.m_mem_size);
+            WARN("m_revoke_fail_cnt = %zd K, lazy_free_list{%4zd, m_mem_size = %.3f KiB}",
+                 lazy_free_list.m_revoke_fail_cnt / 1024,
+                 lazy_free_list.size(), lazy_free_list.m_mem_size/1024.0);
         }
     } else {
         lazy_free_list.m_revoke_fail_cnt = 0;
