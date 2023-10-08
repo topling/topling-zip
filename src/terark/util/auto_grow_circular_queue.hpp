@@ -202,7 +202,11 @@ public:
     AutoGrowCircularQueue2d& operator=(const AutoGrowCircularQueue2d&) = delete;
     explicit AutoGrowCircularQueue2d(size_t cap_row = 256, size_t cap_col = 256)
       : m_cap_col(this->check_cap(cap_col)), m_size(0), m_queue(cap_row) {}
-    void swap(AutoGrowCircularQueue2d& y) { this->swap(y); }
+    void swap(AutoGrowCircularQueue2d& y) {
+        std::swap(m_cap_col, y.m_cap_col);
+        std::swap(m_size   , y.m_size   );
+        m_queue.swap(y.m_queue);
+    }
     const T& front() const {
         assert(m_size > 0);
         return m_queue.front().front();
