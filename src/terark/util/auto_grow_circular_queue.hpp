@@ -115,7 +115,6 @@ public:
         }
         m_head = (head + n) & (m_cap - 1);
     }
-    terark_forceinline
     void push_back(const T& x) {
         size_t head = m_head;
         size_t tail = m_tail;
@@ -166,6 +165,7 @@ private:
         new(&m_vec[m_tail]) T (std::forward<Args>(args)...);
         m_tail = (m_tail + 1) & (m_cap - 1);
     }
+    terark_no_inline
     void double_cap() {
         size_t cap = m_cap;
         m_vec = (T*)realloc(m_vec, sizeof(T) * cap * 2);
@@ -221,8 +221,9 @@ public:
     void pop_front() {
         assert(m_size > 0);
         m_queue.front().pop_front();
-        if (m_queue.empty())
+        if (terark_unlikely(m_queue.empty())) {
             m_queue.pop_front();
+        }
         m_size--;
     }
     void push_back(const T& x) {
@@ -234,7 +235,7 @@ public:
     }
     template<class... Args>
     void emplace_back(Args&&... args) {
-        if (m_queue.empty()) {
+        if (terark_unlikely(m_queue.empty())) {
             m_queue.emplace_back(m_cap_col);
         }
         m_queue.back().emplace_back(std::forward<Args>(args)...);
