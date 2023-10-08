@@ -58,6 +58,30 @@ static constexpr uint08_t FLAG_lazy_free = 0x1 << 5;
 static constexpr uint08_t FLAG_set_final = 0x1 << 6; // fast node set final
 static constexpr uint08_t FLAG_lock      = 0x1 << 7;
 
+static const char* StrNodeFlags(uint08_t flags) {
+    if ((flags & (FLAG_lazy_free|FLAG_set_final|FLAG_lock))
+              == (FLAG_lazy_free|FLAG_set_final|FLAG_lock))
+        return "LazyFree|SetFinal|Lock";
+
+    if ((flags & (FLAG_lazy_free|FLAG_set_final))
+              == (FLAG_lazy_free|FLAG_set_final))
+        return "LazyFree|SetFinal";
+
+    if ((flags & (FLAG_lazy_free|FLAG_lock))
+              == (FLAG_lazy_free|FLAG_lock))
+        return "LazyFree|Lock";
+
+    if ((flags & (FLAG_set_final|FLAG_lock))
+              == (FLAG_set_final|FLAG_lock))
+        return "SetFinal|Lock";
+
+    if (flags & FLAG_lazy_free) return "LazyFree";
+    if (flags & FLAG_set_final) return "SetFinal";
+    if (flags & FLAG_lock     ) return "Lock";
+
+    return "0";
+}
+
 static constexpr size_t MAX_DYNA_NUM = 64;
 
 #undef prefetch
@@ -2111,7 +2135,8 @@ TERARK_ASSERT_LT(pos, key.size());
         if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
             free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
-            TRAC("retry %zd, add_state_move confict(curr = %zd)", n_retry, curr);
+            TRAC("retry %zd add_state_move confict flags = %s on curr = %zd",
+                n_retry, StrNodeFlags(a[newCurr].flags), curr);
             goto retry;
         }
 #define init_token_value_mw(new1, new2, list) do {               \
@@ -2194,7 +2219,8 @@ ForkBranch: {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
-        TRAC("retry %zd, fork confict(curr = %zd)", n_retry, curr);
+        TRAC("retry %zd, fork confict flags = %s on curr %zd",
+            n_retry, StrNodeFlags(a[ni.oldSuffixNode].flags), curr);
         goto retry;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
@@ -2233,7 +2259,8 @@ SplitZpath: {
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
-        TRAC("retry %zd, split confict(curr = %zd)", n_retry, curr);
+        TRAC("retry %zd, split confict flags = %s on curr %zd",
+            n_retry, StrNodeFlags(a[ni.oldSuffixNode].flags), curr);
         goto retry;
     }
     init_token_value_mw(newCurr, ni.oldSuffixNode, -1);
@@ -2261,6 +2288,8 @@ MarkFinalStateOnFastNode: {
           _mm_pause();
       }
       token->m_valpos = valpos;
+      TRAC("dupkey mark final confict flags = %s on curr = %zd fast node",
+           StrNodeFlags(a[curr].flags), curr);
       goto HandleDupKey;
     }
     else {
@@ -2296,7 +2325,8 @@ MarkFinalStateOmitSetNodeInfo:
                         a->bytes + oldpos, ni.va_offset);
     if (a[newcur].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newcur, newlen, lzf);
-        TRAC("retry %zd, mark final confict(curr = %zd)", n_retry, curr);
+        TRAC("retry %zd mark final confict flags = %s on curr = %zd",
+            n_retry, StrNodeFlags(a[newcur].flags), curr);
         goto retry;
     }
     a[newcur].meta.b_is_final = true;
