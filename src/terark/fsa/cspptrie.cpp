@@ -2928,7 +2928,7 @@ void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
         auto& lzf = lazy_free_list(conLevel);
         lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
-        CheckLazyFreeListSize(m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
+        CheckLazyFreeListSize(lzf, BOOST_CURRENT_FUNCTION);
     }
     else {
         mem_free(loc, size);
