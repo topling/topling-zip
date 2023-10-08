@@ -1811,7 +1811,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         //may fail false positive
         //assert(token == m_dummy.m_next);
         if (lzf->m_mem_size > 32*1024 &&
-                (lzf->m_revoke_fail_cnt < 5 || ++lzf->m_revoke_probe_cnt  % 32 == 0)) {
+                (lzf->m_revoke_fail_cnt < 5 || ++lzf->m_revoke_probe_cnt % 32 == 0)) {
             auto header = const_cast<DFA_MmapHeader*>(mmap_base);
             if (header) {
                 header->dawg_num_words += lzf->m_n_words;
@@ -2644,15 +2644,11 @@ static long g_lazy_free_debug_level =
         }
     }
     if (0 == revoke_size) {
-        lazy_free_list.m_revoke_fail_cnt++;
-        if (lazy_free_list.m_revoke_fail_cnt  % 1024 == 0 &&
-            lazy_free_list.m_revoke_fail_cnt != lazy_free_list.m_revoke_fail_cnt_loged) {
-            lazy_free_list.m_revoke_fail_cnt_loged = lazy_free_list.m_revoke_fail_cnt;
+        if (++lazy_free_list.m_revoke_fail_cnt % 1024 == 0) {
             WARN("m_revoke_fail_cnt = %zd,  lazy_free_list.m_mem_size = %zd",
                  lazy_free_list.m_revoke_fail_cnt, lazy_free_list.m_mem_size);
         }
     } else {
-        lazy_free_list.m_revoke_fail_cnt_loged = 0;
         lazy_free_list.m_revoke_fail_cnt = 0;
         lazy_free_list.m_revoke_probe_cnt = 0;
     }

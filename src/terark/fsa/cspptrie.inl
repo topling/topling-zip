@@ -126,7 +126,6 @@ protected:
     struct LazyFreeList : LazyFreeListBase {
         size_t m_mem_size = 0;
         size_t m_revoke_fail_cnt = 0;
-        size_t m_revoke_fail_cnt_loged = 0;
         size_t m_revoke_probe_cnt = 0;
         size_t m_size_too_large_loged = 0;
     };
