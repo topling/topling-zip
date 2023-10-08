@@ -119,10 +119,14 @@ protected:
         pos_type node;
         pos_type size;
     };
-    //  using  LazyFreeListBase = AutoGrowCircularQueue<LazyFreeItem>;
-    using  LazyFreeListBase = std::deque<LazyFreeItem>;
+    struct LazyFreeListBase : AutoGrowCircularQueue<LazyFreeItem> {
+        LazyFreeListBase() : AutoGrowCircularQueue<LazyFreeItem>(4*1024) {}
+    };
+    //using  LazyFreeListBase = std::deque<LazyFreeItem>;
     struct LazyFreeList : LazyFreeListBase {
         size_t m_mem_size = 0;
+        size_t m_revoke_fail_cnt = 0;
+        size_t m_revoke_probe_cnt = 0;
     };
     struct LazyFreeListTLS;
     union {

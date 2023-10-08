@@ -1398,6 +1398,14 @@ bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
     THROW_STD(logic_error, "invalid operation: insert to readonly trie");
 }
 
+template<class List>
+static void CheckLazyFreeListSize(const List& lst, const char* func) {
+    static const size_t cnt = 8*1024;
+    if (lst.size() >= cnt && lst.size() % cnt == 0) {
+        WARN("%s: lazy_free queue is too large = %zd, latency may be large", func, lst.size());
+    }
+}
+
 template<MainPatricia::ConcurrentLevel ConLevel>
 bool
 MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
@@ -1416,6 +1424,7 @@ auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
         ullong   age = token->m_verseq;
         m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
         m_lazy_free_list_sgl.m_mem_size += ni.node_size;
+        CheckLazyFreeListSize(m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
     }
     else {
         free_node<SingleThreadStrict>(curr, ni.node_size, nullptr);
@@ -1796,7 +1805,10 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         //now is_head is set before m_dummy.m_next, this assert
         //may fail false positive
         //assert(token == m_dummy.m_next);
-        if (lzf->m_mem_size > 32*1024) {
+        if (lzf->m_mem_size > 32*1024 &&
+                (lzf->m_revoke_fail_cnt < 5 ||
+                    (++lzf->m_revoke_probe_cnt >= 32 &&
+                       lzf->m_revoke_probe_cnt  % 32 == 0))) {
             auto header = const_cast<DFA_MmapHeader*>(mmap_base);
             if (header) {
                 header->dawg_num_words += lzf->m_n_words;
@@ -1876,6 +1888,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
+        CheckLazyFreeListSize(m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
@@ -2595,6 +2608,7 @@ static long g_lazy_free_debug_level =
   #endif
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list);
     size_t n = std::min(lazy_free_list.size(), BULK_FREE_NUM);
+    size_t revoke_size = 0;
     for (size_t i = 0; i < n; ++i) {
         const LazyFreeItem& head = lazy_free_list.front();
         //assert(a[head.node].meta.b_lazy_free); // only for debug Patricia
@@ -2605,6 +2619,7 @@ static long g_lazy_free_debug_level =
     //     }
         if (head.age < min_verseq) {
             free_node<ConLevel>(head.node, head.size, tls);
+            revoke_size += head.size;
             lazy_free_list.m_mem_size -= head.size;
             lazy_free_list.pop_front();
         } else {
@@ -2624,6 +2639,17 @@ static long g_lazy_free_debug_level =
             // }
             break;
         }
+    }
+    if (0 == revoke_size) {
+        lazy_free_list.m_revoke_fail_cnt++;
+        if (lazy_free_list.m_revoke_fail_cnt >= 128 &&
+            lazy_free_list.m_revoke_fail_cnt  % 128 == 0) {
+            WARN("m_revoke_fail_cnt = %zd, m_revoke_probe_cnt = %zd, revoke_size = %zd, lazy_free_list.m_mem_size = %zd",
+                 lazy_free_list.m_revoke_fail_cnt, lazy_free_list.m_revoke_probe_cnt, revoke_size, lazy_free_list.m_mem_size);
+        }
+    } else {
+        lazy_free_list.m_revoke_fail_cnt = 0;
+        lazy_free_list.m_revoke_probe_cnt = 0;
     }
     if (g_lazy_free_debug_level > 0)
         print("B");
@@ -2897,6 +2923,7 @@ void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
         auto& lzf = lazy_free_list(conLevel);
         lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
+        CheckLazyFreeListSize(m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
     }
     else {
         mem_free(loc, size);
@@ -3158,7 +3185,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
         m_flags = {ReleaseDone, false};
         trie->m_head_mutex.unlock();
-        return;
+        break;
     } // switch
 }
 
