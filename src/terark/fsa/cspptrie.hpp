@@ -61,7 +61,6 @@ public:
         Patricia*     m_trie;
         size_t        m_valpos; // raw pos, not multiply by AlignSize
         void*         m_tls; // unused for ReaderToken
-        ullong        m_live_verseq;
         size_t        m_thread_id;
 
         // frequently sync with other threads
@@ -87,10 +86,6 @@ public:
         void acquire(Patricia*);
         void release();
         void dispose(); ///< delete lazy
-        bool is_valid() const {
-            assert(AcquireDone == m_flags.state);
-            return m_min_verseq < m_live_verseq;
-        }
 
         Patricia* trie() const { return m_trie; }
         bool has_value() const { return size_t(-1) != m_valpos; }

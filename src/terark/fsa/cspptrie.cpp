@@ -298,7 +298,6 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_dummy.m_next = m_dummy.m_prev = &m_dummy;
     m_dummy.m_trie = nullptr; // this;
     m_dummy.m_verseq = m_dummy.m_min_verseq = 1;
-    m_dummy.m_live_verseq = 1;
     m_dummy.m_thread_id = ULLONG_MAX;
     m_dummy.m_tls = nullptr;
     m_dummy.m_valpos = size_t(-1);
@@ -3041,7 +3040,6 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
-    m_live_verseq = 0;
     m_prev  = NULL;
     m_next  = NULL;
     m_verseq  = 0;
@@ -3116,7 +3114,6 @@ void Patricia::TokenBase::maybe_rotate(Patricia* trie1, TokenState target) {
     } else {
         this->m_flags.state = target;
     }
-    m_live_verseq = m_verseq;
 }
 
 void Patricia::TokenBase::rotate(Patricia* trie1, TokenState target) {
@@ -3252,7 +3249,6 @@ void Patricia::TokenBase::release() {
         }
     }
     m_valpos = size_t(-1);
-    m_live_verseq = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4378,14 +4374,6 @@ bool MainPatricia::IterImpl::incr() {
     if (terark_unlikely(m_iter.empty())) {
         return false;
     }
-#if 0
-    if (m_live_verseq < m_min_verseq) {
-        m_live_verseq = m_verseq;
-        if (!seek_lower_bound_impl(m_word)) {
-            return false;
-        }
-    }
-#endif
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
@@ -4497,16 +4485,6 @@ bool MainPatricia::IterImpl::decr() {
     if (m_iter.empty()) {
         return false;
     }
-#if 0
-    if (m_live_verseq < m_min_verseq) {
-        m_live_verseq = m_verseq;
-        //std::string curr_key((const char*)m_word.data(), m_word.size());
-        fstring curr_key((const char*)m_word.data(), m_word.size());
-        if (!seek_lower_bound_impl(curr_key)) {
-            return seek_end();
-        }
-    }
-#endif
     TERARK_ASSERT_EQ(calc_word_len(), m_word.size());
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
@@ -4763,17 +4741,17 @@ void Patricia::cons_iter(void* mem, size_t /*root*/) const {
 void MainPatricia::dump_token_list() const {
     const TokenBase* token = &m_dummy;
     fprintf(stderr, "token_qlen = %zd, live_iter_num = %zd\n", size_t(m_token_qlen), size_t(m_live_iter_num));
-    fprintf(stderr, "idx | type | ishead | state | min | verseq | value | tls | thread_id | live_verseq | selfptr\n");
-    fprintf(stderr, "---:| ---- | ------ | ----- | --- | ------ | ----- | --- | --------- | ----------- | -------\n");
+    fprintf(stderr, "idx | type | ishead | state | min | verseq | value | tls | thread_id | selfptr\n");
+    fprintf(stderr, "---:| ---- | ------ | ----- | --- | ------ | ----- | --- | --------- | -------\n");
     size_t idx = 0;
     for (; token; idx++, token = token->m_next) {
         auto type = dynamic_cast<const Iterator*>(token) ? "iter" :
                     dynamic_cast<const WriterToken*>(token) ? "write" :
                     dynamic_cast<const ReaderToken*>(token) ? "read" : "base";
-        fprintf(stderr, "%3zd | %-5s | %d | %s | %lld | %lld | %p | %p | %#zX | %lld | %p\n",
+        fprintf(stderr, "%3zd | %-5s | %d | %s | %lld | %lld | %p | %p | %#zX | %p\n",
                 idx, type, token->m_flags.is_head, enum_cstr(token->m_flags.state),
                 token->m_min_verseq, token->m_verseq, token->value(),
-                token->m_tls, token->m_thread_id, token->m_live_verseq, token);
+                token->m_tls, token->m_thread_id, token);
     }
 }
 
