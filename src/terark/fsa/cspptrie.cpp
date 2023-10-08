@@ -1399,9 +1399,11 @@ bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
 }
 
 template<class List>
-static void CheckLazyFreeListSize(const List& lst, const char* func) {
+static void CheckLazyFreeListSize(List& lst, const char* func) {
     static const size_t cnt = 8*1024;
-    if (lst.size() >= cnt && lst.size() % cnt == 0) {
+    if (terark_unlikely(lst.size() >= cnt && lst.size() % cnt == 0 &&
+                        lst.size() != lst.m_size_too_large_loged)) {
+        lst.m_size_too_large_loged = lst.size();
         WARN("%s: lazy_free queue is too large = %zd, latency may be large", func, lst.size());
     }
 }
@@ -1806,9 +1808,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         //may fail false positive
         //assert(token == m_dummy.m_next);
         if (lzf->m_mem_size > 32*1024 &&
-                (lzf->m_revoke_fail_cnt < 5 ||
-                    (++lzf->m_revoke_probe_cnt >= 32 &&
-                       lzf->m_revoke_probe_cnt  % 32 == 0))) {
+                (lzf->m_revoke_fail_cnt < 5 || ++lzf->m_revoke_probe_cnt  % 32 == 0)) {
             auto header = const_cast<DFA_MmapHeader*>(mmap_base);
             if (header) {
                 header->dawg_num_words += lzf->m_n_words;
@@ -1888,7 +1888,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
-        CheckLazyFreeListSize(m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
+        CheckLazyFreeListSize(*lzf, BOOST_CURRENT_FUNCTION);
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
@@ -2546,7 +2546,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
     return node;
 }
 
-static const size_t BULK_FREE_NUM = 32;
+static const size_t BULK_FREE_NUM = getEnvLong("CSPP_BULK_FREE_NUM", 8);
 
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
@@ -2642,12 +2642,14 @@ static long g_lazy_free_debug_level =
     }
     if (0 == revoke_size) {
         lazy_free_list.m_revoke_fail_cnt++;
-        if (lazy_free_list.m_revoke_fail_cnt >= 128 && lazy_free_list.m_revoke_probe_cnt &&
-            lazy_free_list.m_revoke_fail_cnt  % 128 == 0) {
-            WARN("m_revoke_fail_cnt = %zd, m_revoke_probe_cnt = %zd, lazy_free_list.m_mem_size = %zd",
-                 lazy_free_list.m_revoke_fail_cnt, lazy_free_list.m_revoke_probe_cnt, lazy_free_list.m_mem_size);
+        if (lazy_free_list.m_revoke_fail_cnt  % 1024 == 0 &&
+            lazy_free_list.m_revoke_fail_cnt != lazy_free_list.m_revoke_fail_cnt_loged) {
+            lazy_free_list.m_revoke_fail_cnt_loged = lazy_free_list.m_revoke_fail_cnt;
+            WARN("m_revoke_fail_cnt = %zd,  lazy_free_list.m_mem_size = %zd",
+                 lazy_free_list.m_revoke_fail_cnt, lazy_free_list.m_mem_size);
         }
     } else {
+        lazy_free_list.m_revoke_fail_cnt_loged = 0;
         lazy_free_list.m_revoke_fail_cnt = 0;
         lazy_free_list.m_revoke_probe_cnt = 0;
     }
