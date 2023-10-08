@@ -175,8 +175,8 @@ static const long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
 ///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 #define PTrieLog(level, type, fmt, ...) do { \
     if (csppDebugLevel >= level) \
-        fprintf(stderr, "%s: " type ": %s:%d: %s: " fmt "\n", StrDateTimeNow(), \
-            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
+        fprintf(stderr, "%s: " type ": %s:%d: %s: %zd: " fmt "\n", StrDateTimeNow(), \
+            __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ThisThreadID(), ##__VA_ARGS__); \
     } while (0)
 
 #undef  ERR
