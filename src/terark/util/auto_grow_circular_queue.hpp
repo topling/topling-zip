@@ -3,6 +3,7 @@
 #include <terark/bitmanip.hpp>
 #include <terark/util/throw.hpp>
 #include <type_traits>
+#include <string.h>
 
 namespace terark {
 
