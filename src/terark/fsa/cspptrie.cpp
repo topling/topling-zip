@@ -271,7 +271,6 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
     WriterTokenPtr m_writer_token;
     ReaderTokenPtr m_reader_token;
     std::map<size_t, size_t>     m_retry_histgram;
-    long long m_race_wait = 0;
     void sync_atomic(PatriciaMem<Align>*);
     void sync_no_atomic(PatriciaMem<Align>*);
     void reset_zero();
@@ -504,7 +503,6 @@ void PatriciaMem<Align>::set_readonly() {
 template<size_t Align>
 const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
   if (MultiWriteMultiRead == m_writing_concurrent_level) {
-    long long sum_wait = 0;
     size_t sum_retry = 0;
     size_t uni_retry = 0;
     size_t thread_nth = 0;
@@ -524,10 +522,8 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
 
       sum_retry += lzf->m_n_retry;
       if (csppDebugLevel >= 2) {
-        sum_wait += lzf->m_race_wait;
-        INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd, wait = %10.6f sec",
-             thread_nth, lzf->m_n_retry, g_pf.sf(0, lzf->m_race_wait));
-        lzf->m_race_wait = 0;
+        INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd",
+             thread_nth, lzf->m_n_retry);
       }
       lzf->m_n_retry = 0;
       if (csppDebugLevel >= 3) {
@@ -544,8 +540,8 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     m_counter_mutex.unlock();
     m_mempool_lock_free.sync_frag_size();
     if (csppDebugLevel >= 2 && m_n_words) {
-      INFO("PatriciaMW: thread_num = %3zd, sum_retry = %8zd, wait = %10.6f sec, retry/total = %f",
-           thread_nth, sum_retry, g_pf.sf(0, sum_wait), double(sum_retry)/m_n_words);
+      INFO("PatriciaMW: thread_num = %3zd, sum_retry = %8zd, n_words = %zd, retry/n_words = %f",
+           thread_nth, sum_retry, m_n_words, double(sum_retry)/m_n_words);
     }
     if (csppDebugLevel >= 3 && m_n_words) {
       std::string str;
