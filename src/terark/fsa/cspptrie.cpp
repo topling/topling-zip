@@ -3175,7 +3175,6 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             }
             this->remove_self();
             m_next = m_prev = nullptr;
-            m_valpos = size_t(-1);
             trie->m_token_qlen--;
         } else {
             // very rare:
@@ -3224,6 +3223,7 @@ void Patricia::TokenBase::idle() {
         }
         trie->m_head_mutex.unlock();
     }
+    m_valpos = size_t(-1);
 }
 
 terark_flatten
@@ -3251,6 +3251,7 @@ void Patricia::TokenBase::release() {
             break;
         }
     }
+    m_valpos = size_t(-1);
     m_live_verseq = 0;
 }
 
