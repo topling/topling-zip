@@ -3170,8 +3170,8 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         if (terark_likely(nullptr != m_next)) {
             if (this == trie->m_dummy.m_next) { // `this` is head
                 this->m_next->m_flags.is_head = true;
+                trie->m_dummy.m_min_verseq = m_verseq;
             }
-            trie->m_dummy.m_min_verseq = m_verseq;
             this->remove_self();
             m_next = m_prev = nullptr;
             m_valpos = size_t(-1);
