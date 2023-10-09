@@ -2173,6 +2173,10 @@ TERARK_ASSERT_LT(pos, key.size());
             lzf->m_zpath_states += zp_states_inc;
         }
         maximize(lzf->m_max_word_len, key.size());
+        if (terark_unlikely(n_retry && csppDebugLevel >= 3)) {
+            lzf->m_retry_histgram[n_retry]++;
+        }
+        CheckLazyFreeListSize(*lzf, SMART_FUNC);
         return true;
     }
     else { // curr has updated by other threads
