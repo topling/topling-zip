@@ -510,6 +510,7 @@ public:
     using mem::risk_release_ownership;
 
     using TLS::for_each_tls;
+    using TLS::peek_tls_vec_size;
 
     size_t frag_size() const { return fragment_size; }
 

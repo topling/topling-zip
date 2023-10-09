@@ -255,6 +255,7 @@ public:
     TlsMember* get_tls(NewTLS* New) const {
         return get_tls<NewTLS&>(*New);
     }
+    size_t peek_tls_vec_size() const { return m_tls_vec.size(); }
 };
 
 template<class TlsMember>
