@@ -37,7 +37,8 @@ public:
         m_tail = 0;
     }
     AutoGrowCircularQueue(const AutoGrowCircularQueue& y) {
-        m_vec.alloc(y.m_cap);
+        m_vec = (T*)malloc(sizeof(T) * check_cap(y.m_cap));
+        TERARK_VERIFY(nullptr != m_vec);
         m_cap  = y.m_cap ;
         m_head = y.m_head;
         m_tail = y.m_tail;
