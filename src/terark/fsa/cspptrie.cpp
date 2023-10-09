@@ -77,10 +77,11 @@ static const char* StrNodeFlags(uint08_t flags) {
 
     if (flags & FLAG_lazy_free) return "LazyFree";
     if (flags & FLAG_set_final) return "SetFinal";
-    if (flags & FLAG_lock     ) return "Lock";
+    if (flags & FLAG_lock     ) return "LockFlag";
 
-    return "0";
+    return "ZeroFlag";
 }
+static auto StrFlags(PatriciaNode x) { return StrNodeFlags(x.flags); }
 
 static constexpr size_t MAX_DYNA_NUM = 64;
 
@@ -1919,34 +1920,24 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
       RaceCondition2:
         size_t min_verseq = (size_t)token->m_min_verseq;
         size_t age = (size_t)token->m_verseq;
-        if (csppDebugLevel >= 4) { // TRAC
+        if (csppDebugLevel >= 4 || n_retry >= 200) {
+          #define HERE_FMT "%d: age %zd, min_verseq %zd, retry%5zd, "
+          #define HERE_ARG lineno, age, min_verseq, n_retry
             if (a[parent].meta.b_lazy_free) {
-                fprintf(stderr,
-                        "thread-%08zX: line: %d, age = %zd, min_verseq = %zd, retry%5zd, "
-                        "a[parent = %zd].b_lazy_free == true: key: %.*s\n",
-                        ThisThreadID(), lineno, age, min_verseq, n_retry,
-                        parent, key.ilen(), key.data());
+                INFO(HERE_FMT "a[parent %zd].flags: %s, key: %.*s",
+                     HERE_ARG, parent, StrFlags(a[parent]), key.ilen(), key.data());
             }
             if (a[curr].meta.b_lock) {
-                fprintf(stderr,
-                        "thread-%08zX: line: %d, age = %zd, min_verseq = %zd, retry%5zd, "
-                        "a[curr = %zd].b_lock == true: key: %.*s\n",
-                        ThisThreadID(), lineno, age, min_verseq, n_retry,
-                        curr, key.ilen(), key.data());
+                INFO(HERE_FMT "a[curr %zd].flags: %s, key: %.*s",
+                     HERE_ARG, curr, StrFlags(a[curr]), key.ilen(), key.data());
             }
             if (a[curr_slot].child != curr) {
-                fprintf(stderr,
-                        "thread-%08zX: line: %d, age = %zd, min_verseq = %zd, retry%5zd, "
-                        "(a[curr_slot = %zd] = %zd) != (curr = %zd): key: %.*s\n",
-                        ThisThreadID(), lineno, age, min_verseq, n_retry,
-                        curr_slot, size_t(a[curr_slot].child), curr, key.ilen(), key.data());
+                INFO(HERE_FMT "(a[curr_slot %zd] %u) != (curr %zd), key: %.*s",
+                     HERE_ARG, curr_slot, a[curr_slot].child, curr, key.ilen(), key.data());
             }
             if (!array_eq(backup, &a[curr + ni.n_skip].child, ni.n_children)) {
-                fprintf(stderr,
-                        "thread-%08zX: line: %d, age = %zd, min_verseq = %zd, retry%5zd, "
-                        "curr confilict(curr = %zd, size = %zd) != 0: key: %.*s\n",
-                        ThisThreadID(), lineno, age, min_verseq, n_retry,
-                        curr, size_t(ni.node_size), key.ilen(), key.data());
+                INFO(HERE_FMT "confilict(curr %zd, size %u) != backup: key: %.*s",
+                     HERE_ARG, curr, ni.node_size, key.ilen(), key.data());
             }
         }
         free_node<MultiWriteMultiRead>(newCurr, node_size(a + newCurr, valsize), lzf);
@@ -2135,8 +2126,9 @@ TERARK_ASSERT_LT(pos, key.size());
         if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
             free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
-            TRAC("retry %zd add_state_move confict flags = %s on curr = %zd",
-                n_retry, StrNodeFlags(a[newCurr].flags), curr);
+            if (csppDebugLevel >= 4 || n_retry >= 1000) {
+                INFO("retry %zd add_state_move confict %s on curr = %zd", n_retry, StrFlags(a[newCurr]), curr);
+            }
             goto retry;
         }
 #define init_token_value_mw(new1, new2, list) do {               \
@@ -2219,8 +2211,9 @@ ForkBranch: {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
-        TRAC("retry %zd, fork confict flags = %s on curr %zd",
-            n_retry, StrNodeFlags(a[ni.oldSuffixNode].flags), curr);
+        if (csppDebugLevel >= 4 || n_retry >= 1000) {
+            INFO("retry %zd, fork confict %s on curr %zd", n_retry, StrFlags(a[ni.oldSuffixNode]), curr);
+        }
         goto retry;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
@@ -2259,8 +2252,9 @@ SplitZpath: {
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
-        TRAC("retry %zd, split confict flags = %s on curr %zd",
-            n_retry, StrNodeFlags(a[ni.oldSuffixNode].flags), curr);
+        if (csppDebugLevel >= 4 || n_retry >= 1000) {
+            INFO("retry %zd, split confict %s on curr %zd", n_retry, StrFlags(a[ni.oldSuffixNode]), curr);
+        }
         goto retry;
     }
     init_token_value_mw(newCurr, ni.oldSuffixNode, -1);
@@ -2288,8 +2282,7 @@ MarkFinalStateOnFastNode: {
           _mm_pause();
       }
       token->m_valpos = valpos;
-      TRAC("dupkey mark final confict flags = %s on curr = %zd fast node",
-           StrNodeFlags(a[curr].flags), curr);
+      INFO("dupkey mark final confict %s on curr %zd fast node", StrFlags(a[curr]), curr);
       goto HandleDupKey;
     }
     else {
@@ -2325,8 +2318,9 @@ MarkFinalStateOmitSetNodeInfo:
                         a->bytes + oldpos, ni.va_offset);
     if (a[newcur].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newcur, newlen, lzf);
-        TRAC("retry %zd mark final confict flags = %s on curr = %zd",
-            n_retry, StrNodeFlags(a[newcur].flags), curr);
+        if (csppDebugLevel >= 4 || n_retry >= 1000) {
+            INFO("retry %zd mark final confict %s on curr %zd", n_retry, StrFlags(a[newcur]), curr);
+        }
         goto retry;
     }
     a[newcur].meta.b_is_final = true;
