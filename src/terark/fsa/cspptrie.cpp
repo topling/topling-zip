@@ -11,6 +11,7 @@
 
 #include "cspptrie.inl"
 #include "tmplinst.hpp"
+#include <terark/hash_common.hpp>
 #include <terark/util/small_memcpy.hpp>
 #include <terark/util/hugepage.hpp>
 #include <terark/util/mmap.hpp>
