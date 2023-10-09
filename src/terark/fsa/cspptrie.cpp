@@ -605,7 +605,8 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     size_t uni_retry = 0;
     size_t thread_idx = 0;
     std::map<size_t, size_t> retry_histgram;
-    std::string str; str.reserve(64*1024);
+    std::string str;
+    str.reserve(256 * m_mempool_lock_free.peek_tls_vec_size());
     char buf[256];
 #define msg_printf(...) str.append(buf, snprintf(buf, sizeof(buf), __VA_ARGS__))
     str += "Thread NumRetry "
