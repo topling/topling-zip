@@ -37,6 +37,7 @@
 
 #include <thread>
 #include <iomanip>
+#include <random>
 
 #if BOOST_OS_LINUX
     //#include <sched.h>
@@ -57,6 +58,11 @@ static constexpr uint08_t FLAG_final     = 0x1 << 4;
 static constexpr uint08_t FLAG_lazy_free = 0x1 << 5;
 static constexpr uint08_t FLAG_set_final = 0x1 << 6; // fast node set final
 static constexpr uint08_t FLAG_lock      = 0x1 << 7;
+
+template<class BitSet, class SubSet>
+static inline bool BitsContainsAll(BitSet bitset, SubSet subset) {
+    return (bitset & subset) == subset;
+}
 
 static const char* StrNodeFlags(uint08_t flags) {
     if ((flags & (FLAG_lazy_free|FLAG_set_final|FLAG_lock))
@@ -205,10 +211,10 @@ long CSPP_GetDebugLevel() { return csppDebugLevel; }
 #undef SMART_FUNC
 #define SMART_FUNC strlen(BOOST_CURRENT_FUNCTION) > 80 ? __func__ : BOOST_CURRENT_FUNCTION
 
-///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
+///@param type: "DEBUG", "INFO", "WARN", "ERROR"
 #define PTrieLog(level, type, fmt, ...) do { \
     if (csppDebugLevel >= level) \
-        fprintf(stderr, "%s: " type ": %s:%d: %s: %zd: " fmt "\n", StrDateTimeNow(), \
+        fprintf(stderr, "%s: " type ": %s:%d: %s: %012zX: " fmt "\n", StrDateTimeNow(), \
             __FILE__, __LINE__, SMART_FUNC, ThisThreadID(), ##__VA_ARGS__); \
     } while (0)
 
@@ -220,8 +226,6 @@ long CSPP_GetDebugLevel() { return csppDebugLevel; }
 #define INFO(...) PTrieLog(2, "INFO", __VA_ARGS__)
 #undef  DBUG
 #define DBUG(...) PTrieLog(3, "DBUG", __VA_ARGS__)
-#undef  TRAC
-#define TRAC(...) PTrieLog(4, "TRAC", __VA_ARGS__)
 
 #if 1
 struct busy_loop_measure {
@@ -293,6 +297,8 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
     // size_t m_revoke_try_cnt = 0;
 ///----------------------------------------
     size_t m_n_retry = 0;
+    RaceCounter  m_race;
+    std::mt19937 m_rand{ThisThreadID()};
     Stat   m_stat = {0,0,0,0};
     PatriciaMem<Align>* m_trie;
     WriterTokenPtr m_writer_token;
@@ -301,6 +307,7 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
     void sync_atomic(PatriciaMem<Align>*);
     void sync_no_atomic(PatriciaMem<Align>*);
     void reset_zero();
+    void on_retry_cnt(size_t n_retry);
     void clean_for_reuse() final;
     void init_for_reuse() final;
     LazyFreeListTLS(PatriciaMem<Align>* trie);
@@ -527,13 +534,109 @@ void PatriciaMem<Align>::set_readonly() {
     mempool_set_readonly();
 }
 
+#define PatriciaMemMF(Return) \
+    template<size_t Align> Return PatriciaMem<Align>::
+
+PatriciaMemMF(void)LazyFreeOrLockCount::add_count(PatriciaNode node) {
+    if (BitsContainsAll(node.flags, FLAG_lazy_free|FLAG_lock))
+        n_lazy_free_lock++;
+    else if (node.flags & FLAG_lazy_free)
+        n_lazy_free++;
+    else // if (node.flags & FLAG_lock) // does not need the check
+        n_lock_only++;
+}
+PatriciaMemMF(void)LazyFreeOrLockCount::operator+=(const LazyFreeOrLockCount& y) {
+    n_lazy_free_lock += y.n_lazy_free_lock;
+    n_lazy_free += y.n_lazy_free;
+    n_lock_only += y.n_lock_only;
+}
+PatriciaMemMF(void)LazyFreeOrLockCount::reset_race() {
+    n_lazy_free_lock = 0;
+    n_lazy_free = 0;
+    n_lock_only = 0;
+}
+PatriciaMemMF(void)RaceCounter::reset_race() {
+    lfl_curr.reset_race();
+    lfl_parent.reset_race();
+    n_retry = 0;
+    n_fast_node_cas = 0;
+    n_curr_slot_cas = 0;
+    n_diff_backup = 0;
+    n_yield_cnt = 0;
+    n_yield_ns  = 0;
+    n_sleep_cnt = 0;
+    n_sleep_ns  = 0;
+}
+PatriciaMemMF(void)RaceCounter::operator+=(const RaceCounter& y) {
+    lfl_curr        += y.lfl_curr       ;
+    lfl_parent      += y.lfl_parent     ;
+    n_retry         += y.n_retry        ;
+    n_fast_node_cas += y.n_fast_node_cas;
+    n_curr_slot_cas += y.n_curr_slot_cas;
+    n_diff_backup   += y.n_diff_backup  ;
+    n_yield_cnt     += y.n_yield_cnt    ;
+    n_yield_ns      += y.n_yield_ns     ;
+    n_sleep_cnt     += y.n_sleep_cnt    ;
+    n_sleep_ns      += y.n_sleep_ns     ;
+}
+PatriciaMemMF(void)LazyFreeListTLS::on_retry_cnt(size_t retry_cnt) {
+    m_race.n_retry++;
+    if (retry_cnt >= 32) {
+        auto t00 = g_pf.now();
+        if (retry_cnt >= 64) {
+            /////////////// {5,11,19,37,53,97,193,389,769,1543,3079,6151,...}
+            auto max_dur_us = __hsm_stl_next_prime(retry_cnt/16);
+            auto rnd = m_rand();
+            auto dur = std::chrono::microseconds(rnd % max_dur_us);
+            std::this_thread::sleep_for(dur);
+            m_race.n_sleep_cnt++;
+            m_race.n_sleep_ns += size_t(g_pf.ns(t00, g_pf.now()));
+        } else {
+            std::this_thread::yield();
+            m_race.n_yield_cnt++;
+            m_race.n_yield_ns += size_t(g_pf.ns(t00, g_pf.now()));
+        }
+    }
+}
+
 template<size_t Align>
 const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
   if (MultiWriteMultiRead == m_writing_concurrent_level) {
-    size_t sum_retry = 0;
     size_t uni_retry = 0;
     size_t thread_idx = 0;
     std::map<size_t, size_t> retry_histgram;
+    std::string str; str.reserve(64*1024);
+    char buf[256];
+#define msg_printf(...) str.append(buf, snprintf(buf, sizeof(buf), __VA_ARGS__))
+    str += "Thread NumRetry "
+           "Yield Yield_us "
+           "Sleep Sleep_us "
+           "SlotCAS FastCAS "
+           "FastFinal "
+           "DiffBak "
+           "CurrLFL CurrLF CurrLK "
+           "ParentLFL ParentLF ParentLK\n";
+    str +=
+"---------------------------------------------------------------------------------------------------------------------------------\n";
+#define race_print(title_fmt, title_arg, r) \
+        msg_printf(title_fmt " %8zd " \
+            "%5zd %8.1f "   /* Yield Yield_us */ \
+            "%5zd %8.1f "   /* Sleep Sleep_us */ \
+            "%6zd  %6zd   " /* SlotCAS FastCAS */ \
+            "%6zd   "       /* FastFinal */ \
+            "%6zd  "        /* DiffBak */ \
+            "%6zd  %5zd  %5zd  " /* CurrLFL CurrLF CurrLK */ \
+            "%8zd  %7zd  %7zd"   /* ParentLFL ParentLF ParentLK */ \
+            "\n", \
+            title_arg, r.n_retry, \
+            r.n_yield_cnt, r.n_yield_ns / 1e3, \
+            r.n_sleep_cnt, r.n_sleep_ns / 1e3, \
+            r.n_curr_slot_cas, r.n_fast_node_cas, \
+            r.n_fast_node_set_final, \
+            r.n_diff_backup, \
+            r.lfl_curr  .n_lazy_free_lock, r.lfl_curr  .n_lazy_free, r.lfl_curr  .n_lock_only, \
+            r.lfl_parent.n_lazy_free_lock, r.lfl_parent.n_lazy_free, r.lfl_parent.n_lock_only)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     auto sync = [&](TCMemPoolOneThread<AlignSize>* tc) {
       auto lzf = static_cast<LazyFreeListTLS*>(tc);
       TERARK_VERIFY_EQ(this, lzf->m_trie);
@@ -547,15 +650,16 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       lzf->m_total_zpath_len = 0;
       lzf->m_zpath_states = 0;
 
-      sum_retry += lzf->m_n_retry;
-      INFO("PatriciaMW: thread_idx %3zd, tls_retry %3zd", thread_idx, lzf->m_n_retry);
-      lzf->m_n_retry = 0;
-      if (csppDebugLevel >= 3) {
+      if (csppDebugLevel >= 2) {
+        race_print("%5zd ", thread_idx, lzf->m_race);
         for (auto& kv : lzf->m_retry_histgram) {
           uni_retry += kv.second;
           retry_histgram[kv.first] += kv.second;
           kv.second = 0;
         }
+        m_race += lzf->m_race;
+        lzf->m_race.reset_race();
+        lzf->m_retry_histgram.clear();
       }
       thread_idx++;
     };
@@ -564,17 +668,19 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     m_counter_mutex.unlock();
     m_mempool_lock_free.sync_frag_size();
     if (csppDebugLevel >= 2 && m_n_words) {
-      INFO("PatriciaMW: thread_cnt %3zd, sum_retry %8zd, n_words %8zd, retry/n_words = %f",
-           thread_idx, sum_retry, m_n_words, double(sum_retry)/m_n_words);
-    }
-    if (csppDebugLevel >= 3 && m_n_words) {
-      std::string str;
-      for (auto& kv : retry_histgram) {
-        char buf[64];
-        str.append(buf, sprintf(buf, "\t%5zd %7zd\n", kv.first, kv.second));
-      }
-      DBUG("PatriciaMW: uni_retry[num = %zd, ratio = %f], retry_hist = {\n%s}"
-          , uni_retry, double(uni_retry)/m_n_words, str.c_str());
+        race_print("%s", "total ", m_race);
+        str +=
+"---------------------------------------------------------------------------------------------------------------------------------\n";
+        msg_printf("thread_cnt %3zd, sum_retry %8zd, n_words %8zd, retry/n_words = %f\n",
+                    thread_idx, m_race.n_retry, m_n_words, double(m_race.n_retry)/m_n_words);
+        msg_printf("uni_retry[num = %zd, ratio = %f], retry_histgram = {\n",
+                    uni_retry, double(uni_retry)/m_n_words);
+        for (auto& kv : retry_histgram) {
+            msg_printf("\t%5zd %7zd\n", kv.first, kv.second);
+        }
+        msg_printf("}");
+        INFO("PatriciaMW: stat{fork %zd, split %zd, mark_final %zd, add_child %zd}, race:\n%s",
+             m_stat.n_fork, m_stat.n_split, m_stat.n_mark_final, m_stat.n_add_state_move, str.c_str());
     }
   }
   return m_stat;
@@ -976,7 +1082,7 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
     ms->lazy_free_sum = 0;
     int thread_idx = 0;
     auto get_lzf = [&,ms](const LazyFreeList* lzf) {
-        INFO("trie = %p, thread-%03d, lazyfree: cnt = %7zd, sum = %10.6f M, avg = %8.3f\n"
+        DBUG("trie = %p, thread-%03d, lazyfree: cnt = %7zd, sum = %10.6f M, avg = %8.3f\n"
             , this, thread_idx, lzf->size(), lzf->m_mem_size / 1e6
             , (lzf->m_mem_size + 0.001) / (lzf->size() + 0.001)
         );
@@ -1855,7 +1961,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     if (0) {
     retry:
         n_retry++;
-        lzf->m_n_retry++;
+        lzf->on_retry_cnt(n_retry);
     }
     size_t parent = size_t(-1);
     size_t curr_slot = size_t(-1);
@@ -1880,6 +1986,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     parent_unlock.meta.b_lock = 0;
     parent_locked.meta.b_lock = 1;
     if (!cas_weak(a[parent], parent_unlock, parent_locked)) {
+        lzf->m_race.lfl_parent.add_count(a[parent]);
         goto RaceCondition2;
     }
     // now a[parent] is locked, try lock curr:
@@ -1889,12 +1996,14 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     curr_unlock.meta.b_lazy_free = 0;
     curr_locked.meta.b_lazy_free = 1;
     if (!cas_weak(a[curr], curr_unlock, curr_locked)) {
+        lzf->m_race.lfl_curr.add_count(a[curr]);
         goto RaceCondition1;
     }
     // now a[curr] is locked, because --
     // now a[curr] is set as lazyfree, lazyfree flag also implies lock
     // lazyfree flag is permanent, it will not be reset to zero!
     if (!array_eq(backup, &a[curr + ni.n_skip].child, ni.n_children)) {
+        lzf->m_race.n_diff_backup++;
         goto RaceCondition0;
     }
     if (cas_weak(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
@@ -1908,19 +2017,20 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         lzf->m_total_zpath_len += key.size() - pos - nodeIncNum;
         lzf->push_back({ age, uint32_t(curr), ni.node_size });
         lzf->m_mem_size += ni.node_size;
-        if (terark_unlikely(n_retry && csppDebugLevel >= 3)) {
+        if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
         CheckLazyFreeListSize(*lzf, SMART_FUNC);
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
+        lzf->m_race.n_curr_slot_cas++;
       RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
       RaceCondition1: as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
       RaceCondition2:
         size_t min_verseq = (size_t)token->m_min_verseq;
         size_t age = (size_t)token->m_verseq;
-        if (csppDebugLevel >= 4 || n_retry >= 200) {
+        if (csppDebugLevel >= 3 || n_retry >= 200) {
           #define HERE_FMT "%d: age %zd, min_verseq %zd, retry%5zd, "
           #define HERE_ARG lineno, age, min_verseq, n_retry
             if (a[parent].meta.b_lazy_free) {
@@ -2124,11 +2234,12 @@ TERARK_ASSERT_LT(pos, key.size());
             return true;
         }
         if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
-            free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
-            revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
-            if (csppDebugLevel >= 4 || n_retry >= 1000) {
+            lzf->m_race.lfl_curr.add_count(a[newCurr]);
+            if (csppDebugLevel >= 3 || n_retry >= 100) {
                 INFO("retry %zd add_state_move confict %s on curr = %zd", n_retry, StrFlags(a[newCurr]), curr);
             }
+            free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
+            revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
             goto retry;
         }
 #define init_token_value_mw(new1, new2, list) do {               \
@@ -2173,7 +2284,7 @@ TERARK_ASSERT_LT(pos, key.size());
             lzf->m_zpath_states += zp_states_inc;
         }
         maximize(lzf->m_max_word_len, key.size());
-        if (terark_unlikely(n_retry && csppDebugLevel >= 3)) {
+        if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
         CheckLazyFreeListSize(*lzf, SMART_FUNC);
@@ -2182,7 +2293,8 @@ TERARK_ASSERT_LT(pos, key.size());
     else { // curr has updated by other threads
         TERARK_ASSERT_LE(a[curr+1].big.n_children, 256);
         free_node<MultiWriteMultiRead>(suffix_node, node_size(a + suffix_node, valsize), lzf);
-        TRAC("retry %zd, set root child confict(root(=curr) = %zd)", n_retry, curr);
+        DBUG("retry %zd, set root child confict(root(=curr) = %zd)", n_retry, curr);
+        lzf->m_race.n_fast_node_cas++;
         goto retry;
     }
 }
@@ -2212,12 +2324,13 @@ ForkBranch: {
         return true;
     }
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
+        lzf->m_race.lfl_curr.add_count(a[ni.oldSuffixNode]);
+        if (csppDebugLevel >= 3 || n_retry >= 100) {
+            INFO("retry %zd, fork confict %s on curr %zd", n_retry, StrFlags(a[ni.oldSuffixNode]), curr);
+        }
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
-        if (csppDebugLevel >= 4 || n_retry >= 1000) {
-            INFO("retry %zd, fork confict %s on curr %zd", n_retry, StrFlags(a[ni.oldSuffixNode]), curr);
-        }
         goto retry;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
@@ -2254,11 +2367,12 @@ SplitZpath: {
     // ni.oldSuffixNode is the copy of curr with zpath updated to suffix_str
     // curr may be lazy_freed or locked when we copy it
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
-        free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
-        free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
-        if (csppDebugLevel >= 4 || n_retry >= 1000) {
+        lzf->m_race.lfl_curr.add_count(a[ni.oldSuffixNode]);
+        if (csppDebugLevel >= 3 || n_retry >= 100) {
             INFO("retry %zd, split confict %s on curr %zd", n_retry, StrFlags(a[ni.oldSuffixNode]), curr);
         }
+        free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
+        free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         goto retry;
     }
     init_token_value_mw(newCurr, ni.oldSuffixNode, -1);
@@ -2278,15 +2392,17 @@ MarkFinalStateOnFastNode: {
     TERARK_ASSERT_EZ(a[curr].meta.b_lazy_free);
     TERARK_ASSERT_EZ(a[curr].meta.n_zpath_len);
     size_t valpos = AlignSize * (curr + 2 + 256);
+    // FLAG_set_final is needed because value must be set/init before set FLAG_final
     if (as_atomic(a[curr].flags).fetch_or(FLAG_set_final, std::memory_order_acq_rel) & FLAG_set_final) {
       // very rare: other thread set final
       // FLAG_set_final is permanent for FastNode: once set, never clear
+      lzf->m_race.n_fast_node_set_final++;
       use_busy_loop_measure;
       while (!(as_atomic(a[curr].flags).load(std::memory_order_relaxed) & FLAG_final)) {
           _mm_pause();
       }
       token->m_valpos = valpos;
-      INFO("dupkey mark final confict %s on curr %zd fast node", StrFlags(a[curr]), curr);
+      DBUG("dupkey mark final confict %s on curr %zd fast node", StrFlags(a[curr]), curr);
       goto HandleDupKey;
     }
     else {
@@ -2321,10 +2437,11 @@ MarkFinalStateOmitSetNodeInfo:
     tiny_memcpy_align_4(a->bytes + newpos,
                         a->bytes + oldpos, ni.va_offset);
     if (a[newcur].flags & (FLAG_lazy_free|FLAG_lock)) {
-        free_node<MultiWriteMultiRead>(newcur, newlen, lzf);
-        if (csppDebugLevel >= 4 || n_retry >= 1000) {
+        lzf->m_race.lfl_curr.add_count(a[newcur]);
+        if (csppDebugLevel >= 3 || n_retry >= 100) {
             INFO("retry %zd mark final confict %s on curr %zd", n_retry, StrFlags(a[newcur]), curr);
         }
+        free_node<MultiWriteMultiRead>(newcur, newlen, lzf);
         goto retry;
     }
     a[newcur].meta.b_is_final = true;

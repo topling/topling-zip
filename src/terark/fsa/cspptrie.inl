@@ -183,6 +183,33 @@ protected:
     size_t     m_n_words;
     Stat       m_stat;
 
+    // retry count for different cases:
+    struct LazyFreeOrLockCount {
+        void add_count(PatriciaNode);
+        void operator+=(const LazyFreeOrLockCount&);
+        void reset_race();
+        size_t n_lazy_free_lock = 0;
+        size_t n_lazy_free = 0;
+        size_t n_lock_only = 0;
+    };
+    struct RaceCounter {
+        LazyFreeOrLockCount lfl_curr;
+        LazyFreeOrLockCount lfl_parent;
+        size_t n_retry = 0; // total retry
+        size_t n_fast_node_cas = 0;
+        size_t n_fast_node_set_final = 0;
+        size_t n_curr_slot_cas = 0;
+        size_t n_diff_backup = 0;
+        size_t n_yield_cnt = 0;
+        size_t n_yield_ns  = 0;
+        size_t n_sleep_cnt = 0;
+        size_t n_sleep_ns  = 0;
+        void operator+=(const RaceCounter&);
+        void reset_race();
+    };
+    RaceCounter m_race;
+    //std::map<size_t, size_t> m_retry_histgram;
+
     enum class HugePageEnum { kNone = 0, kMmap = 1, kTransparent = 2 };
     void alloc_mempool_space(intptr_t maxMem, HugePageEnum);
 
