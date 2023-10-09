@@ -531,7 +531,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
   if (MultiWriteMultiRead == m_writing_concurrent_level) {
     size_t sum_retry = 0;
     size_t uni_retry = 0;
-    size_t thread_nth = 0;
+    size_t thread_idx = 0;
     std::map<size_t, size_t> retry_histgram;
     auto sync = [&](TCMemPoolOneThread<AlignSize>* tc) {
       auto lzf = static_cast<LazyFreeListTLS*>(tc);
@@ -547,7 +547,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       lzf->m_zpath_states = 0;
 
       sum_retry += lzf->m_n_retry;
-      INFO("PatriciaMW: thread_nth = %3zd, tls_retry = %8zd", thread_nth, lzf->m_n_retry);
+      INFO("PatriciaMW: thread_idx = %3zd, tls_retry = %8zd", thread_idx, lzf->m_n_retry);
       lzf->m_n_retry = 0;
       if (csppDebugLevel >= 3) {
         for (auto& kv : lzf->m_retry_histgram) {
@@ -556,7 +556,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
           kv.second = 0;
         }
       }
-      thread_nth++;
+      thread_idx++;
     };
     m_counter_mutex.lock();
     m_mempool_lock_free.for_each_tls(sync);
@@ -564,7 +564,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     m_mempool_lock_free.sync_frag_size();
     if (csppDebugLevel >= 2 && m_n_words) {
       INFO("PatriciaMW: thread_num = %3zd, sum_retry = %8zd, n_words = %zd, retry/n_words = %f",
-           thread_nth, sum_retry, m_n_words, double(sum_retry)/m_n_words);
+           thread_idx, sum_retry, m_n_words, double(sum_retry)/m_n_words);
     }
     if (csppDebugLevel >= 3 && m_n_words) {
       std::string str;
@@ -1907,7 +1907,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         lzf->m_total_zpath_len += key.size() - pos - nodeIncNum;
         lzf->push_back({ age, uint32_t(curr), ni.node_size });
         lzf->m_mem_size += ni.node_size;
-        if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
+        if (terark_unlikely(n_retry && csppDebugLevel >= 3)) {
             lzf->m_retry_histgram[n_retry]++;
         }
         CheckLazyFreeListSize(*lzf, SMART_FUNC);
