@@ -3046,18 +3046,76 @@ void PatriciaMem<Align>::free_aux(size_t pos, size_t size) {
     }
 }
 
+PatriciaMemMF(size_t)mem_gc(TokenBase* token) {
+    if (forceLeakMem) {
+      return 0;
+    }
+    switch (m_writing_concurrent_level) {
+    default:
+        TERARK_DIE("m_writing_concurrent_level = %d", m_writing_concurrent_level);
+        return 0;
+    case MultiWriteMultiRead:
+      {
+        assert(nullptr != token->m_tls);
+        auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
+        size_t old = lzf->m_mem_size;
+        revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
+        assert(old>= lzf->m_mem_size);
+        return old - lzf->m_mem_size;
+      }
+    case OneWriteMultiRead:
+      {
+        size_t old = m_lazy_free_list_sgl.m_mem_size;
+        revoke_expired_nodes<OneWriteMultiRead>();
+        assert(old>= m_lazy_free_list_sgl.m_mem_size);
+        return old - m_lazy_free_list_sgl.m_mem_size;
+      }
+    case SingleThreadStrict:
+    case SingleThreadShared: return 0;
+    case NoWriteReadOnly:
+        TERARK_DIE("bad m_writing_concurrent_level = NoWriteReadOnly");
+        return 0;
+    }
+}
+
 template<size_t Align>
 void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
-    auto conLevel = m_writing_concurrent_level;
-    if (conLevel >= SingleThreadShared) {
-        ullong   verseq = m_dummy.m_verseq;
-        auto& lzf = lazy_free_list(conLevel);
+    mem_lazy_free(loc, size, &m_dummy);
+}
+PatriciaMemMF(void)mem_lazy_free(size_t loc, size_t size, TokenBase* token) {
+    if (forceLeakMem) {
+      return;
+    }
+    switch (m_writing_concurrent_level) {
+    default:
+        TERARK_DIE("m_writing_concurrent_level = %d", m_writing_concurrent_level);
+        break;
+    case MultiWriteMultiRead:
+      {
+        assert(nullptr != token->m_tls);
+        ullong   verseq = token->m_verseq;
+        auto& lzf = *reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
         lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
         CheckLazyFreeListSize(lzf, SMART_FUNC);
-    }
-    else {
+        break;
+      }
+    case OneWriteMultiRead:
+    case SingleThreadShared:
+      {
+        ullong   verseq = token->m_verseq;
+        auto& lzf = m_lazy_free_list_sgl;
+        lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
+        lzf.m_mem_size += size;
+        CheckLazyFreeListSize(lzf, SMART_FUNC);
+        break;
+      }
+    case SingleThreadStrict:
         mem_free(loc, size);
+        break;
+    case NoWriteReadOnly:
+        TERARK_DIE("bad m_writing_concurrent_level = NoWriteReadOnly");
+        break;
     }
 }
 

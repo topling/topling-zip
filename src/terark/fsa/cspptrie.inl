@@ -93,6 +93,8 @@ public:
     bool has_freelist() const override final { return false; }
     bool is_free(size_t) const { assert(false); return false; }
 
+    size_t mem_gc(TokenBase*); ///< @returns bytes revoked from gc
+    void mem_lazy_free(size_t loc, size_t size, TokenBase*);
     void mem_lazy_free(size_t loc, size_t size);
 
     WriterTokenPtr& tls_writer_token() noexcept final;
