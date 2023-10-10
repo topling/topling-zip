@@ -666,7 +666,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       lzf->m_total_zpath_len = 0;
       lzf->m_zpath_states = 0;
 
-      if (csppDebugLevel >= 2) {
+      if (csppDebugLevel >= 2 && lzf->m_race.n_retry) {
         race_print("%5zd ", thread_idx, lzf->m_race);
         for (auto& kv : lzf->m_retry_histgram) {
           uni_retry += kv.second;
