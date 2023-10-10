@@ -1531,11 +1531,12 @@ bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
 
 template<class List>
 static void CheckLazyFreeListSize(List& lst, const char* func) {
-    static const size_t cnt = 8*1024;
-    if (terark_unlikely(lst.size() >= cnt && lst.size() % cnt == 0 &&
+    if (terark_unlikely(lst.size() >= 8192 && lst.size() % 8192 == 0 &&
                         lst.size() != lst.m_size_too_large_loged)) {
         lst.m_size_too_large_loged = lst.size();
-        WARN("%s: lazy_free queue is too large = %zd, latency may be large", func, lst.size());
+        INFO("%s: too large lazy_free{%zd K, %7.3f KiB}, revoke{fail %zd, probe %zd}",
+             func, lst.size() / 1024, lst.m_mem_size / 1024.0,
+             lst.m_revoke_fail_cnt, lst.m_revoke_probe_cnt);
     }
 }
 
@@ -2771,9 +2772,10 @@ static long g_lazy_free_debug_level =
         }
     }
     if (0 == revoke_size) {
-        if (++lazy_free_list.m_revoke_fail_cnt % 1024 == 0) {
-            WARN("m_revoke_fail_cnt = %zd K, lazy_free_list{%4zd, m_mem_size = %.3f KiB}",
+        if (++lazy_free_list.m_revoke_fail_cnt % 8192 == 0) {
+            INFO("revoke{fail %zd K, probe %zd}, lazy_free{%4zd, %7.3f KiB}",
                  lazy_free_list.m_revoke_fail_cnt / 1024,
+                 lazy_free_list.m_revoke_probe_cnt,
                  lazy_free_list.size(), lazy_free_list.m_mem_size/1024.0);
         }
     } else {
