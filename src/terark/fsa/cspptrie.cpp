@@ -538,6 +538,24 @@ void PatriciaMem<Align>::set_readonly() {
 #define PatriciaMemMF(Return) \
     template<size_t Align> Return PatriciaMem<Align>::
 
+PatriciaMemMF(void)for_each_tls_token(std::function<void(TokenBase*)> func) {
+    if (MultiWriteMultiRead == m_writing_concurrent_level) {
+        auto fn = [func=std::move(func)](TCMemPoolOneThread<AlignSize>* tc) {
+            auto lzf = static_cast<LazyFreeListTLS*>(tc);
+            if (auto token = lzf->m_writer_token.get()) {
+                func(token);
+            }
+            if (auto token = lzf->m_reader_token.get()) {
+                func(token);
+            }
+        };
+        m_mempool_lock_free.for_each_tls(fn);
+    }
+    else {
+        TERARK_DIE("Not MultiWriteMultiRead: TODO");
+    }
+}
+
 PatriciaMemMF(void)LazyFreeOrLockCount::add_count(PatriciaNode node) {
     if (BitsContainsAll(node.flags, FLAG_lazy_free|FLAG_lock))
         n_lazy_free_lock++;

@@ -99,6 +99,7 @@ public:
 
     WriterTokenPtr& tls_writer_token() noexcept final;
     ReaderToken* tls_reader_token() noexcept final;
+    void for_each_tls_token(std::function<void(TokenBase*)>) final;
 
     template<class T>
     T value_of(const TokenBase& token) const {

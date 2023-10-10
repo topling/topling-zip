@@ -233,6 +233,8 @@ public:
         return static_cast<PtrType>(token.get());
     }
 
+    virtual void for_each_tls_token(std::function<void(TokenBase*)>) = 0;
+
     Iterator* new_iter(size_t root = initial_state) const;
     size_t iter_mem_size(size_t root = initial_state) const;
     void cons_iter(void* mem, size_t root = initial_state) const;
