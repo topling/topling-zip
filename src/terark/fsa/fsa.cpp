@@ -909,7 +909,7 @@ void BaseDFA::self_mmap_user_mem(const void* baseptr, size_t length) {
 
 long BaseDFA::stat_impl(DFA_MmapHeader* pHeader, const void** dataPtrs) const {
 	DFA_MmapHeader& header = *pHeader;
-	memset(&header, 0, sizeof(header));
+	//memset(&header, 0, sizeof(header)); // do not memset!!
 	const DFA_ClassMetaInfo* meta = DFA_ClassMetaInfo::find(this);
 	if (NULL == meta) {
 		TERARK_THROW(std::invalid_argument,
@@ -989,7 +989,7 @@ void BaseDFA::save_mmap(function<void(fstring)> write) const {
 void BaseDFA::save_mmap(function<void(const void*, size_t)> write)
 const {
 	const void* dataPtrs[DFA_MmapHeader::MAX_BLOCK_NUM] = { NULL };
-	DFA_MmapHeader header;
+	DFA_MmapHeader header = {}; // zero
 	long need_free_mask = stat_impl(&header, dataPtrs);
 	TERARK_SCOPE_EXIT(
 		free_save_mmap_ptrs(header.num_blocks, dataPtrs, need_free_mask);
