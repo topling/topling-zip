@@ -66,20 +66,16 @@ static inline bool BitsContainsAll(BitSet bitset, SubSet subset) {
 }
 
 static const char* StrNodeFlags(uint08_t flags) {
-    if ((flags & (FLAG_lazy_free|FLAG_set_final|FLAG_lock))
-              == (FLAG_lazy_free|FLAG_set_final|FLAG_lock))
+    if (BitsContainsAll(flags, FLAG_lazy_free|FLAG_set_final|FLAG_lock))
         return "LazyFree|SetFinal|Lock";
 
-    if ((flags & (FLAG_lazy_free|FLAG_set_final))
-              == (FLAG_lazy_free|FLAG_set_final))
+    if (BitsContainsAll(flags, FLAG_lazy_free|FLAG_set_final))
         return "LazyFree|SetFinal";
 
-    if ((flags & (FLAG_lazy_free|FLAG_lock))
-              == (FLAG_lazy_free|FLAG_lock))
+    if (BitsContainsAll(flags, FLAG_lazy_free|FLAG_lock))
         return "LazyFree|Lock";
 
-    if ((flags & (FLAG_set_final|FLAG_lock))
-              == (FLAG_set_final|FLAG_lock))
+    if (BitsContainsAll(flags, FLAG_set_final|FLAG_lock))
         return "SetFinal|Lock";
 
     if (flags & FLAG_lazy_free) return "LazyFree";
