@@ -1,48 +1,42 @@
 ﻿#pragma once
 
-#include "gold_hash_map.hpp"
 #include "valvec.hpp"
 
 namespace terark {
 
-// 
+//
 // 直方图的值表示长度，高表示条目数量
-// 
+//
 template<class index_t>
 class TERARK_DLL_EXPORT Histogram {
     terark::valvec<index_t> m_small_cnt;
     terark::valvec<std::pair<index_t, index_t> > m_large_cnt_compact;
-    terark::gold_hash_map<index_t, index_t> m_large_cnt;
+    struct LargeKeyCntMap;
+    std::unique_ptr<LargeKeyCntMap> m_large_cnt;
+    index_t& GetLargeKeyCnt(size_t key);
     size_t m_max_small_value;
+    Histogram(const Histogram&) = delete;
+    Histogram& operator=(const Histogram&) = delete;
 
 public:
-    // 列数
-    size_t m_distinct_key_cnt;
-    // 所有列高度之和
-    size_t m_cnt_sum;
-    // 总面积
-    size_t m_total_key_len;
-    // 最左列的值
-    index_t m_min_key_len;
-    // 最右列的值
-    index_t m_max_key_len;
-    // 最低列的值
-    index_t m_min_cnt_key;
-    // 最高列的值
-    index_t m_max_cnt_key;
-    // 最低列的高度
-    size_t m_cnt_of_min_cnt_key;
-    // 最高列的高度
-    size_t m_cnt_of_max_cnt_key;
+    size_t  m_distinct_key_cnt;   ///< 列数，不同 key 的数量
+    size_t  m_cnt_sum;            ///< 所有列高度之和
+    size_t  m_total_key_len;      ///< 总面积
+    index_t m_min_key_len;        ///< 最左列的值
+    index_t m_max_key_len;        ///< 最右列的值
+    index_t m_min_cnt_key;        ///< 最低列的值
+    index_t m_max_cnt_key;        ///< 最高列的值
+    size_t  m_cnt_of_min_cnt_key; ///< 最低列的高度
+    size_t  m_cnt_of_max_cnt_key; ///< 最高列的高度
 
     ~Histogram();
     Histogram(size_t max_small_value);
     Histogram();
-    index_t& operator[](size_t val) {
-        if (val < m_max_small_value)
-            return m_small_cnt[val];
+    index_t& operator[](size_t key) {
+        if (key < m_max_small_value)
+            return m_small_cnt[key];
         else
-            return m_large_cnt[val];
+            return GetLargeKeyCnt(key);
     }
     void finish();
 

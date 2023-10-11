@@ -1,6 +1,15 @@
 ﻿#include "histogram.hpp"
+#include "gold_hash_map.hpp"
 
 namespace terark {
+
+template<class index_t>
+struct Histogram<index_t>::LargeKeyCntMap : gold_hash_map<index_t, index_t> {
+};
+template<class index_t>
+index_t& Histogram<index_t>::GetLargeKeyCnt(size_t key) {
+    return (*m_large_cnt)[key];
+}
 
 template<class index_t>
 Histogram<index_t>::~Histogram() {
@@ -20,6 +29,7 @@ Histogram<index_t>::Histogram(size_t max_small_value)
     m_cnt_of_min_cnt_key = size_t(-1);
     m_cnt_of_max_cnt_key = 0;
     m_small_cnt.resize(m_max_small_value, 0);
+    m_large_cnt.reset(new LargeKeyCntMap());
 }
 
 template<class index_t>
@@ -62,12 +72,12 @@ void Histogram<index_t>::finish() {
             }
         }
     }
-    m_large_cnt_compact.resize_no_init(m_large_cnt.size());
+    m_large_cnt_compact.resize_no_init(m_large_cnt->size());
     auto large_beg = m_large_cnt_compact.begin();
-    auto large_num = m_large_cnt.end_i();
+    auto large_num = m_large_cnt->end_i();
     for (size_t idx = 0; idx < large_num; ++idx) {
-        index_t key = m_large_cnt.key(idx);
-        index_t cnt = m_large_cnt.val(idx);
+        index_t key = m_large_cnt->key(idx);
+        index_t cnt = m_large_cnt->val(idx);
         large_beg[idx] = std::make_pair(key, cnt);
         sum += cnt;
         len += cnt * key;
@@ -86,6 +96,8 @@ void Histogram<index_t>::finish() {
           m_max_key_len = key;
         }
     }
+    m_large_cnt.reset(nullptr); // need not anymore
+
     m_distinct_key_cnt = distinct_cnt + large_num;
     m_cnt_sum = sum;
     m_total_key_len = len;
