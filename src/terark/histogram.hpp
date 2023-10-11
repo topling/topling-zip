@@ -5,7 +5,8 @@
 namespace terark {
 
 //
-// 直方图的值表示长度，高表示条目数量
+// 直方图的 key 表示长度，高表示条目数量
+// 即：X 轴的值表示 key， Y 轴的值表示相应 key 的数量
 //
 template<class index_t>
 class TERARK_DLL_EXPORT Histogram {
@@ -20,14 +21,14 @@ class TERARK_DLL_EXPORT Histogram {
 
 public:
     size_t  m_distinct_key_cnt;   ///< 列数，不同 key 的数量
-    size_t  m_cnt_sum;            ///< 所有列高度之和
-    size_t  m_total_key_len;      ///< 总面积
-    index_t m_min_key_len;        ///< 最左列的值
-    index_t m_max_key_len;        ///< 最右列的值
-    index_t m_min_cnt_key;        ///< 最低列的值
-    index_t m_max_cnt_key;        ///< 最高列的值
-    size_t  m_cnt_of_min_cnt_key; ///< 最低列的高度
-    size_t  m_cnt_of_max_cnt_key; ///< 最高列的高度
+    size_t  m_cnt_sum;            ///< 相当于   f(x) 的积分，如果 x 为单条数据长度，y = f(x) 为相应长度的数据条数，该值即为总的数据条数
+    size_t  m_total_key_len;      ///< 相当于 x*f(x) 的积分，如果 x 为单条数据长度，y = f(x) 为相应长度的数据条数，该值即为总的数据长度
+    index_t m_min_key_len;        ///< 最左列的 key，忽略 y 为 0 的点，该值即为 y 非 0 的最小 x
+    index_t m_max_key_len;        ///< 最右列的 key，忽略 y 为 0 的点，该值即为 y 非 0 的最大 x
+    index_t m_min_cnt_key;        ///< 最低列的 key，即最小的 y 对应的 x，可能有多个这样的 x，取这些 x 中最小的那个
+    index_t m_max_cnt_key;        ///< 最高列的 key，即最大的 y 对应的 x，可能有多个这样的 x，取这些 x 中最小的那个
+    size_t  m_cnt_of_min_cnt_key; ///< 最低列的高度，即 y 的最小值
+    size_t  m_cnt_of_max_cnt_key; ///< 最高列的高度，即 y 的最大值
 
     ~Histogram();
     Histogram(size_t max_small_value);
