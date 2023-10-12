@@ -1087,6 +1087,8 @@ void PatriciaMem<Align>::destroy() {
     case  SingleThreadShared: destroy_obj(&m_mempool_lock_none); break;
     case     NoWriteReadOnly: break; // do nothing
     }
+    TERARK_VERIFY_EQ(0, m_token_qlen);
+    TERARK_VERIFY_EQ(0, m_live_iter_num);
 }
 
 template<size_t Align>
