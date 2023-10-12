@@ -14,19 +14,13 @@
 
 #include "cspptrie.hpp"
 #include <limits.h>
-#include <boost/noncopyable.hpp>
-#include <boost/lockfree/queue.hpp>
 #include <terark/bitmap.hpp>
 #include <terark/mempool.hpp>
 #include <terark/mempool_fixed_cap.hpp>
 #include <terark/mempool_lock_none.hpp>
-#include <terark/mempool_lock_free.hpp>
+//#include <terark/mempool_lock_free.hpp>
 #include <terark/mempool_thread_cache.hpp>
-#include <terark/thread/mutex.hpp>
 #include <terark/util/throw.hpp>
-#include <terark/util/autofree.hpp>
-#include <terark/util/auto_grow_circular_queue.hpp>
-#include <deque>
 #include <mutex>
 #if defined(TerarkFSA_HighPrivate)
 #include "dfa_algo.hpp"
@@ -117,25 +111,11 @@ public:
     const std::string& mmap_fpath() const { return m_mmap_fpath; }
 
 protected:
-    struct LazyFreeItem {
-        ullong   age;
-        pos_type node;
-        pos_type size;
-    };
-    struct LazyFreeListBase : AutoGrowCircularQueue2d<LazyFreeItem> {
-        LazyFreeListBase() : AutoGrowCircularQueue2d<LazyFreeItem>(256, 256) {}
-    };
-    //using  LazyFreeListBase = std::deque<LazyFreeItem>;
-    struct LazyFreeList : LazyFreeListBase {
-        size_t m_mem_size = 0;
-        size_t m_revoke_fail_cnt = 0;
-        size_t m_revoke_probe_cnt = 0;
-        size_t m_size_too_large_loged = 0;
-    };
+    struct LazyFreeItem;
+    struct LazyFreeListBase;
+    struct LazyFreeList;
     struct LazyFreeListTLS;
-    union {
-        LazyFreeList    m_lazy_free_list_sgl; // single
-    };
+    std::unique_ptr<LazyFreeList> m_lazy_free_list_sgl; // single
     WriterTokenPtr m_writer_token_sgl;
     struct ReaderTokenTLS_Holder;
     struct ReaderTokenTLS_Object {

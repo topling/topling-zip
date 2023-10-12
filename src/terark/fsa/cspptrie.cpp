@@ -19,6 +19,11 @@
 #include <terark/num_to_str.hpp>
 #include "fast_search_byte.hpp"
 
+#include <terark/util/auto_grow_circular_queue.hpp>
+#include <boost/container/deque.hpp>
+#include <boost/predef.h>
+#include <deque>
+
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
 #	include <io.h>
 #	include <sys/types.h>
@@ -41,7 +46,6 @@
 #include <random>
 
 #if BOOST_OS_LINUX
-    //#include <sched.h>
     //#include <linux/getcpu.h>
     #include <syscall.h>
     #include <linux/mman.h>
@@ -282,6 +286,38 @@ struct busy_loop_measure {
 #define std__this_thread__yield std::this_thread::yield
 #endif
 
+#define PatriciaMemMF(Return) \
+    template<size_t Align> Return PatriciaMem<Align>::
+
+PatriciaMemMF(struct)LazyFreeItem {
+    ullong   age;
+    pos_type node;
+    pos_type size;
+};
+
+#if 0
+PatriciaMemMF(struct)LazyFreeListBase : AutoGrowCircularQueue2d<LazyFreeItem> {
+    LazyFreeListBase() : AutoGrowCircularQueue2d<LazyFreeItem>(256, 256) {}
+};
+#elif 1
+PatriciaMemMF(struct)LazyFreeListBase : AutoGrowCircularQueue<LazyFreeItem> {
+    LazyFreeListBase() : AutoGrowCircularQueue<LazyFreeItem>(1024) {}
+};
+#elif 1
+namespace bstcont = boost::container;
+using dq_option = bstcont::deque_options<bstcont::block_size<256u> >::type;
+PatriciaMemMF(struct)LazyFreeListBase : bstcont::deque<LazyFreeItem, void, dq_option> {};
+#elif 1
+PatriciaMemMF(struct)LazyFreeListBase : std::deque<LazyFreeItem> {};
+#endif
+
+PatriciaMemMF(struct)LazyFreeList : LazyFreeListBase {
+    size_t m_mem_size = 0;
+    size_t m_revoke_fail_cnt = 0;
+    size_t m_revoke_probe_cnt = 0;
+    size_t m_size_too_large_loged = 0;
+};
+
 template<size_t Align>
 struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, LazyFreeList {
     size_t m_n_nodes = 0;
@@ -324,7 +360,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     if (conLevel >= MultiWriteMultiRead) {
     }
     else if (conLevel >= SingleThreadShared) {
-        new(&m_lazy_free_list_sgl)LazyFreeList();
+        m_lazy_free_list_sgl.reset(new LazyFreeList());
         new(&m_reader_token_sgl_tls)ReaderTokenTLS_Holder();
     }
     m_n_nodes = 1; // root will be pre-created
@@ -359,7 +395,7 @@ PatriciaMem<Align>::lazy_free_list(ConcurrentLevel conLevel) {
         auto tc = m_mempool_lock_free.tls();
         return static_cast<LazyFreeListTLS&>(*tc);
     } else {
-        return m_lazy_free_list_sgl;
+        return *m_lazy_free_list_sgl;
     }
 }
 
@@ -530,9 +566,6 @@ void PatriciaMem<Align>::set_readonly() {
     sync_stat();
     mempool_set_readonly();
 }
-
-#define PatriciaMemMF(Return) \
-    template<size_t Align> Return PatriciaMem<Align>::
 
 PatriciaMemMF(void)for_each_tls_token(std::function<void(TokenBase*)> func) {
     if (MultiWriteMultiRead == m_writing_concurrent_level) {
@@ -1042,7 +1075,7 @@ void PatriciaMem<Align>::destroy() {
     }
     else if (conLevel >= SingleThreadShared) {
         m_writer_token_sgl.reset();
-        m_lazy_free_list_sgl.~LazyFreeList();
+        m_lazy_free_list_sgl.reset();
         m_reader_token_sgl_tls.~ReaderTokenTLS_Holder();
     }
     if (this->mmap_base && !m_is_virtual_alloc) {
@@ -1122,7 +1155,7 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
         break;
     case   OneWriteMultiRead:
         m_mempool_fixed_cap.get_fastbin(&ms->fastbin);
-        get_lzf(&m_lazy_free_list_sgl);
+        get_lzf(m_lazy_free_list_sgl.get());
         ms->huge_cnt  = m_mempool_fixed_cap.get_huge_stat(&ms->huge_size);
         ms->frag_size = m_mempool_fixed_cap.frag_size();
         break;
@@ -1133,7 +1166,7 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
         break;
     case  SingleThreadShared:
         m_mempool_lock_none.get_fastbin(&ms->fastbin);
-        get_lzf(&m_lazy_free_list_sgl);
+        get_lzf(m_lazy_free_list_sgl.get());
         ms->huge_cnt  = m_mempool_lock_none.get_huge_stat(&ms->huge_size);
         ms->frag_size = m_mempool_lock_none.frag_size();
         break;
@@ -1572,9 +1605,9 @@ auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
     TERARK_ASSERT_NE(newCurr, curr);
     if (ConLevel != SingleThreadStrict) {
         ullong   age = token->m_verseq;
-        m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
-        m_lazy_free_list_sgl.m_mem_size += ni.node_size;
-        CheckLazyFreeListSize(m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
+        m_lazy_free_list_sgl->push_back({age, uint32_t(curr), ni.node_size});
+        m_lazy_free_list_sgl->m_mem_size += ni.node_size;
+        CheckLazyFreeListSize(*m_lazy_free_list_sgl, BOOST_CURRENT_FUNCTION);
     }
     else {
         free_node<SingleThreadStrict>(curr, ni.node_size, nullptr);
@@ -3081,10 +3114,10 @@ PatriciaMemMF(size_t)mem_gc(TokenBase* token) {
       }
     case OneWriteMultiRead:
       {
-        size_t old = m_lazy_free_list_sgl.m_mem_size;
+        size_t old = m_lazy_free_list_sgl->m_mem_size;
         revoke_expired_nodes<OneWriteMultiRead>();
-        assert(old>= m_lazy_free_list_sgl.m_mem_size);
-        return old - m_lazy_free_list_sgl.m_mem_size;
+        assert(old>= m_lazy_free_list_sgl->m_mem_size);
+        return old - m_lazy_free_list_sgl->m_mem_size;
       }
     case SingleThreadStrict:
     case SingleThreadShared: return 0;
@@ -3120,7 +3153,7 @@ PatriciaMemMF(void)mem_lazy_free(size_t loc, size_t size, TokenBase* token) {
     case SingleThreadShared:
       {
         ullong   verseq = token->m_verseq;
-        auto& lzf = m_lazy_free_list_sgl;
+        auto& lzf = *m_lazy_free_list_sgl;
         lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
         CheckLazyFreeListSize(lzf, SMART_FUNC);
@@ -3203,7 +3236,7 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
     }
     else if (m_mempool_concurrent_level >= SingleThreadShared) {
         m_writer_token_sgl.reset();
-        m_lazy_free_list_sgl.~LazyFreeList();
+        m_lazy_free_list_sgl.reset();
         m_reader_token_sgl_tls.~ReaderTokenTLS_Holder();
     }
     m_mempool_concurrent_level = NoWriteReadOnly;
