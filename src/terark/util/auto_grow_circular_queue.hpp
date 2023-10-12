@@ -28,6 +28,7 @@ public:
             STDEXT_destroy_range(m_vec + m_head, m_vec + m_cap);
             STDEXT_destroy_range(m_vec, m_vec + m_tail);
         }
+        free(m_vec);
     }
     explicit AutoGrowCircularQueue(size_t cap = 256) {
         m_vec = (T*)malloc(sizeof(T) * check_cap(cap));
