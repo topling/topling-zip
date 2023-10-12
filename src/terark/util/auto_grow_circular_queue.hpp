@@ -45,10 +45,27 @@ public:
         m_tail = y.m_tail;
         memcpy(m_vec, y.m_vec, sizeof(T) * m_cap);
     }
+    AutoGrowCircularQueue(AutoGrowCircularQueue&& y) {
+        m_vec  = y.m_vec ;
+        m_cap  = y.m_cap ;
+        m_head = y.m_head;
+        m_tail = y.m_tail;
+        y.m_vec  = nullptr;
+        y.m_cap  = 0;
+        y.m_head = 0;
+        y.m_tail = 0;
+    }
     AutoGrowCircularQueue& operator=(const AutoGrowCircularQueue& y) {
         if (&y != this) {
             this->~AutoGrowCircularQueue();
             new(this)AutoGrowCircularQueue(y);
+        }
+        return *this;
+    }
+    AutoGrowCircularQueue& operator=(AutoGrowCircularQueue&& y) {
+        if (&y != this) {
+            this->~AutoGrowCircularQueue();
+            new(this)AutoGrowCircularQueue(std::move(y));
         }
         return *this;
     }
