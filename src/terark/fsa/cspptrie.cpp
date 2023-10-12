@@ -2727,6 +2727,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
 }
 
 static const size_t BULK_FREE_NUM = getEnvLong("CSPP_BULK_FREE_NUM", 8);
+static const long g_lazy_free_debug_level = getEnvLong("Patricia_lazy_free_debug_level", 0);
 
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
@@ -2738,12 +2739,6 @@ template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel, class LazyList>
 void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, TokenBase* token) {
     if (ConLevel < SingleThreadShared) {
-        return;
-    }
-static long g_lazy_free_debug_level =
-    getEnvLong("Patricia_lazy_free_debug_level", 0);
-
-    if (ConLevel == SingleThreadStrict) {
         return;
     }
     ullong   min_verseq = ConLevel >= MultiWriteMultiRead
