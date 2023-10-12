@@ -90,6 +90,14 @@ public:
         }
         m_head = (m_head + 1) & (m_cap - 1);
     }
+    bool pop_front_then_check_empty() {
+        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
+        if (!std::is_trivially_destructible<T>::value) {
+            m_vec[m_head].~T();
+        }
+        m_head = (m_head + 1) & (m_cap - 1);
+        return m_head == m_tail;
+    }
     T pop_front_val() {
         assert(((m_tail - m_head) & (m_cap - 1)) > 0);
         T x(std::move(m_vec[m_head]));
@@ -244,8 +252,7 @@ public:
     }
     void pop_front() {
         assert(m_size > 0);
-        m_queue.front().pop_front();
-        if (terark_unlikely(m_queue.front().empty())) {
+        if (terark_unlikely(m_queue.front().pop_front_then_check_empty())) {
             m_queue.pop_front();
         }
         m_size--;
