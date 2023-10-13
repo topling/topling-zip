@@ -1579,7 +1579,11 @@ bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
 }
 
 template<class List>
+terark_forceinline
 static void CheckLazyFreeListSize(List& lst, const char* func) {
+    if (terark_likely(csppDebugLevel < 2)) {
+        return;
+    }
     if (terark_unlikely(lst.size() >= 8192 && lst.size() % 8192 == 0 &&
                         lst.size() != lst.m_size_too_large_loged)) {
         lst.m_size_too_large_loged = lst.size();
@@ -2731,15 +2735,16 @@ static const long g_lazy_free_debug_level = getEnvLong("Patricia_lazy_free_debug
 
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
-void PatriciaMem<Align>::revoke_expired_nodes() {
+size_t PatriciaMem<Align>::revoke_expired_nodes() {
     static_assert(ConLevel <= OneWriteMultiRead, "ConLevel <= OneWriteMultiRead");
-    revoke_expired_nodes<ConLevel>(lazy_free_list(ConLevel), NULL);
+    return revoke_expired_nodes<ConLevel>(lazy_free_list(ConLevel), NULL);
 }
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel, class LazyList>
-void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, TokenBase* token) {
+size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
+                                                TokenBase* token) {
     if (ConLevel < SingleThreadShared) {
-        return;
+        return 0;
     }
     ullong   min_verseq = ConLevel >= MultiWriteMultiRead
                      ? token->m_min_verseq // Cheap to read token->m_min_verseq
@@ -2795,7 +2800,6 @@ void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, TokenBas
         if (head.age < min_verseq) {
             free_node<ConLevel>(head.node, head.size, tls);
             revoke_size += head.size;
-            lazy_free_list.m_mem_size -= head.size;
             lazy_free_list.pop_front();
         } else {
             // if (ConLevel == MultiWriteMultiRead) {
@@ -2823,11 +2827,14 @@ void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, TokenBas
                  lazy_free_list.size(), lazy_free_list.m_mem_size/1024.0);
         }
     } else {
+        lazy_free_list.m_mem_size -= revoke_size;
         lazy_free_list.m_revoke_fail_cnt = 0;
         lazy_free_list.m_revoke_probe_cnt = 0;
     }
     if (g_lazy_free_debug_level > 0)
         print("B");
+
+    return revoke_size;
 }
 
 bool MainPatricia::lookup(fstring key, TokenBase* token) const {
@@ -3102,18 +3109,10 @@ PatriciaMemMF(size_t)mem_gc(TokenBase* token) {
       {
         assert(nullptr != token->m_tls);
         auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
-        size_t old = lzf->m_mem_size;
-        revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
-        assert(old>= lzf->m_mem_size);
-        return old - lzf->m_mem_size;
+        return revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
       }
     case OneWriteMultiRead:
-      {
-        size_t old = m_lazy_free_list_sgl->m_mem_size;
-        revoke_expired_nodes<OneWriteMultiRead>();
-        assert(old>= m_lazy_free_list_sgl->m_mem_size);
-        return old - m_lazy_free_list_sgl->m_mem_size;
-      }
+        return revoke_expired_nodes<OneWriteMultiRead>();
     case SingleThreadStrict:
     case SingleThreadShared: return 0;
     case NoWriteReadOnly:

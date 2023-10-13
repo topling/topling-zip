@@ -197,9 +197,9 @@ protected:
     void alloc_mempool_space(intptr_t maxMem, HugePageEnum);
 
     template<ConcurrentLevel>
-    void revoke_expired_nodes();
+    size_t revoke_expired_nodes();
     template<ConcurrentLevel, class LazyList>
-    void revoke_expired_nodes(LazyList&, TokenBase*);
+    size_t revoke_expired_nodes(LazyList&, TokenBase*);
     void check_valsize(size_t valsize) const;
 
     void finish_load_mmap(const DFA_MmapHeader*) override final;
