@@ -2741,8 +2741,7 @@ size_t PatriciaMem<Align>::revoke_expired_nodes() {
 }
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel, class LazyList>
-size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
-                                                TokenBase* token) {
+size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lzf, TokenBase* token) {
     if (ConLevel < SingleThreadShared) {
         return 0;
     }
@@ -2751,8 +2750,8 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
                      : this->m_dummy.m_min_verseq;
 
     auto print = [&](const char* sig) {
-        if (!lazy_free_list.empty()) {
-            const LazyFreeItem& head = lazy_free_list.front();
+        if (!lzf.empty()) {
+            const LazyFreeItem& head = lzf.front();
             if (ConLevel >= MultiWriteMultiRead)
               fprintf(stderr
                 , "%s:%08zX: is_head=%d, LazyFreeList.size = %zd, mem_size = %zd, min_verseq = %llu, trie.age = %llu, "
@@ -2760,8 +2759,8 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
                 , sig
                 , token->m_thread_id
                 , token->m_flags.is_head
-                , lazy_free_list.size()
-                , lazy_free_list.m_mem_size
+                , lzf.size()
+                , lzf.m_mem_size
                 , (long long)min_verseq
                 , (long long)token->m_verseq
                 , (long long)head.age, (long long)head.node, (long long)head.size
@@ -2772,8 +2771,8 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
                   "head = { age = %llu, node = %llu, size = %llu }\n"
                 , sig
                 , ThisThreadID()
-                , lazy_free_list.size()
-                , lazy_free_list.m_mem_size
+                , lzf.size()
+                , lzf.m_mem_size
                 , (long long)min_verseq
                 , (long long)m_dummy.m_verseq
                 , (long long)head.age, (long long)head.node, (long long)head.size
@@ -2786,11 +2785,11 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
   #if !defined(NDEBUG)
     //auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
   #endif
-    auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list);
-    size_t n = std::min(lazy_free_list.size(), BULK_FREE_NUM);
+    auto tls = static_cast<LazyFreeListTLS*>(&lzf);
+    size_t n = std::min(lzf.size(), BULK_FREE_NUM);
     size_t revoke_size = 0;
     for (size_t i = 0; i < n; ++i) {
-        const LazyFreeItem& head = lazy_free_list.front();
+        const LazyFreeItem& head = lzf.front();
         //assert(a[head.node].meta.b_lazy_free); // only for debug Patricia
         //assert(align_up(node_size(a + head.node, m_valsize), AlignSize) == head.size);
     // RetryCurr:
@@ -2800,7 +2799,7 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
         if (head.age < min_verseq) {
             free_node<ConLevel>(head.node, head.size, tls);
             revoke_size += head.size;
-            lazy_free_list.pop_front();
+            lzf.pop_front();
         } else {
             // if (ConLevel == MultiWriteMultiRead) {
             //     assert(tls == token->m_tls);
@@ -2820,16 +2819,16 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list,
         }
     }
     if (0 == revoke_size) {
-        if (++lazy_free_list.m_revoke_fail_cnt % 8192 == 0) {
+        if (++lzf.m_revoke_fail_cnt % 8192 == 0) {
             INFO("revoke{fail %zd K, probe %zd}, lazy_free{%4zd, %7.3f KiB}",
-                 lazy_free_list.m_revoke_fail_cnt / 1024,
-                 lazy_free_list.m_revoke_probe_cnt,
-                 lazy_free_list.size(), lazy_free_list.m_mem_size/1024.0);
+                 lzf.m_revoke_fail_cnt / 1024,
+                 lzf.m_revoke_probe_cnt,
+                 lzf.size(), lzf.m_mem_size/1024.0);
         }
     } else {
-        lazy_free_list.m_mem_size -= revoke_size;
-        lazy_free_list.m_revoke_fail_cnt = 0;
-        lazy_free_list.m_revoke_probe_cnt = 0;
+        lzf.m_mem_size -= revoke_size;
+        lzf.m_revoke_fail_cnt = 0;
+        lzf.m_revoke_probe_cnt = 0;
     }
     if (g_lazy_free_debug_level > 0)
         print("B");
