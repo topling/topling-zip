@@ -207,8 +207,7 @@ private:
         else {
             size_t tail = m_tail;
             if (head > 1) {
-                assert(tail >= 1);
-                assert(tail <= cap - 1);
+                assert(tail == head - 1);
                 memcpy(base + cap, base, sizeof(T)*(tail));
                 m_tail = cap + tail;
             } else if (1 == head) {
