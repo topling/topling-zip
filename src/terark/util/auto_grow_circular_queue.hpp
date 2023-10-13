@@ -206,8 +206,19 @@ private:
         }
         else {
             size_t tail = m_tail;
-            memcpy(base + cap, base, sizeof(T)*(tail));
-            m_tail = cap + tail;
+            if (head > 1) {
+                assert(tail >= 1);
+                assert(tail <= cap - 1);
+                memcpy(base + cap, base, sizeof(T)*(tail));
+                m_tail = cap + tail;
+            } else if (1 == head) {
+                assert(0 == tail);
+                m_tail = cap;
+            } else {
+                // do nothing
+                assert(head == 0);
+                assert(tail == cap - 1);
+            }
         }
         m_cap = cap * 2;
     }
