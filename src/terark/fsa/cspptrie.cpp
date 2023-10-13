@@ -20,6 +20,7 @@
 #include "fast_search_byte.hpp"
 
 #include <terark/util/auto_grow_circular_queue.hpp>
+#include <terark/util/auto_grow_circular_queue_matrix.hpp>
 #include <boost/container/deque.hpp>
 #include <boost/predef.h>
 #include <deque>
@@ -295,7 +296,11 @@ PatriciaMemMF(struct)LazyFreeItem {
     pos_type size;
 };
 
-#if 0
+#if 1
+PatriciaMemMF(struct)LazyFreeListBase : AutoGrowCircularQueueMatrix<LazyFreeItem> {
+    LazyFreeListBase() : AutoGrowCircularQueueMatrix<LazyFreeItem>(256, 256) {}
+};
+#elif 1
 PatriciaMemMF(struct)LazyFreeListBase : AutoGrowCircularQueue2d<LazyFreeItem> {
     LazyFreeListBase() : AutoGrowCircularQueue2d<LazyFreeItem>(256, 256) {}
 };
