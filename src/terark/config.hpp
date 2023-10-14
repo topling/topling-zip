@@ -147,6 +147,16 @@
   #define no_break_fallthrough  /* fall through */
 #endif
 
+#ifdef _MSC_VER
+#define TERARK_ASSUME(cond) __assume(cond)
+#elif defined(__clang__)
+#define TERARK_ASSUME(cond) __builtin_assume(cond)
+#elif defined(__GNUC__)
+#define TERARK_ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
+#else
+#define TERARK_ASSUME(cond) static_cast<void>(!!(cond))
+#endif
+
 #if defined(__gnu_linux__) || defined(__gnu_hurd__) || defined(__FreeBSD__)
     #define TERARK_HAS_WEAK_SYMBOL 1
     #define TERARK_WEAK_SYMBOL __attribute__((weak))

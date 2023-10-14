@@ -1,5 +1,6 @@
 #pragma once
 
+#include <terark/config.hpp> // for TERARK_ASSUME
 #include <map>
 #include <type_traits>
 
@@ -28,6 +29,7 @@ public:
     SmartMap() { }
 
     Value& operator[](const Key& key) {
+        TERARK_ASSUME(m_inline_cnt <= InlineCap);
         for (int i = 0; i < m_inline_cnt; i++) {
             if (key == m_inline_kv[i].first)
                 return m_inline_kv[i].second;
@@ -46,6 +48,7 @@ public:
 
     template<class OnKeyValuePair>
     void for_each(OnKeyValuePair fn) {
+        TERARK_ASSUME(m_inline_cnt <= InlineCap);
         for (int i = 0; i < m_inline_cnt; i++) {
             fn(m_inline_kv[i]);
         }
