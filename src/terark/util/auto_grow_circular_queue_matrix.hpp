@@ -1,8 +1,6 @@
 #pragma once
-#include <terark/util/function.hpp>
-#include <memory>
+#include <terark/stdtypes.hpp>
 #include <type_traits>
-#include <string.h>
 
 namespace terark {
 

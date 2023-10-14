@@ -1,14 +1,11 @@
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
-#include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <deque>
 #include <map>
 
 // pre include headers in auto_grow_circular_queue.hpp &
 //                        auto_grow_circular_queue_matrix.hpp
 #include <terark/util/function.hpp>
-#include <memory>
 #include <type_traits>
 #include <string.h>
 

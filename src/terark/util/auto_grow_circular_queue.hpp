@@ -1,8 +1,5 @@
 #pragma once
 #include <terark/util/function.hpp>
-#include <memory>
-#include <type_traits>
-#include <string.h>
 
 namespace terark {
 

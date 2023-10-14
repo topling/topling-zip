@@ -8,7 +8,6 @@
 #endif
 #include <type_traits>
 
-#include <terark/config.hpp>
 #include <terark/preproc.hpp>
 #include <terark/stdtypes.hpp>
 #include <boost/mpl/bool.hpp>
