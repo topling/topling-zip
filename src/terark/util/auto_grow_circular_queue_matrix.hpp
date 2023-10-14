@@ -24,8 +24,14 @@ class AutoGrowCircularQueueMatrix {
     using MyType = AutoGrowCircularQueueMatrix;
 public:
     ~AutoGrowCircularQueueMatrix() {
-        while (!empty()) {
-            pop_front();
+        if (!std::is_trivially_destructible<T>::value) {
+            while (!empty()) {
+                pop_front();
+            }
+        }
+        for (size_t i = 0, rows = m_rows; i < rows; i++) {
+            if (m_mtrx[i])
+                free(m_mtrx[i]);
         }
         free(m_mtrx);
     }
