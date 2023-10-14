@@ -176,6 +176,7 @@ public:
         return m_vec[(m_tail - 1) & (m_cap - 1)];
     }
     size_t capacity() const { return m_cap; }
+    size_t remain()const{ return (m_head - m_tail) & (m_cap - 1); }
     size_t size() const { return (m_tail - m_head) & (m_cap - 1); }
     bool  empty() const { return m_head == m_tail; }
     bool  needs_expand() const { return size() == m_cap - 1; }

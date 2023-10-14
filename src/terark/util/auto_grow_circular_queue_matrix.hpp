@@ -123,6 +123,7 @@ public:
         return m_mtrx[tail_row][tail_col];
     }
     size_t capacity() const { return m_capa; }
+    size_t remain()const{ return (m_head - m_tail) & (m_capa - 1); }
     size_t size() const { return (m_tail - m_head) & (m_capa - 1); }
     bool  empty() const { return m_head == m_tail; }
     bool  needs_expand() const { return size() == m_capa - 1; }
