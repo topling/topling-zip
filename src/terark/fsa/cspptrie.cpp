@@ -1586,13 +1586,13 @@ bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
 template<class List>
 terark_forceinline
 static void CheckLazyFreeListSize(List& lst, const char* func) {
-    if (terark_likely(csppDebugLevel < 2)) {
+    if (terark_likely(csppDebugLevel < 3)) {
         return;
     }
     if (terark_unlikely(lst.size() >= 8192 && lst.size() % 8192 == 0 &&
                         lst.size() != lst.m_size_too_large_loged)) {
         lst.m_size_too_large_loged = lst.size();
-        INFO("%s: too large lazy_free{%zd K, %7.3f KiB}, revoke{fail %zd, probe %zd}",
+        DBUG("%s: too large lazy_free{%zd K, %7.3f KiB}, revoke{fail %zd, probe %zd}",
              func, lst.size() / 1024, lst.m_mem_size / 1024.0,
              lst.m_revoke_fail_cnt, lst.m_revoke_probe_cnt);
     }
@@ -2081,7 +2081,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
-        CheckLazyFreeListSize(*lzf, SMART_FUNC);
+        CheckLazyFreeListSize(*lzf, "insert_multi_writer");
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
@@ -2825,7 +2825,7 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lzf, TokenBase* token)
     }
     if (0 == revoke_size) {
         if (++lzf.m_revoke_fail_cnt % 8192 == 0) {
-            INFO("revoke{fail %zd K, probe %zd}, lazy_free{%4zd, %7.3f KiB}",
+            DBUG("revoke{fail %zd K, probe %zd}, lazy_free{%4zd, %7.3f KiB}",
                  lzf.m_revoke_fail_cnt / 1024,
                  lzf.m_revoke_probe_cnt,
                  lzf.size(), lzf.m_mem_size/1024.0);
