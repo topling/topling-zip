@@ -410,5 +410,9 @@ void DaCacheFixedStrVec::load_mmap(const byte_t* mem, size_t len) {
     this->optimize_func();
 }
 
+fstring DaCacheFixedStrVec::da_memory() const noexcept {
+    return fstring((const char*)m_da_data, sizeof(m_da_data[0]) * m_da_size);
+}
+
 } // namespace terark
 

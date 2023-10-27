@@ -53,6 +53,7 @@ public:
     size_t size_mmap() const;
     void load_mmap(fstring mem) { load_mmap(mem.udata(), mem.size()); }
     void load_mmap(const byte_t* mem, size_t len);
+    fstring da_memory() const noexcept;
 };
 
 } // namespace terark
