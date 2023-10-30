@@ -429,18 +429,24 @@ init_for_term(const RankSelectTerm& is_term) {
     TERARK_VERIFY_EQ(id, m_louds.max_rank1());
 
     index_t layer_max = m_layer_id_rank.size();
-    m_layer_ref.resize_no_init(layer_max);
+    // layer_ref and m_layer_id_rank are parallel array
+    auto layer_ref = (layer_ref_t*)m_layer_id_rank.grow_capacity(
+        (layer_max + 1) * sizeof(layer_ref_t) / sizeof(layer_id_rank_t));
+    TERARK_VERIFY_GE(m_layer_id_rank.full_mem_size(),
+        (sizeof(layer_ref_t) + sizeof(layer_id_rank_t)) * layer_max);
+
     index_t layer_id = 0, layer_size = 0;
     for (index_t i = 0; i < layer_max; ++i) {
         index_t end_id = i == layer_max - 1
                        ? (index_t)is_term.size() : m_layer_id_rank[i + 1].id;
-        m_layer_ref[i] = layer_ref_t{m_layer_id_rank[i].id, end_id, 0};
+        layer_ref[i] = layer_ref_t{m_layer_id_rank[i].id, end_id, 0};
         index_t size = end_id - m_layer_id_rank[i].id;
         if (size > layer_size) {
             layer_id = i;
             layer_size = size;
         }
     }
+    m_layer_ref = layer_ref;
     m_max_layer_id = layer_id;
     m_max_layer_size = layer_size;
 }
@@ -809,10 +815,12 @@ dict_rank_to_state(size_t index, const RankSelectTerm& is_term) const noexcept {
     assert(index < m_louds.max_rank1());
     size_t layer_max = m_layer_id_rank.size();
 #if 0
-    valvec<layer_ref_t> layer = m_layer_ref;
+    valvec<layer_ref_t> layer(m_layer_ref, m_layer_id_rank.size());
 #else
-    layer_ref_t* layer = (layer_ref_t*)alloca(m_layer_ref.used_mem_size());
-    memcpy(layer, m_layer_ref.data(), m_layer_ref.used_mem_size());
+    TERARK_ASSERT_EQ((void*)m_layer_ref, m_layer_id_rank.end());
+    size_t layer_ref_mem_size = sizeof(layer_ref_t) * m_layer_id_rank.size();
+    layer_ref_t* layer = (layer_ref_t*)alloca(layer_ref_mem_size);
+    memcpy(layer, m_layer_ref, layer_ref_mem_size);
 #endif
     size_t layer_id = m_max_layer_id, layer_size = m_max_layer_size;
     while (true) {

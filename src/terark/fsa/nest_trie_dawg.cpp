@@ -475,6 +475,15 @@ NestTrieDAWG<NestTrie, DawgType>::dict_rank_to_state(size_t rank) const noexcept
     return m_trie->dict_rank_to_state(rank, getIsTerm());
 }
 
+struct DictRankMetaData {
+	uint64_t m_num_layer;
+	uint64_t m_max_layer_id;
+	uint64_t m_max_layer_size;
+	bool has_dict_rank_block() const {
+		 return m_num_layer && m_max_layer_id && m_max_layer_size;
+	}
+};
+
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::finish_load_mmap(const DFA_MmapHeader* base) {
@@ -482,16 +491,27 @@ NestTrieDAWG<NestTrie, DawgType>::finish_load_mmap(const DFA_MmapHeader* base) {
 	byte_t* bbase = (byte_t*)base;
 	m_trie = new NestTrie();
 	size_t i = 0;
+	auto dict_rank_block = (const DictRankMetaData*)base->reserve1;
+	bool has_dict_rank_block = dict_rank_block->has_dict_rank_block();
+	if (has_dict_rank_block) {
+		m_trie->risk_layer_load_user_mem(bbase  + base->blocks[0].offset,
+			size_t(dict_rank_block->m_num_layer), base->blocks[0].length);
+		m_trie->m_max_layer_id   = dict_rank_block->m_max_layer_id;
+		m_trie->m_max_layer_size = dict_rank_block->m_max_layer_size;
+		i++;
+	}
 	if (!NestTrie::is_link_rs_mixed::value) {
-		i = 1;
-		getIsTerm().risk_mmap_from(bbase + base->blocks[0].offset, base->blocks[0].length);
-		TERARK_VERIFY_EQ(base->num_blocks, 2);
+		getIsTerm().risk_mmap_from(bbase + base->blocks[i].offset, base->blocks[i].length);
+		TERARK_VERIFY_GE(base->num_blocks, i+2);
+		i++;
 	}
 	else {
-		TERARK_VERIFY_EQ(base->num_blocks, 1);
+		TERARK_VERIFY_GE(base->num_blocks, i+1);
 	}
 	m_trie->load_mmap(bbase + base->blocks[i].offset, base->blocks[i].length);
-    m_trie->init_for_term(getIsTerm());
+	if (!has_dict_rank_block) {
+		m_trie->init_for_term(getIsTerm());
+	}
     m_trie->m_max_strlen = base->atom_dfa_num;
     if (m_trie->m_max_strlen == 0) { // always 0 for old NLT File
         // will over allocate memory for Iterator
@@ -549,19 +569,27 @@ prepare_save_mmap(DFA_MmapHeader* base, const void** dataPtrs) const {
 	long need_free_mask = 0;
 	size_t blockIndex = 0;
 	size_t blockOffset = sizeof(DFA_MmapHeader);
-	if (!NestTrie::is_link_rs_mixed::value) {
-		dataPtrs[0] = getIsTerm().bldata();
-		base->blocks[0].offset = sizeof(DFA_MmapHeader);
-		base->blocks[0].length = getIsTerm().mem_size();
-		base->num_blocks = 2;
-		blockIndex = 1;
+	static bool wireLayerData = getEnvBool("NestLoudsTrie_wireLayerData", true);
+	if (wireLayerData) {
+		auto dict_rank_block = (DictRankMetaData*)base->reserve1;
+		dict_rank_block->m_num_layer = m_trie->layer_vec_size();
+		dict_rank_block->m_max_layer_id = m_trie->m_max_layer_id;
+		dict_rank_block->m_max_layer_size = m_trie->m_max_layer_size;
+		dataPtrs[0] = m_trie->layer_data_ptr();
+		base->blocks[0].offset = blockOffset;
+		base->blocks[0].length = m_trie->layer_data_len();
 		blockOffset = align_to_64(base->blocks[0].endpos());
-		need_free_mask = long(1) << 1;
+		blockIndex++;
 	}
-	else {
-		base->num_blocks = 1;
-		need_free_mask = long(1) << 0;
+	if (!NestTrie::is_link_rs_mixed::value) {
+		dataPtrs[blockIndex] = getIsTerm().bldata();
+		base->blocks[blockIndex].offset = blockOffset;
+		base->blocks[blockIndex].length = getIsTerm().mem_size();
+		blockOffset = align_to_64(base->blocks[blockIndex].endpos());
+		blockIndex++;
 	}
+	base->num_blocks = blockIndex + 1;
+	need_free_mask = long(1) << blockIndex;
 	size_t trie_mem_size = 0;
 	byte_t const* tmpbuf = m_trie->save_mmap(&trie_mem_size);
 	dataPtrs[blockIndex] = tmpbuf;
