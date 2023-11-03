@@ -338,7 +338,7 @@ public:
 		assert(!empty());
 		val = std::move(m_vec[m_head]);
 		m_vec[m_head].~ElemT();
-		m_head = next(m_head);
+		m_head = (int)next(m_head);
 	}
 
 	/**
@@ -351,7 +351,7 @@ public:
 	{
 		assert(!empty());
 		m_vec[m_head].~ElemT();
-		m_head = next(m_head);
+		m_head = (int)next(m_head);
 	}
 
 	/**
@@ -433,7 +433,7 @@ public:
 	void pop_back(ElemT& val)
 	{
 		assert(!empty());
-		m_tail = prev(m_tail);
+		m_tail = (int)prev(m_tail);
 		val = std::move(m_vec[m_tail]);
 		m_vec[m_tail].~ElemT();
 	}
@@ -446,7 +446,7 @@ public:
 	void pop_back()
 	{
 		assert(!empty());
-		m_tail = prev(m_tail);
+		m_tail = (int)prev(m_tail);
 		m_vec[m_tail].~ElemT();
 	}
 

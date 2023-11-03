@@ -475,7 +475,8 @@ static int neo_sais_core(
 	if(is_lms(T, A[i])){
 		if(!equal_str(S, T, A[i], lx, n)) nm++;
 		lx = A[i]; RS[A[i] >> 1] = nm;
-	}nm++;
+	}
+	nm++;
 	for(i = j = 0; i <= n >> 1; i++) if(~RS[i]) RS[j++] = RS[i];
   //gettimeofday(&rest, NULL);
 	if(nm < m) sais_int(RS, RA, m, nm);

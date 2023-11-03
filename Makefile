@@ -115,7 +115,7 @@ ASAN_LDFLAGS_r := ${RLS_ASAN}
 ASAN_LDFLAGS = ${ASAN_LDFLAGS_$(patsubst %-a,a,$(patsubst %-d,d,$(@:%${DLL_SUFFIX}=%)))}
 # ---------- ^-- lazy evaluation, must be '='
 
-CXX_STD := -std=gnu++1y
+CXX_STD := -std=gnu++17
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   ifeq (Linux, ${UNAME_System})
@@ -140,6 +140,8 @@ else
   CPU ?= -march=haswell
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
+    COMMON_C_FLAGS  += -Wno-deprecated-builtins
+    COMMON_C_FLAGS  += -Wno-unused-but-set-variable
     COMMON_C_FLAGS  += -fstrict-aliasing
   else
     COMMON_C_FLAGS  += -Wstrict-aliasing=3
@@ -159,7 +161,7 @@ endif
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
   COMMON_C_FLAGS += -fcolor-diagnostics
-  LDFLAGS += -latomic
+  #LDFLAGS += -latomic
 endif
 
 #CXXFLAGS +=
@@ -529,7 +531,7 @@ ${rdir}/boost-static/build.done:
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
-	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 ${DBG_DWARF} -g3" \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 ${DBG_DWARF} -g3 -ftls-model=initial-exec -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC ${DBG_DWARF} -g3" threading=multi link=static variant=release
 	touch $@
 ${rdir}/boost-shared/build.done:
@@ -540,7 +542,7 @@ ${rdir}/boost-shared/build.done:
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
-	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17" \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 -ftls-model=initial-exec -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=release
 	touch $@
 ${ddir}/boost-static/build.done:
@@ -551,7 +553,7 @@ ${ddir}/boost-static/build.done:
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
-	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17" \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC" threading=multi link=static variant=debug
 	touch $@
 ${ddir}/boost-shared/build.done:
@@ -562,7 +564,7 @@ ${ddir}/boost-shared/build.done:
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
-	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17" \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=debug
 	touch $@
 

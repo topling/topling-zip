@@ -52,7 +52,7 @@ override LIBS += -lpthread
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
   override CXXFLAGS += -fcolor-diagnostics
-  LDFLAGS += -latomic
+  #LDFLAGS += -latomic
   #$(error LDFLAGS = ${LDFLAGS})
 endif
 
@@ -74,6 +74,8 @@ else
   CPU ?= -march=haswell
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
+    COMMON_C_FLAGS  += -Wno-deprecated-builtins
+    COMMON_C_FLAGS  += -Wno-unused-but-set-variable
     COMMON_C_FLAGS  += -fstrict-aliasing
   else
     COMMON_C_FLAGS  += -Wstrict-aliasing=3
@@ -87,6 +89,7 @@ else
 endif
 
 override CXXFLAGS += ${CPU}
+override CXXFLAGS += ${COMMON_C_FLAGS}
 
 ifneq (${WITH_TBB},)
   override CXXFLAGS += -DTERARK_WITH_TBB=${WITH_TBB}

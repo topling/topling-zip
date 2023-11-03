@@ -1,6 +1,9 @@
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
     #pragma GCC diagnostic ignored "-Winvalid-offsetof"
 #endif
+#if defined(__clang__)
+    #pragma clang diagnostic ignored "-Winvalid-offsetof"
+#endif
 
 #include "dict_zip_blob_store.hpp"
 #include "suffix_array_dict.hpp"

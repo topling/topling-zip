@@ -23,8 +23,8 @@ std::string basic_fstring<Char>::hex() const noexcept {
 	return res;
 }
 
-template std::string basic_fstring<char>::hex() const noexcept;
-template std::string basic_fstring<uint16_t>::hex() const noexcept;
+//template std::string basic_fstring<char>::hex() const noexcept;
+//template std::string basic_fstring<uint16_t>::hex() const noexcept;
 
 std::string operator+(fstring x, fstring y) {
 	std::string z;

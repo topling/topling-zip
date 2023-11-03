@@ -251,7 +251,7 @@ public:
     void risk_set_live_iter_num(size_t num) {
         // toplingdb CSPP_WBWI destruct MainPatricia inplace without
         // delete all iterators, this needs set m_live_iter_num
-        m_live_iter_num = num;
+        m_live_iter_num = uint32_t(num);
     }
 
     void shrink_to_fit();

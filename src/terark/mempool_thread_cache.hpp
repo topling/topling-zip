@@ -609,7 +609,7 @@ public:
     void print_stat(FILE* fp) const {
         size_t ti = 0, computed_frag_size = 0, computed_hot_size = 0;
         fprintf(fp, "threads=%zd, frag=%zd\n", this->m_tls_vec.size(), fragment_size);
-        this->for_each_tls([&,this](TCMemPoolOneThread<AlignSize>* tc) {
+        this->for_each_tls([&](TCMemPoolOneThread<AlignSize>* tc) {
             auto _p = tc->m_freelist_head.data();
             auto _n = tc->m_freelist_head.size();
             size_t frag_num = tc->huge_node_cnt;

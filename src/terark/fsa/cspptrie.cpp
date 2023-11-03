@@ -1,9 +1,11 @@
 #if __clang__
 # pragma clang diagnostic ignored "-Warray-bounds"
+# pragma clang diagnostic ignored "-Winvalid-offsetof"
 #endif
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
     #pragma GCC diagnostic ignored "-Waligned-new="
     #pragma GCC diagnostic ignored "-Wclass-memaccess"
+    #pragma GCC diagnostic ignored "-Winvalid-offsetof"
     #pragma GCC diagnostic ignored "-Wstrict-aliasing"
     #pragma GCC diagnostic ignored "-Warray-bounds"
     #pragma GCC diagnostic ignored "-Wstringop-overflow"

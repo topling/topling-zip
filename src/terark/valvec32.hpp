@@ -1,7 +1,10 @@
 #pragma once
 // generated from valvec.hpp by sed-gen-valvec32.bash
 #include "valvec.hpp"
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+#if defined(__clang__)
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wshorten-64-to-32"
+#elif defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wclass-memaccess" // which version support?
 #endif
@@ -1191,7 +1194,9 @@ namespace std {
     void swap(terark::valvec32<T>& x, terark::valvec32<T>& y) noexcept { x.swap(y); }
 }
 
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
+#if defined(__clang__)
+  #pragma clang diagnostic pop
+#elif defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 7000
   #pragma GCC diagnostic pop
 #endif
 
