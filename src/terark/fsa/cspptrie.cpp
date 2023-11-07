@@ -773,7 +773,14 @@ void PatriciaMem<Align>::mempool_set_readonly() {
     if (filesize > alignedsize) {
         munmap(base + alignedsize, filesize - alignedsize);
     }
-    ftruncate(m_fd, realsize);
+    while (ftruncate(m_fd, realsize) < 0) {
+        if (EINTR == errno) {
+            std::this_thread::yield();
+        } else {
+            ERR("ftruncate(%s) = %m", m_mmap_fpath.c_str());
+            break;
+        }
+    }
     m_mempool.risk_set_capacity(m_mempool.size());
 #endif
   }
