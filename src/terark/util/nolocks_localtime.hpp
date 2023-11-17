@@ -16,6 +16,9 @@ TERARK_DLL_EXPORT struct tm* nolocks_localtime(const time_t*);
 // proto type is same as localtime_r
 TERARK_DLL_EXPORT struct tm* nolocks_localtime_r(const time_t*, struct tm*);
 
+TERARK_DLL_EXPORT const char* StrDateTimeEpochSec(time_t);
+TERARK_DLL_EXPORT const char* StrDateTimeEpochUS(long long time_us);
+
 TERARK_DLL_EXPORT const char* StrDateTimeNow();
 
 } // namespace terark

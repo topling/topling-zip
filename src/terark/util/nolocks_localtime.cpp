@@ -1,5 +1,6 @@
 #include <terark/bitmanip.hpp>
 #include <stdint.h>
+#include <stdio.h>
 #include <time.h>
 #include "nolocks_localtime.hpp"
 
@@ -193,13 +194,32 @@ struct tm* nolocks_localtime_r(const time_t* t, struct tm* result) {
   return result;
 }
 
+static constexpr size_t BUF_LEN = 64;
+static thread_local char g_buf[BUF_LEN];
+
+TERARK_DLL_EXPORT const char* StrDateTimeEpochSec(time_t t) {
+  struct tm timeinfo = {};
+  nolocks_localtime_r(&t, &timeinfo);
+  strftime(g_buf, BUF_LEN, "%F %T", &timeinfo);
+  return g_buf;
+}
+
+TERARK_DLL_EXPORT const char* StrDateTimeEpochUS(long long time_us) {
+  time_t t = time_t(time_us / 1000000);
+  struct tm timeinfo = {};
+  nolocks_localtime_r(&t, &timeinfo);
+  char*  buf = g_buf;
+  size_t len = strftime(buf, BUF_LEN, "%F %T", &timeinfo);
+  if (len < BUF_LEN) {
+    snprintf(buf + len, BUF_LEN - len, ".%06lld", time_us % 1000000);
+  }
+  return buf;
+}
+
 TERARK_DLL_EXPORT const char* StrDateTimeNow() {
-  static thread_local char buf[64];
   time_t rawtime;
   time(&rawtime);
-  struct tm* timeinfo = nolocks_localtime(&rawtime);
-  strftime(buf, sizeof(buf), "%F %T",timeinfo);
-  return buf;
+  return StrDateTimeEpochSec(rawtime);
 }
 
 } // namespace terark
