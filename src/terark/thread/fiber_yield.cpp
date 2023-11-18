@@ -27,6 +27,7 @@ namespace terark {
         unchecked_notify(wc);
     }
 
+#if 0
     void FiberYield::wait_slow(wait_queue_t& wq) noexcept {
         init_in_fiber_thread();
         unchecked_wait(wq);
@@ -66,5 +67,6 @@ namespace terark {
         }
         return cnt;
     }
+#endif
 
 }

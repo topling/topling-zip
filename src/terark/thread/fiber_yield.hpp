@@ -15,7 +15,6 @@ namespace terark {
     //
     class TERARK_DLL_EXPORT FiberYield : boost::noncopyable {
     public:
-        typedef boost::fibers::context::wait_queue_t wait_queue_t;
         FiberYield() noexcept {
             m_active_context_pp = NULL;
             m_sched = NULL;
@@ -87,6 +86,9 @@ namespace terark {
             m_sched->schedule(*wc);
         }
 
+#if 0
+        typedef boost::fibers::context::wait_queue_t wait_queue_t;
+
         inline void wait(wait_queue_t& wq) noexcept {
             if (terark_likely(NULL != m_active_context_pp)) {
                 unchecked_wait(wq);
@@ -142,6 +144,7 @@ namespace terark {
 
         size_t notify_all(wait_queue_t&) noexcept;
         size_t unchecked_notify_all(wait_queue_t&) noexcept;
+#endif
 
         boost::fibers::scheduler* sched() const noexcept { return m_sched; }
 
@@ -151,11 +154,14 @@ namespace terark {
         void yield_slow() noexcept;
         void wait_slow(boost::fibers::context** wc) noexcept;
         void notify_slow(boost::fibers::context** wc) noexcept;
+#if 0
         void wait_slow(wait_queue_t&) noexcept;
         void notify_one_slow(wait_queue_t&) noexcept;
         void notify_max_one_slow(wait_queue_t&) noexcept;
+#endif
     };
 
+#if 0
     class TERARK_DLL_EXPORT FiberWait : public FiberYield {
         boost::fibers::context::wait_queue_t m_wait_queue;
     public:
@@ -192,4 +198,6 @@ namespace terark {
             return FiberYield::unchecked_notify_all(m_wait_queue);
         }
     };
+#endif
+
 }
