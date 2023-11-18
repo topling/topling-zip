@@ -3,6 +3,11 @@
 //
 #pragma once
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4251) // needs to have dll-interface ...
+#endif
+
 #include <terark/config.hpp>
 #include <boost/fiber/scheduler.hpp>
 #include <boost/noncopyable.hpp>
@@ -201,3 +206,7 @@ namespace terark {
 #endif
 
 }
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif

@@ -178,7 +178,15 @@ struct TERARK_DLL_EXPORT basic_fstring {
 	basic_fstring(const std::pair<const Char*, const Char*>& rng) : p(rng.first), n(rng.second - rng.first) { assert(n >= 0); }
 
 	template<class CharVec>
-	basic_fstring(const CharVec& chvec, decltype(chvec.data()) = nullptr) {
+	basic_fstring(const CharVec& chvec
+#if defined(_MSC_VER)
+		, typename CharVec::value_type* = nullptr
+		, typename CharVec::iterator* = nullptr
+		, typename CharVec::const_iterator* = nullptr
+#else
+		, decltype(chvec.data()) = nullptr
+#endif
+	) {
 		BOOST_STATIC_ASSERT(sizeof(*chvec.data()) == sizeof(Char));
 		p = (const Char*)&*chvec.data();
 		n = chvec.size();

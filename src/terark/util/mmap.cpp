@@ -40,7 +40,7 @@ TERARK_DLL_EXPORT
 void*
 mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 #ifdef _MSC_VER
-	LARGE_INTEGER lsize;
+	//LARGE_INTEGER lsize;
 	HANDLE hFile = CreateFileA(fname
 		, GENERIC_READ |(writable ? GENERIC_WRITE : 0)
 		, FILE_SHARE_DELETE | FILE_SHARE_READ | (writable ? FILE_SHARE_WRITE : 0)
@@ -55,7 +55,7 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 			, fname, err, err);
 	}
 	TERARK_SCOPE_EXIT(CloseHandle(hFile));
-	int fd = (int)hFile;
+	int fd = (int)(intptr_t)hFile;
 #else
 	int openFlags = writable ? O_RDWR : O_RDONLY;
 	int fd = ::open(fname, openFlags);
@@ -76,7 +76,7 @@ void*
 mmap_load(int fd, const char* fname, size_t* fsize, bool writable, bool populate) {
 #ifdef _MSC_VER
 	LARGE_INTEGER lsize;
-	HANDLE hFile = (HADNLE)fd;
+	HANDLE hFile = (HANDLE)(intptr_t)fd;
 	if (writable) {
 	//	bool isNewFile = GetLastError() != ERROR_ALREADY_EXISTS;
 		bool isNewFile = GetLastError() == 0;

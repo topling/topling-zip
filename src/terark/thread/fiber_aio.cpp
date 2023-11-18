@@ -465,6 +465,7 @@ io_queue_t* dt_io_queue() {
 
 #endif
 
+#if !defined(_MSC_VER)
 class io_fiber_posix : public io_fiber_base {
   struct fiber_aiocb : public aiocb {
     boost::fibers::context* fctx;
@@ -537,9 +538,13 @@ static io_fiber_posix& tls_io_fiber_posix() {
   static thread_local io_fiber_posix io_fiber(context::active_pp());
   return io_fiber;
 }
+#endif // !_MSC_VER
 
 TERARK_DLL_EXPORT
 intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
+#if BOOST_OS_WINDOWS
+  TERARK_DIE("Not Supported for Windows");
+#else
   switch (g_io_provider) {
   default:
     TERARK_DIE("Not Supported aio_method = %s", enum_cstr(g_io_provider));
@@ -559,13 +564,10 @@ intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
   }
 #endif
   case IoProvider::posix:
-#if BOOST_OS_WINDOWS
-  TERARK_DIE("Not Supported for Windows");
-#else
   return tls_io_fiber_posix().exec_io(fd, buf, len, offset, &aio_read);
-#endif
   } // switch
   TERARK_DIE("Should not goes here");
+#endif
 }
 
 static const size_t MY_AIO_PAGE_SIZE = 4096;
@@ -591,6 +593,9 @@ void fiber_aio_vm_prefetch(const void* buf, size_t len) {
 
 TERARK_DLL_EXPORT
 intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
+#if BOOST_OS_WINDOWS
+  TERARK_DIE("Not Supported for Windows");
+#else
   switch (g_io_provider) {
   default:
     TERARK_DIE("Not Supported aio_method = %s", enum_cstr(g_io_provider));
@@ -610,17 +615,17 @@ intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
   }
 #endif
   case IoProvider::posix:
-#if BOOST_OS_WINDOWS
-  TERARK_DIE("Not Supported for Windows");
-#else
   return tls_io_fiber_posix().exec_io(fd, (void*)buf, len, offset, &aio_write);
-#endif
   } // switch
   TERARK_DIE("Should not goes here");
+#endif
 }
 
 TERARK_DLL_EXPORT
 intptr_t fiber_put_write(int fd, const void* buf, size_t len, off_t offset) {
+#if BOOST_OS_WINDOWS
+  TERARK_DIE("Not Supported for Windows");
+#else
   switch (g_io_provider) {
   default:
     TERARK_DIE("Not Supported aio_method = %s", enum_cstr(g_io_provider));
@@ -633,6 +638,7 @@ intptr_t fiber_put_write(int fd, const void* buf, size_t len, off_t offset) {
 #endif
   } // switch
   TERARK_DIE("Not Supported platform");
+#endif
 }
 
 } // namespace terark

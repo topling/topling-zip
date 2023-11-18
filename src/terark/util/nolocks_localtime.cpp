@@ -62,14 +62,22 @@ static bool is_leap_year(time_t year) {
 
 static const char* g_tzname = nullptr;
 static long g_tm_gmtoff = 0;
+#if defined(_MSC_VER)
+  static const int timezone = 0;
+  #pragma warning(disable: 4244) //  conversion from 'time_t' to 'int', possible loss of data
+#endif
 
 static int g_daylight_active = [] {
   tzset(); // Now 'timezone' global is populated.
+#if defined(_MSC_VER)
+  return 0;
+#else
   time_t t = time(NULL);
   struct tm *aux = localtime(&t); // safe in global cons
   g_tzname = aux->tm_zone;
   g_tm_gmtoff = aux->tm_gmtoff;
   return aux->tm_isdst;
+#endif
 }();
 
 #if 0
@@ -172,8 +180,10 @@ void nolocks_localtime_tzd(struct tm *p_tm, time_t t, long tz, int dst) {
 
   p_tm->tm_mday = (int)days+1;  // Add 1 since our 'days' is zero-based.
   p_tm->tm_year = year - 1900;  // Surprisingly tm_year is year-1900.
+#if !defined(_MSC_VER)
   p_tm->tm_zone = g_tzname;
   p_tm->tm_gmtoff = g_tm_gmtoff;
+#endif
 }
 
 TERARK_DLL_EXPORT

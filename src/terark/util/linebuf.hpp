@@ -115,7 +115,7 @@ public:
 		size_t fields = 0;
 		char *col = p, *end = p + n;
 		while (col < end && fields+1 < max_fields) {
-			char* next = (char*)memmem(col, end-col, delims.data(), dlen);
+			char* next = (char*)terark_fstrstr(col, end-col, delims.data(), dlen);
 			if (NULL == next) next = end;
 			push(col, next), fields++;
 			*next = 0;

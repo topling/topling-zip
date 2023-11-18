@@ -6,6 +6,10 @@
 	#define NOMINMAX
 	#define WIN32_LEAN_AND_MEAN
 #endif
+#if defined(_MSC_VER)
+    #pragma warning(disable: 4251) // needs to have dll-interface ...
+#endif
+
 #include "pipeline.hpp"
 #include <terark/circular_queue.hpp>
 #include <terark/num_to_str.hpp>
@@ -352,7 +356,7 @@ void PipelineStage::start(int queue_size)
 	}
 	m_running_exec_units = 0;
 
-	for (size_t threadno = 0; threadno != m_threads.size(); ++threadno)
+	for (int threadno = 0; threadno != (int)m_threads.size(); ++threadno)
 	{
 		// 在 PipelineThread 保存 auto_ptr<thread> 指针
 		// 如果直接内嵌一个 thread 实例，那么在 new PipelineThread 时，该线程就开始运行
@@ -1082,7 +1086,7 @@ void PipelineProcessor::add_step(PipelineStage* step)
 
 PipelineProcessor&
 PipelineProcessor::operator|(std::pair<intptr_t, function<void(PipelineTask*)> >&& s) {
-  *this | new FunPipelineStage(s.first,
+  *this | new FunPipelineStage(int(s.first),
   [s=std::move(s)](PipelineStage*, int, PipelineQueueItem* item){
     s.second(item->task);
   });

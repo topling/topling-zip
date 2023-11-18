@@ -5,7 +5,10 @@
 #include <string.h>
 
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
 #	include <io.h>
+#   include <windows.h>
 #else
 #	include <unistd.h>
 #endif
@@ -729,24 +732,52 @@ stream_position_t OsFileStream::size() const {
 }
 size_t OsFileStream::pread(stream_position_t pos, void* buf, size_t len) {
     TERARK_ASSERT_GE(m_fd, 0);
-    auto n = ::pread(m_fd, buf, len, pos);
+#if defined(_MSC_VER)
+	auto hFile = _get_osfhandle(m_fd);
+	OVERLAPPED ol;
+	DWORD n = 0;
+	ol.Offset = DWORD(pos);
+	ol.OffsetHigh = DWORD(pos >> 32);
+	ol.hEvent = 0;
+	if (!ReadFile((HANDLE)hFile, buf, len, &n, &ol)) {
+		throw IOException(GetLastError(), ExceptionFormatString(
+			"WriteFile(fd=%d(h=%zd), pos=%lld, len=%zd) = %d",
+			m_fd, hFile, llong(pos), len, n));
+	}
+#else
+	auto n = ::pread(m_fd, buf, len, pos);
     if (n < 0) {
         TERARK_THROW(IOException, "pread(fd=%d, pos=%lld, len=%zd) = %zd",
                      m_fd, llong(pos), len, n);
     }
+#endif
     return n;
 }
 size_t OsFileStream::pwrite(stream_position_t pos, const void* buf, size_t len) {
     TERARK_ASSERT_GE(m_fd, 0);
+#if defined(_MSC_VER)
+	auto hFile = _get_osfhandle(m_fd);
+	OVERLAPPED ol;
+	DWORD n = 0;
+	ol.Offset = DWORD(pos);
+	ol.OffsetHigh = DWORD(pos >> 32);
+	ol.hEvent = 0;
+	if (!WriteFile((HANDLE)hFile, buf, len, &n, &ol)) {
+		throw IOException(GetLastError(), ExceptionFormatString(
+			"WriteFile(fd=%d(h=%zd), pos=%lld, len=%zd) = %d",
+			m_fd, hFile, llong(pos), len, n));
+	}
+#else
     auto n = ::pwrite(m_fd, buf, len, pos);
     if (n < 0) {
         TERARK_THROW(IOException, "pwrite(fd=%d, pos=%lld, len=%zd) = %zd",
                      m_fd, llong(pos), len, n);
     }
-    return n;
+#endif
+	return n;
 }
 void OsFileStream::chsize(llong newfsize) const {
-    if (::ftruncate(m_fd, newfsize) < 0) {
+    if (::TERARK_IF_MSVC(_chsize_s,ftruncate)(m_fd, newfsize) < 0) {
         TERARK_THROW(IOException, "ftruncate(fd=%d, size=%lld)", m_fd, newfsize);
     }
 }

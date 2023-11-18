@@ -1304,7 +1304,7 @@ protected:
 		for (size_t i = 0; i < x_end_i; ++i) {
 			if (!x.is_deleted(i)) {
 				const Elem& ex = x.m_nl.data(i);
-				const size_t j = y.find_i(x.getKeyExtractor(ex));
+				const size_t j = y.find_i(x.getKeyExtractor()(ex));
 				if (j == y_end_i)
 					return false;
 				if (std::is_same<Key, Elem>::value) {

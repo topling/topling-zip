@@ -19,7 +19,7 @@ FaboHashCombine(UintHash h0, UintVal val) {
 	return BitsRotateLeft(h0, 5) + val;
 }
 
-size_t __hsm_stl_next_prime(size_t __n);
+TERARK_DLL_EXPORT size_t __hsm_stl_next_prime(size_t __n);
 
 inline size_t __hsm_align_pow2(size_t x) {
 	assert(x > 0);

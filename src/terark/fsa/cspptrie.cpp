@@ -338,7 +338,7 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
 ///----------------------------------------
     size_t m_n_retry = 0;
     RaceCounter  m_race;
-    std::mt19937 m_rand{ThisThreadID()};
+    std::mt19937_64 m_rand{ThisThreadID()};
     Stat   m_stat = {0,0,0,0};
     PatriciaMem<Align>* m_trie;
     WriterTokenPtr m_writer_token;

@@ -1022,6 +1022,11 @@ public:
 	const_iterator  iter_of(size_t idx) const { return const_iterator(this, idx); }
 
 	std::pair<iterator, bool>
+		insert(const std::pair<std::string, Value>& kv) {
+		std::pair<size_t, bool> ib = insert_i(kv);
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+	std::pair<iterator, bool>
 	insert(const std::pair<const fstring, Value>& kv) {
 		std::pair<size_t, bool> ib = insert_i(kv);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);

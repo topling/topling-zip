@@ -8,6 +8,10 @@
 #include <boost/mpl/if.hpp>
 #include <mutex>
 #if defined(_MSC_VER)
+#   define NOMINMAX
+#   define WIN32_LEAN_AND_MEAN
+#	include <io.h>
+#   include <windows.h>
 #else
 #include <sys/mman.h>
 #endif

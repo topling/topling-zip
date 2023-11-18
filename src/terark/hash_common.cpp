@@ -2,6 +2,7 @@
 
 namespace terark {
 
+TERARK_DLL_EXPORT
 size_t __hsm_stl_next_prime(size_t __n) {
 	static const size_t primes[] =
 	{

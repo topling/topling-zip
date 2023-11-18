@@ -1214,7 +1214,10 @@ void FixedLenStrVec::sort(size_t valuelen) {
     sort_raw(m_strpool.data(), m_size, m_fixlen, valuelen);
 }
 
+#if !defined(_MSC_VER)
 #define TERARK_HAS_UINT128
+#endif
+
 #if defined(TERARK_HAS_UINT128)
 using uint128_t = __uint128_t;
 #pragma pack(push, 4)

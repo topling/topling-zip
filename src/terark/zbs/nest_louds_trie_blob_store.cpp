@@ -7,6 +7,8 @@
 # pragma clang diagnostic ignored "-Wdynamic-class-memaccess"
 #endif
 
+#define _SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING
+
 namespace terark {
 
 ///////////////////////////////////////////////////////////////////////////

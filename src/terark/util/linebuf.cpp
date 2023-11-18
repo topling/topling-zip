@@ -267,7 +267,7 @@ LineBuf& LineBuf::read_all(fstring fname, size_t align) {
 		THROW_STD(invalid_argument,
 			"ERROR: fopen(%s, r) = %s", fname.data(), strerror(errno));
 	}
-	read_all(f, align);
+	read_all(f.fp(), align);
 	return *this;
 }
 

@@ -734,7 +734,7 @@ public:
         }
         m_file_var_len.open(m_fpath_var_len, "wb+");
         m_file_var_len.disbuf();
-        typename std::aligned_storage<sizeof(FileHeader)>::type header;
+        FileHeader header;
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
     }

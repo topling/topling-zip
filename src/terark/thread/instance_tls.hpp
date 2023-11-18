@@ -101,7 +101,7 @@ public:
     terark_forceinline T& get() const {
         size_t i = m_id / Cols;
         size_t j = m_id % Cols;
-        Matrix* pMatrix = tls_matrix ?: init_tls_matrix();
+        Matrix* pMatrix = tls_matrix ? tls_matrix : init_tls_matrix();
         T* pOneRow = pMatrix->A[i];
         if (terark_likely(nullptr != pOneRow))
             return pOneRow[j];

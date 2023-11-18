@@ -1,6 +1,10 @@
 // created by leipeng 2022-07-21 09:48, all rights reserved
 #pragma once
-#include <sys/mman.h>
+#if defined(_MSC_VER)
+  // nothing
+#else
+  #include <sys/mman.h>
+#endif
 #include <terark/config.hpp>
 
 namespace terark {

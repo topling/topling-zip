@@ -133,6 +133,7 @@ class TERARK_DLL_EXPORT qtime { // Quick Time
 	long long tp;
 	static profiling& pf() noexcept;
 public:
+	typedef int clockid_t;
 	explicit qtime(int /*clock ignored*/ = 0) noexcept { tp = pf().now(); }
 	static qtime now() { return qtime(); }
 	static qtime now(clockid_t clock) { return qtime(clock); }
