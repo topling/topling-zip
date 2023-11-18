@@ -10,7 +10,6 @@
 
 //#include <boost/type_traits/integral_constant.hpp>
 #include <boost/mpl/bool.hpp>
-#include <boost/iterator.hpp>
 #include <boost/operators.hpp>
 
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
