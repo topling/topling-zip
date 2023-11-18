@@ -470,6 +470,7 @@ ${static_core_a}: BOOST_BUILD_DIR := ${rdir}/boost-static
 THIS_LIB_OBJS = $(sort $(filter %.o,$^) \
   $(shell if [ -n "${BOOST_BUILD_DIR}" ]; then \
              find "${BOOST_BUILD_DIR}/bin.v2/libs" -name '*.o' \
+       -not -path "${BOOST_BUILD_DIR}/bin.v2/*/config/*" \
        -not -path "${BOOST_BUILD_DIR}/bin.v2/libs/config/*"; fi))
 
 define GenGitVersionSRC
