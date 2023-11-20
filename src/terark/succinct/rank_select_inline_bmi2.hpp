@@ -36,9 +36,12 @@ inline size_t UintSelect1(unsigned int x, size_t r) {
   #if 0
     return terark_bsr_u32(_pdep_u32(_bzhi_u32(uint32_t(-1), uint32_t(r+1)), x));
   #else
+   #if defined(__GNUC__) || defined(__clang__)
     return __builtin_ctz(_pdep_u32(1u<<r, x)); // faster
-    // return _tzcnt_u32(_pdep_u32(1u<<r, x));
+   #else
+    return _tzcnt_u32(_pdep_u32(1u<<r, x));
     // _tzcnt_u32 is slower than __builtin_ctz in gcc-12
+   #endif
   #endif
 }
 inline size_t UintSelect1(unsigned long long x, size_t r) {
@@ -48,10 +51,13 @@ inline size_t UintSelect1(unsigned long long x, size_t r) {
    #if 0
     return terark_bsr_u64(_pdep_u64(_bzhi_u64(uint64_t(-1), r+1), x));
    #else
+#if defined(__GNUC__) || defined(__clang__)
     return __builtin_ctzll(_pdep_u64(1ull<<r, x)); // faster
-    // return _tzcnt_u64(_pdep_u64(1ull<<r, x));
+#else
+    return _tzcnt_u64(_pdep_u64(1ull<<r, x));
     // _tzcnt_u64 is slower than __builtin_ctzll in gcc-12
-   #endif
+#endif
+  #endif
   #else
     uint32_t lo32 = (uint32_t)(x);
     uint32_t lo32pc = _mm_popcnt_u32(lo32);

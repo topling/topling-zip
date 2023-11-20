@@ -6,10 +6,15 @@
   #include <linux/version.h>
   #include <linux/mman.h>
   #include <sys/utsname.h>
+#elif defined(_MSC_VER)
+	#define NOMINMAX
+	#define WIN32_LEAN_AND_MEAN
+	#include <Windows.h>
 #endif
 
 namespace terark {
 
+#if defined(__linux__)
 TERARK_DLL_EXPORT int get_linux_kernel_version() {
     utsname u;
     uname(&u);
@@ -37,6 +42,7 @@ const size_t g_min_prefault_pages = g_has_madv_populate ? 1 : 2;
   #define MADV_POPULATE_READ  22
   #define MADV_POPULATE_WRITE 23
 #endif
+#endif
 
 TERARK_DLL_EXPORT
 void vm_prefetch(const void* addr, size_t len, size_t min_pages) {
@@ -46,7 +52,7 @@ void vm_prefetch(const void* addr, size_t len, size_t min_pages) {
     if (aligned_len < VM_PAGE_SIZE * min_pages) {
       return;
     }
-  #if BOOST_OS_WINDOWS
+  #if defined(_MSC_VER)
 		WIN32_MEMORY_RANGE_ENTRY vm;
 		vm.VirtualAddress = (void*)lo;
 		vm.NumberOfBytes  = aligned_len;

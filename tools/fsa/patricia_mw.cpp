@@ -59,7 +59,7 @@ intptr_t maxMem = 0;
 const char* bench_input_fname = NULL;
 const char* patricia_trie_fname = NULL;
 
-#if !BOOST_OS_WINDOWS
+#if !defined(_MSC_VER)
   #include <pthread.h>
   #include <sys/mman.h>
 #endif
