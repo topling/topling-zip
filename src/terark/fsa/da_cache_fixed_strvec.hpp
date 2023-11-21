@@ -43,6 +43,11 @@ public:
         return da_match(input.udata(), input.size());
     }
 
+    MatchStatus da_match_with_hole(const byte*, size_t len, const uint16_t* holeMeta) const noexcept;
+    MatchStatus da_match_with_hole(fstring input, const uint16_t* holeMeta) const noexcept {
+        return da_match_with_hole(input.udata(), input.size(), holeMeta);
+    }
+
     // memory layout, all data are in m_strpool
     //   0. header
     //   1. m_fixlen * m_size for strpool data

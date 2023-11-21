@@ -339,6 +339,37 @@ const noexcept {
     return {lo, hi, pos};
 }
 
+terark_flatten
+DaCacheFixedStrVec::MatchStatus
+DaCacheFixedStrVec::da_match_with_hole(const byte* input, size_t len,
+                                       const uint16_t* holeMeta)
+const noexcept {
+    assert(m_da_data != NULL);
+    size_t lo = 0, hi = this->m_size, pos = 0;
+    size_t state = 0;
+    const auto lstates = m_da_data;
+    while (pos < len) {
+        if (holeMeta[pos] < 256) {
+            if (byte_t(holeMeta[pos]) == input[pos])
+                pos++;
+            else
+                break;
+        }
+        else {
+            size_t child = lstates[state].m_child0 + input[pos];
+            if (terark_likely(lstates[child].m_parent == state)) {
+                state = child;
+                lo = lstates[child].m_lo;
+                hi = lstates[child].m_hi;
+                pos++;
+            }
+            else
+                break;
+        }
+    }
+    return {lo, hi, pos};
+}
+
 void DaCacheFixedStrVec::sa_print_stat() const {
     printf("DaCacheFixedStrVec: total string length: %10zd\n", this->str_size());
     if (m_da_data) {
