@@ -35,8 +35,7 @@ int main(int argc, char* argv[]) {
 	for(size_t i = 0; i < trueVals.size()-1; ++i) {
 		size_t t0 = trueVals[i];
 		size_t t1 = trueVals[i+1];
-		size_t z[2];
-		szipVals.get2(i, z);
+		auto z = zipVals.get2(i);
 		assert(t0 == z[0]);
 		assert(t1 == z[1]);
 	}
@@ -66,8 +65,7 @@ int main(int argc, char* argv[]) {
 	for (size_t l = 0; l < loop; ++l)
 		for(size_t i = 0; i < n; ++i) {
 			size_t idx = randidx[i];
-			size_t z[2];
-			szipVals.get2(idx, z);
+			auto z = szipVals.get2(idx);
 			zsum += z[1] + z[0];
 		}
 	long long t1 = pf.now();
@@ -95,9 +93,8 @@ int main(int argc, char* argv[]) {
     t0 = pf.now();
     for(size_t l = 0; l < loop; ++l) {
         size_t m = align_down(n-1, blockUnits);
-        size_t z[2];
         for(size_t i = 0; i < m; ++i) {
-            szipVals.get2(i, z);
+            auto z = szipVals.get2(i);
             zsum += z[0];
         }
     }

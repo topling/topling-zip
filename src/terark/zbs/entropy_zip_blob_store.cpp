@@ -349,8 +349,7 @@ void
 EntropyZipBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
     assert(recID + 1 < m_offsets.size());
-    size_t BegEnd[2];
-    m_offsets.get2(recID, BegEnd);
+    auto BegEnd = m_offsets.get2(recID);
     assert(BegEnd[0] <= BegEnd[1]);
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
@@ -466,8 +465,7 @@ EntropyZipBlobStore::fspread_record_append_imp(
                     valvec<byte_t>* rdbuf)
 const {
     assert(recID + 1 < m_offsets.size());
-    size_t BegEnd[2];
-    m_offsets.get2(recID, BegEnd);
+    auto BegEnd = m_offsets.get2(recID);
     assert(BegEnd[0] <= BegEnd[1]);
     size_t byte_beg = (BegEnd[0] - BegEnd[0] % 64) / 8;
     size_t byte_end = (BegEnd[1] + 63) / 64 * 8;
@@ -536,8 +534,7 @@ const {
         //size_t newId = newToOld.index();
         size_t oldId = *newToOld;
         assert(oldId < recNum);
-        size_t BegEnd[2];
-        m_offsets.get2(oldId, BegEnd);
+        auto BegEnd = m_offsets.get2(oldId);
         zipOffsetBuilder->push_back(offset);
         assert(BegEnd[0] <= BegEnd[1]);
         offset += BegEnd[1] - BegEnd[0];
@@ -564,8 +561,7 @@ const {
     for (newToOld.rewind(); !newToOld.eof(); ++newToOld) {
         //size_t newId = newToOld.index();
         size_t oldId = *newToOld;
-        size_t BegEnd[2];
-        m_offsets.get2(oldId, BegEnd);
+        auto BegEnd = m_offsets.get2(oldId);
         EntropyBits bits = {(byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0], {}};
         writer.write(bits);
     }

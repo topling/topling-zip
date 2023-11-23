@@ -270,8 +270,7 @@ void
 ZipOffsetBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
     assert(recID + 1 < m_offsets.size());
-    size_t BegEnd[2];
-    m_offsets.get2(recID, BegEnd);
+    auto BegEnd = m_offsets.get2(recID);
     assert(BegEnd[0] <= BegEnd[1]);
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
@@ -360,8 +359,7 @@ ZipOffsetBlobStore::fspread_record_append_imp(
                     valvec<byte_t>* rdbuf)
 const {
     assert(recID + 1 < m_offsets.size());
-    size_t BegEnd[2];
-    m_offsets.get2(recID, BegEnd);
+    auto BegEnd = m_offsets.get2(recID);
     assert(BegEnd[0] <= BegEnd[1]);
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
@@ -395,8 +393,7 @@ const {
 size_t
 ZipOffsetBlobStore::get_zipped_size_imp(size_t recID, CacheOffsets* co) const {
     TERARK_ASSERT_LT(recID + 1, m_offsets.size());
-    size_t BegEnd[2];
-    m_offsets.get2(recID, BegEnd);
+    auto BegEnd = m_offsets.get2(recID);
     TERARK_ASSERT_LE(BegEnd[0], BegEnd[1]);
     TERARK_ASSERT_LE(BegEnd[1], m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
@@ -421,8 +418,7 @@ const {
         //size_t newId = newToOld.index();
         size_t oldId = *newToOld;
         assert(oldId < recNum);
-        size_t BegEnd[2];
-        m_offsets.get2(oldId, BegEnd);
+        auto BegEnd = m_offsets.get2(oldId);
         zipOffsetBuilder->push_back(offset);
         assert(BegEnd[0] <= BegEnd[1]);
         offset += BegEnd[1] - BegEnd[0];
@@ -442,8 +438,7 @@ const {
     for (newToOld.rewind(); !newToOld.eof(); ++newToOld) {
         //size_t newId = newToOld.index();
         size_t oldId = *newToOld;
-        size_t BegEnd[2];
-        m_offsets.get2(oldId, BegEnd);
+        auto BegEnd = m_offsets.get2(oldId);
         size_t len = BegEnd[1] - BegEnd[0];
         const byte* beg = m_content.data() + BegEnd[0];
         xxhash64.update(beg, len);

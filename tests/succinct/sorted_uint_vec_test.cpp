@@ -36,11 +36,10 @@ void unit_test_small() {
     builder->push_back(2);
     builder->push_back(5);
     builder->finish(&szipVals);
-    size_t BegEnd[2];
-    szipVals.get2(0, BegEnd);
+    auto BegEnd = szipVals.get2(0);
     assert(BegEnd[0] == 0);
     assert(BegEnd[1] == 2);
-    szipVals.get2(1, BegEnd);
+    BegEnd = szipVals.get2(1);
     assert(BegEnd[0] == 2);
     assert(BegEnd[1] == 5);
     printf("done unit_test_small!\n");
@@ -220,8 +219,7 @@ int main(int argc, char* argv[]) {
 	for(size_t i = 0; i < trueVals.size()-1; ++i) {
 		size_t t0 = trueVals[i];
 		size_t t1 = trueVals[i+1];
-		size_t z[2];
-		szipVals.get2(i, z);
+		auto z = szipVals.get2(i);
 		assert(t0 == z[0]);
 		assert(t1 == z[1]);
 	}
@@ -251,8 +249,7 @@ int main(int argc, char* argv[]) {
 	for (size_t l = 0; l < loop; ++l)
 		for(size_t i = 0; i < n; ++i) {
 			size_t idx = randidx[i];
-			size_t z[2];
-			szipVals.get2(idx, z);
+			auto z = szipVals.get2(idx);
 			if (mustSorted && z[0] > z[1]) {
 				printf("mis-order: idx = %zd\n", idx);
 			}
@@ -286,9 +283,8 @@ int main(int argc, char* argv[]) {
     t0 = pf.now();
     for(size_t l = 0; l < loop; ++l) {
         size_t m = align_down(n-1, blockUnits);
-        size_t z[2];
         for(size_t i = 0; i < m; ++i) {
-            szipVals.get2(i, z);
+            auto z = szipVals.get2(i);
             if (mustSorted && z[0] > z[1]) {
                 printf("mis-order: idx = %zd\n", i);
             }

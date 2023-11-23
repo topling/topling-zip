@@ -157,7 +157,7 @@ const {
     byte_t const ch = s[m_offsets[lo] + pos];
     while ((lo & ~size_t(127)) + 256 < ((hi + 127)& ~size_t(127))) {
         size_t mid = (lo + hi) / 2;
-        size_t BegEnd[2];  m_offsets.get2(mid, BegEnd);
+        auto BegEnd = m_offsets.get2(mid);
         assert(BegEnd[0] <= BegEnd[1]);
         assert(pos < BegEnd[1] - BegEnd[0]);
         if (s[BegEnd[0] + pos] <= ch)
@@ -178,7 +178,7 @@ size_t ZoSortedStrVec::lower_bound(fstring key) const {
     auto   strpool = m_strpool.data();
     while ((lo & ~size_t(127)) + 256 < ((hi + 127)& ~size_t(127))) {
         size_t mid = (lo + hi) / 2;
-        size_t BegEnd[2];  m_offsets.get2(mid, BegEnd);
+        auto BegEnd = m_offsets.get2(mid);
         assert(BegEnd[0] <= BegEnd[1]);
         fstring mid_val(strpool + BegEnd[0], BegEnd[1]-BegEnd[0]);
         if (mid_val < key)
@@ -200,7 +200,7 @@ size_t ZoSortedStrVec::upper_bound(fstring key) const {
     auto   strpool = m_strpool.data();
     while ((lo & ~size_t(127)) + 256 < ((hi + 127)& ~size_t(127))) {
         size_t mid = (lo + hi) / 2;
-        size_t BegEnd[2];  m_offsets.get2(mid, BegEnd);
+        auto BegEnd = m_offsets.get2(mid);
         assert(BegEnd[0] <= BegEnd[1]);
         fstring mid_val(strpool + BegEnd[0], BegEnd[1]-BegEnd[0]);
         if (mid_val <= key)
