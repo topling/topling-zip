@@ -140,7 +140,9 @@ protected:
 	LinkTp  maxNodes; // hard limit is maxlink
 	LinkTp  maxload;  // hard limit is maxlink, guard for calling rehash
 	LinkTp  nDeleted;
+  #if defined(HSM_ENABLE_HASH_CACHE)
 	HashTp* pHash;   // array of cached hash value
+  #endif
 
 	LinkTp* bucket;  // index to pNodes
 	size_t  nBucket; // could be larger up to 4G-1 when size_t is 32 bits
@@ -189,7 +191,9 @@ protected:
 		maxNodes = 0;
 		maxload = 0;
 		nDeleted = 0;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		pHash = NULL; // default enabled
+	  #endif
 
 		bucket = const_cast<LinkTp*>(&tail); // false start
 		nBucket = 1;
@@ -335,6 +339,12 @@ private:
 		// otherwise, tail is passed by reference, this cause g++ link error
 		std::fill_n(pb, nb, (LinkTp)tail);
 
+	  #if defined(HSM_ENABLE_HASH_CACHE)
+		// nothing
+	  #else
+		static const int pHash = hash_cache_disabled;
+		TERARK_UNUSED_VAR(bFillHash);
+	  #endif
 		if (intptr_t(pHash) == hash_cache_disabled) {
 		  if (0 == nDeleted)
 			for (size_t j = 0, n = nNodes; j < n; ++j) {
@@ -351,6 +361,7 @@ private:
 				}
 			}
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		else if (bFillHash) {
 			HashTp* ph = pHash;
 		  if (0 == nDeleted)
@@ -389,6 +400,7 @@ private:
 				}
 			}
         }
+	  #endif
 	}
 
 	void relink() { relink_impl(false); }
@@ -405,8 +417,10 @@ private:
 			}
 			free(pNodes);
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (pHash && intptr_t(pHash) != hash_cache_disabled)
 			free(pHash);
+	  #endif
 		if (bucket && &tail != bucket)
 			free(bucket);
 		if (strpool)
@@ -486,7 +500,9 @@ public:
 		maxload = y.maxload;
 		nBucket = y.nBucket;
 		nDeleted = 0;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		pHash = NULL;
+	  #endif
 
 		strpool = NULL;
 		lenpool = y.lenpool;
@@ -504,8 +520,10 @@ public:
 			nBucket = 1;
 			maxload = 0;
 			bucket  = const_cast<LinkTp*>(&tail);
+		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if (intptr_t(y.pHash) == hash_cache_disabled)
 				pHash = (HashTp*)(hash_cache_disabled);
+		  #endif
 			return; // not need to do deep copy
 		}
 		bucket = (LinkTp*)malloc(sizeof(LinkTp) * y.nBucket);
@@ -518,6 +536,7 @@ public:
 			init(); // reset to safe state
 			TERARK_DIE("malloc(%zd)", allnodes_size(nNodes));
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(y.pHash) == hash_cache_disabled) {
 			pHash = (HashTp*)(hash_cache_disabled);
 		}
@@ -530,9 +549,12 @@ public:
 				TERARK_DIE("malloc(%zd)", sizeof(HashTp) * nNodes);
 			}
 		}
+	  #endif
 		strpool = (char*)malloc(y.lenpool);
 		if (NULL == strpool) {
+		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if (intptr_t(pHash) != hash_cache_disabled) free(pHash);
+		  #endif
 			free(pNodes);
 			free(bucket);
 			init(); // reset to safe state
@@ -541,7 +563,9 @@ public:
 		if (ValuePlace::is_value_out &&	!is_value_empty) {
 			values = (Value*)malloc(sizeof(Value) * nNodes);
 			if (NULL == values) {
+			  #if defined(HSM_ENABLE_HASH_CACHE)
 				if (intptr_t(pHash) != hash_cache_disabled) free(pHash);
+			  #endif
 				free(strpool);
 				free(pNodes);
 				free(bucket);
@@ -553,7 +577,9 @@ public:
 			fastlist = (FreeList*)malloc(sizeof(FreeList) * fastleng);
 			if (NULL == fastlist) {
 				if (NULL != values) free(values);
+			  #if defined(HSM_ENABLE_HASH_CACHE)
 				if (intptr_t(pHash) != hash_cache_disabled) free(pHash);
+			  #endif
 				free(strpool);
 				free(pNodes);
 				free(bucket);
@@ -563,8 +589,10 @@ public:
 			memcpy(fastlist, y.fastlist, sizeof(FreeList) * fastleng);
 		}
 		if (0 == y.nDeleted || freelist_disabled != fastleng) {
+		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if (intptr_t(pHash) != hash_cache_disabled)
 				memcpy(pHash, y.pHash, sizeof(HashTp) * nNodes);
+		  #endif
 			memcpy(strpool, y.strpool, sizeof(char) * lenpool);
 			memcpy(bucket , y.bucket , sizeof(LinkTp) * nBucket);
 			if (0 == y.nDeleted || CopyStrategy::is_fast_copy) {
@@ -594,8 +622,10 @@ public:
 			for (size_t i = 0; i < n; ++i) {
 				if (ypn[i].link != delmark) {
 					pNodes[j].offset = SAVE_OFFSET(loffset);
+				  #if defined(HSM_ENABLE_HASH_CACHE)
 					if (intptr_t(pHash) != hash_cache_disabled)
 						pHash[j] = y.pHash[i];
+				  #endif
 					new(&nth_value(j))Value(y.nth_value(i));
 					size_t beg2 = LOAD_OFFSET(ypn[i+0].offset);
 					size_t end2 = LOAD_OFFSET(ypn[i+1].offset);
@@ -647,7 +677,9 @@ public:
 		maxNodes =  y.maxNodes;
 		maxload  =  y.maxload;
 		nDeleted =  y.nDeleted;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		pHash    =  y.pHash;
+	  #endif
 
 		nBucket  =  y.nBucket;
 		bucket   =  y.bucket;
@@ -683,7 +715,9 @@ public:
 		std::swap(maxNodes, y.maxNodes);
 		std::swap(maxload , y.maxload);
 		std::swap(nDeleted, y.nDeleted);
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		std::swap(pHash   , y.pHash);
+	  #endif
 
 		std::swap(nBucket , y.nBucket);
 		std::swap(bucket  , y.bucket);
@@ -765,8 +799,10 @@ public:
 		::free(pNodes);
 		if (bucket && bucket != &tail)
 			::free(bucket);
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (pHash && intptr_t(pHash) != hash_cache_disabled)
 			::free(pHash);
+	  #endif
 		*pool = strpool;
 		*vals = values;
 		init();
@@ -782,11 +818,13 @@ public:
 				::free(bucket);
 			bucket = NULL;
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 	//	disable_hash_cache(); // ? OR:
 		if (intptr_t(pHash) == hash_cache_disabled)
 		{}
 		else if (NULL != pHash)
 			::free(pHash), pHash = NULL;
+	  #endif
 	//	if (pLink) // has no pLink
 	//		::free(pLink), pLink = NULL;
 	}
@@ -794,10 +832,12 @@ public:
 	void risk_enable_hash() {
 		if (NULL == bucket)
 			bucket = &tail;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (NULL == pHash) {
 			pHash = hash_cache_disabled;
 			enable_hash_cache();
 		}
+	  #endif
 		rehash(nNodes/load_factor);
 	}
 
@@ -869,12 +909,14 @@ public:
 		if (cap > maxlink)
 			cap = maxlink;
 		if (cap != (size_t)maxNodes) {
+		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if (intptr_t(pHash) != hash_cache_disabled) {
 				HashTp* ph = (HashTp*)realloc(pHash, sizeof(HashTp) * cap);
 				if (NULL == ph)
 					TERARK_DIE("realloc(%zd)", sizeof(HashTp) * cap);
 				pHash = ph;
 			}
+		  #endif
 			reserve_nodes_impl(cap, CopyStrategy(), ValuePlace());
 			maxNodes = LinkTp(cap);
 		}
@@ -893,17 +935,26 @@ public:
 
 	HashTp hash_value(size_t i) const {
 		TERARK_ASSERT_LT(i, nNodes);
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled)
 			return hash(key(i));
 		else
 			return pHash[i];
+	  #else
+		return hash(key(i));
+	  #endif
 	}
 
 	bool is_hash_cached() const {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		return intptr_t(pHash) != hash_cache_disabled;
+	  #else
+		return false;
+	  #endif
 	}
 
 	void enable_hash_cache() {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled) {
 			if (0 == maxNodes) {
 				pHash = NULL;
@@ -928,14 +979,17 @@ public:
 			}
 		}
 		TERARK_VERIFY(NULL != pHash || 0 == maxNodes);
+	  #endif
 	}
 
 	void disable_hash_cache() {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled)
 			return;
 		if (pHash)
 			free(pHash);
 		pHash = (HashTp*)(hash_cache_disabled);
+	  #endif
 	}
 
 	size_t total_key_size() const { return lenpool; }
@@ -1126,8 +1180,10 @@ public:
 private:
 	template<class Predictor>
 	size_t erase_if_kv_impl(Predictor pred) {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		TERARK_VERIFY_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
 		HashTp*ph = pHash;
+	  #endif
 		Value* pv = values;
 		Node*  pn = pNodes;
 		char*  ps = strpool;
@@ -1166,8 +1222,10 @@ private:
 					pn[i].offset = SAVE_OFFSET(loffset);
 					move_value_on_raw(pn+i, pn+j, pv+i, pv+j);
 					memcpy(ps + loffset, ps + mybeg, mylen);
+				  #if defined(HSM_ENABLE_HASH_CACHE)
 					if (intptr_t(ph) != hash_cache_disabled)
 						ph[i] = ph[j];
+				  #endif
 					loffset += mylen;
 					++i;
 				}
@@ -1207,8 +1265,10 @@ private:
 					pn[i].offset = SAVE_OFFSET(loffset);
 					move_value_on_raw(pn+i, pn+j, pv+i, pv+j);
 					memcpy(ps + loffset, ps + mybeg, mylen);
+				  #if defined(HSM_ENABLE_HASH_CACHE)
 					if (intptr_t(ph) != hash_cache_disabled)
 						ph[i] = ph[j];
+				  #endif
 					loffset += mylen;
 					++i;
 				}
@@ -1275,8 +1335,10 @@ public:
 	template<class Predictor>
 	size_t keepid_erase_if_kv(Predictor pred) {
 		TERARK_VERIFY_NE(freelist_disabled, fastleng);
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		TERARK_VERIFY_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
 		const HashTp* ph = pHash;
+	  #endif
 		const char*   ps = strpool;
 		const LinkTp   n = nNodes;
 		const size_t  nb = nBucket;
@@ -1293,7 +1355,11 @@ public:
 			const fstring mykey(ps + mybeg, mylen-extra);
 			Value& myval = nth_value(pn, pv, i); // non-const
 			if (delmark != pn[i].link && pred(mykey, myval)) {
+			  #if defined(HSM_ENABLE_HASH_CACHE)
 				HashTp hh = intptr_t(ph) == hash_cache_disabled ? hash(mykey) : ph[i];
+			  #else
+				HashTp hh = hash(mykey);
+			  #endif
 				size_t ib = size_t(hh % nb);
 				TERARK_ASSERT_NE(tail, bucket[ib]);
 				LinkTp* p = &bucket[ib];
@@ -1325,7 +1391,9 @@ private:
 		char*  ps = strpool;
 		Node*  pn = pNodes;
 		Value* pv = values;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		HashTp*ph = pHash;
+	  #endif
 		ptrdiff_t idx1 = 0;
 		for (; idx1 < n; ++idx1) {
 			if (pn[idx1].link == delmark)
@@ -1352,8 +1420,10 @@ private:
 			#endif
 				pn[idx1].offset = SAVE_OFFSET(loffset);
 				move_value_on_raw(pn+idx1, pn+idx2, pv+idx1, pv+idx2);
+			  #if defined(HSM_ENABLE_HASH_CACHE)
 				if (intptr_t(ph) != hash_cache_disabled)
 					ph[idx1] = ph[idx2];
+			  #endif
 			   	loffset += len2;
 				++idx1;
 			}
@@ -1480,10 +1550,12 @@ public:
 		cons_value(&nth_value(slot)); // must success
 		pNodes[slot].link = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled) {
 			TERARK_ASSERT_NE(NULL, pHash);
 			pHash[slot] = h;
 		}
+	  #endif
 		sort_flag = en_unsorted;
 		return std::make_pair(slot, true);
 	}
@@ -1532,10 +1604,12 @@ public:
 		cons_value(&nth_value(slot)); // must success
 		pNodes[slot].link = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled) {
 			TERARK_ASSERT_NE(NULL, pHash);
 			pHash[slot] = h;
 		}
+	  #endif
 		sort_flag = en_unsorted;
 		return std::make_pair(slot, true);
 	}
@@ -1584,10 +1658,12 @@ public:
 		cons_value(&nth_value(slot)); // must success
 		pNodes[slot].link = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled) {
 			TERARK_ASSERT_NE(NULL, pHash);
 			pHash[slot] = h;
 		}
+	  #endif
 		sort_flag = en_unsorted;
 		return std::make_pair(slot, true);
 	}
@@ -1730,7 +1806,9 @@ public:
 		TERARK_ASSERT_GE(nNodes, 1);
 		TERARK_ASSERT_LT(idx, nNodes);
 		TERARK_ASSERT_NE(pNodes[idx].link, delmark); // must has not deleted
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		TERARK_ASSERT_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
+	  #endif
 		pNodes[idx].link = delmark; // set deletion mark
 		nth_value(idx).~Value(); // destroy
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
@@ -1761,8 +1839,12 @@ public:
 		TERARK_ASSERT_GE(nNodes, 1);
 		TERARK_ASSERT_LT(slot, nNodes);
 		TERARK_ASSERT_NE(pNodes[slot].link, delmark); // must has not deleted
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		TERARK_ASSERT_F(intptr_t(pHash) == hash_cache_disabled || NULL != pHash, "%p", pHash);
 		HashTp h = intptr_t(pHash) == hash_cache_disabled ? hash(key(slot)) : pHash[slot];
+	  #else
+		HashTp h = hash(key(slot));
+	  #endif
 		ulink_impl(LinkTp(slot), h);
 	}
 
@@ -2097,16 +2179,22 @@ private:
 	void rearrange_nodes_by_int_impl(LinkTp* index) {
 		Node* pn = pNodes;
 		Value* pv = values;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		HashTp*ph = pHash;
+	  #endif
 		for (size_t i = 0, n = nNodes; i < n; ++i) { // Rearrange
 			if (index[i] != i) {
 				LinkTp curr, next = index[i];
 				LinkTp tmpoffset = pn[next].offset;
 				LinkTp tmplink   = pn[next].link; // link saved strlen
+			  #if defined(HSM_ENABLE_HASH_CACHE)
 				HashTp tmphash   = 0; // avoid warning
+			  #endif
 				char   tmpvalue[sizeof(Value)];
+			  #if defined(HSM_ENABLE_HASH_CACHE)
                 if (HasHashCache)
                     tmphash = ph[next];
+			  #endif
 				CopyStrategy::move_cons((Value*)tmpvalue, nth_value(next));
 				do {
 					TERARK_ASSERT_LT(next, n);
@@ -2116,8 +2204,10 @@ private:
 					pn[curr].link   = pn[next].link;
 					move_value_on_raw(pn+curr, pn+next, pv+curr, pv+next);
 					index[curr] = curr;
+				  #if defined(HSM_ENABLE_HASH_CACHE)
 					if (HasHashCache)
 						ph[curr] = ph[next];
+				  #endif
 				} while (next != i);
 #if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 4006
 		#pragma GCC diagnostic push
@@ -2129,18 +2219,24 @@ private:
 #endif
 				pn[i].offset = tmpoffset;
 				pn[i].link   = tmplink;
+			  #if defined(HSM_ENABLE_HASH_CACHE)
                 if (HasHashCache)
 					ph[i] = tmphash;
+			  #endif
 				index[i] = LinkTp(i);
 			}
 		}
 		free(index);
 	}
 	void rearrange_nodes_by_int(LinkTp* index) {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled || NULL == pHash)
 			rearrange_nodes_by_int_impl<false>(index); // "index" will be free'ed
 		else
 			rearrange_nodes_by_int_impl<true >(index); // "index" will be free'ed
+	  #else
+		rearrange_nodes_by_int_impl<false>(index); // "index" will be free'ed
+	  #endif
 	}
 
 	template<class IndexType>

@@ -109,7 +109,9 @@ public:
 protected:
 	NodeLayout m_nl;
 	LinkTp* bucket;  // index to m_nl
+  #if defined(HSM_ENABLE_HASH_CACHE)
 	HashTp* pHash;
+  #endif
 
 	double  load_factor;
 	size_t  nBucket; // may larger than LinkTp.max if LinkTp is small than size_t
@@ -129,10 +131,12 @@ private:
 		nElem = 0;
 		maxElem = 0;
 		maxload = 0;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (!boost::has_trivial_destructor<Elem>::value || sizeof(Elem) > sizeof(intptr_t))
 			pHash = NULL;
 		else
 			pHash = (HashTp*)(hash_cache_disabled);
+	  #endif
 
 		bucket = const_cast<LinkTp*>(&tail); // false start
 		nBucket = 1;
@@ -165,6 +169,12 @@ private:
 				i = reinterpret_cast<LinkTp&>(nl.data(i));
 			}
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
+		// nothing
+	  #else
+		static const int pHash = hash_cache_disabled;
+		TERARK_UNUSED_VAR(bFillHash);
+	  #endif
 		if (intptr_t(pHash) == hash_cache_disabled) {
 			if (0 == freelist_size)
 				for (size_t j = 0, n = nElem; j < n; ++j) {
@@ -181,6 +191,7 @@ private:
 					}
 				}
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		else if (bFillHash) {
 			HashTp* ph = pHash;
 			if (0 == freelist_size)
@@ -219,6 +230,7 @@ private:
 					}
 				}
         }
+	  #endif
 	}
 
 	void relink() { relink_impl(false); }
@@ -239,8 +251,10 @@ private:
 			}
 			m_nl.free();
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled && NULL != pHash)
 			free(pHash);
+	  #endif
 		if (bucket && &tail != bucket)
 			free(bucket);
 	}
@@ -289,7 +303,9 @@ public:
 		maxElem = y.nElem;
 		maxload = y.maxload;
 		nBucket = y.nBucket;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		pHash = NULL;
+	  #endif
 		freelist_head = y.freelist_head;
 		freelist_size = y.freelist_size;
         freelist_freq = y.freelist_freq;
@@ -311,6 +327,7 @@ public:
 			init();
 			TERARK_DIE("malloc(%zd)", sizeof(LinkTp) * y.nBucket);
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(y.pHash) == hash_cache_disabled) {
 			pHash = (HashTp*)(hash_cache_disabled);
 		}
@@ -323,6 +340,7 @@ public:
 			}
 			memcpy(pHash, y.pHash, sizeof(HashTp) * nElem);
 		}
+	  #endif
 		memcpy(bucket, y.bucket, sizeof(LinkTp) * nBucket);
 		if (!boost::has_trivial_copy<Elem>::value
 				&& freelist_size) {
@@ -345,7 +363,9 @@ public:
 	}
 	gold_hash_tab(gold_hash_tab&& y) noexcept
 	  : HashEqual(std::move(y)), KeyExtractor(std::move(y)) {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		pHash   =  y.pHash;
+	  #endif
 		m_nl    =  y.m_nl;
 		nElem   =  y.nElem;
 		maxElem =  y.maxElem;
@@ -373,7 +393,9 @@ public:
 	~gold_hash_tab() { destroy(); }
 
 	void swap(gold_hash_tab& y) {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		std::swap(pHash  , y.pHash);
+	  #endif
 		std::swap(m_nl   , y.m_nl);
 		std::swap(nElem  , y.nElem);
 		std::swap(maxElem, y.maxElem);
@@ -406,10 +428,15 @@ public:
 	void shrink_to_fit() { if (nElem < maxElem) reserve(nElem); }
 
 	bool is_hash_cached() const {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		return intptr_t(pHash) != hash_cache_disabled;
+	  #else
+		return false;
+	  #endif
 	}
 
 	void enable_hash_cache() {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled) {
 			if (0 == maxElem) {
 				pHash = NULL;
@@ -433,14 +460,17 @@ public:
 		}
 		TERARK_VERIFY_F(nullptr != pHash || 0 == maxElem,
 						"%p : %zd", pHash, size_t(maxElem));
+	  #endif
 	}
 
 	void disable_hash_cache() {
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled)
 			return;
 		if (pHash)
 			free(pHash);
 		pHash = (HashTp*)(hash_cache_disabled);
+	  #endif
 	}
 
 	size_t rehash(size_t newBucketSize) {
@@ -478,12 +508,14 @@ public:
 		TERARK_VERIFY_GE(cap, nElem);
 		TERARK_VERIFY_LE(cap, delmark);
 		if (cap != (size_t)maxElem && cap != nElem) {
+		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if (intptr_t(pHash) != hash_cache_disabled) {
 				HashTp* ph = (HashTp*)realloc(pHash, sizeof(HashTp) * cap);
 				if (NULL == ph)
 					TERARK_DIE("malloc(%zd)", sizeof(HashTp) * cap);
 				pHash = ph;
 			}
+		  #endif
 			if (freelist_size)
 				m_nl.reserve(nElem, cap, IsNotFree());
 			else
@@ -503,10 +535,14 @@ public:
 
 	inline HashTp hash_i(size_t i) const {
 		TERARK_ASSERT_LT(i, nElem);
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) == hash_cache_disabled)
 			return HashTp(HashEqual::hash(MyKeyExtractor(m_nl.data(i))));
 		else
 			return pHash[i];
+	  #else
+		return HashTp(HashEqual::hash(MyKeyExtractor(m_nl.data(i))));
+	  #endif
 	}
     inline HashTp hash_v(const Elem& e) const {
         return HashTp(HashEqual::hash(MyKeyExtractor(e)));
@@ -665,7 +701,11 @@ private:
 				goto DoErase;
 		return 0;
 	DoErase:
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		HashTp* ph = pHash;
+	  #else
+	  	static const int ph = hash_cache_disabled;
+	  #endif
 		nl.data(i).~Elem();
 		if (intptr_t(ph) == hash_cache_disabled) {
 			for (size_t j = i + 1; j != n; ++j)
@@ -673,6 +713,7 @@ private:
 					nl.data(j).~Elem();
 				else
 					memcpy(&nl.data(i), &nl.data(j), sizeof(Elem)), ++i;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		} else {
 			for (size_t j = i + 1; j != n; ++j)
 				if (pred(nl.data(j)))
@@ -681,6 +722,7 @@ private:
 					ph[i] = ph[j];
 					memcpy(&nl.data(i), &nl.data(j), sizeof(Elem)), ++i;
 				}
+	  #endif
 		}
 		nElem = i;
 		if (0 == i) { // all elements are erased
@@ -702,17 +744,23 @@ private:
 				goto DoErase;
 		return 0;
 	DoErase:
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		HashTp* ph = pHash;
+	  #else
+	  	static const int ph = hash_cache_disabled;
+	  #endif
 		if (intptr_t(ph) == hash_cache_disabled) {
 			for (size_t j = i + 1; j != n; ++j)
 				if (!pred(nl.data(j)))
 					boost::swap(nl.data(i), nl.data(j)), ++i;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		} else {
 			for (size_t j = i + 1; j != n; ++j)
 				if (!pred(nl.data(j))) {
 					ph[i] = ph[j];
 					boost::swap(nl.data(i), nl.data(j)), ++i;
 				}
+	  #endif
 		}
 		if (!boost::has_trivial_destructor<Elem>::value) {
 			for (size_t j = i; j != n; ++j)
@@ -821,8 +869,10 @@ public:
 		cons_elem(&m_nl.data(slot)); // must success
 		m_nl.link(slot) = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled)
 			pHash[slot] = h;
+	  #endif
 		is_sorted = false;
 		return std::make_pair(slot, true);
 	}
@@ -855,8 +905,10 @@ public:
 		cons_elem(&m_nl.data(slot)); // must success
 		m_nl.link(slot) = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled)
 			pHash[slot] = h;
+	  #endif
 		is_sorted = false;
 		return std::make_pair(slot, true);
 	}
@@ -888,8 +940,10 @@ public:
 		cons_elem(&m_nl.data(slot)); // must success
 		m_nl.link(slot) = bucket[i]; // newer at head
 		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled)
 			pHash[slot] = h;
+	  #endif
 		is_sorted = false;
 		return std::make_pair(slot, true);
 	}
@@ -944,8 +998,10 @@ public:
 			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
 				return p;
 		}
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		if (intptr_t(pHash) != hash_cache_disabled)
 			pHash[slot] = h;
+	  #endif
 		if (terark_unlikely(nElem - freelist_size >= maxload)) { // must be >=
 			// rehash will set the bucket&link for 'slot'
 			rehash(nBucket + 1); // will auto find next prime bucket size
@@ -1057,17 +1113,23 @@ private:
 				goto DoErase;
 		TERARK_DIE("it should not go here");
 	DoErase:
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		HashTp* ph = pHash;
+	  #else
+	  	static const int ph = hash_cache_disabled;
+	  #endif
 		if (intptr_t(ph) == hash_cache_disabled) {
 			for (size_t j = i + 1; j < n; ++j)
 				if (delmark != nl.link(j))
 					CopyStrategy::move_cons(&nl.data(i), nl.data(j)), ++i;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		} else {
 			for (size_t j = i + 1; j < n; ++j)
 				if (delmark != nl.link(j)) {
 					ph[i] = ph[j]; // copy cached hash value
 					CopyStrategy::move_cons(&nl.data(i), nl.data(j)), ++i;
 				}
+	  #endif
 		}
 		nElem = LinkTp(i);
 		freelist_head = tail;
@@ -1219,14 +1281,16 @@ protected:
 		dio >> size;
 		dio >> load_factor;
 		dio >> cacheHash;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		pHash = cacheHash ? NULL : (size_t*)(hash_cache_disabled);
-		if (0 == size.t)
-			return;
 		if (NULL == pHash) {
 			pHash = (HashTp*)malloc(sizeof(HashTp)*size.t);
 			if (NULL == pHash)
 				TERARK_DIE("realloc(%zd)", sizeof(HashTp)*size.t);
 		}
+	  #endif
+		if (0 == size.t)
+			return;
 		m_nl.reserve(0, size.t);
 		size_t i = 0, n = size.t;
 		try {
@@ -1235,11 +1299,13 @@ protected:
 				new(&nl.data(i))Elem();
 				dio >> nl.data(i);
 			}
+		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if ((size_t*)(hash_cache_disabled) != pHash) {
 				TERARK_VERIFY(nullptr != pHash);
 				for (size_t j = 0; j < n; ++j)
 					pHash[j] = HashEqual::hash(MyKeyExtractor(nl.data(i)));
 			}
+		  #endif
 			nElem = LinkTp(size.t);
 			maxElem = nElem;
 			maxload = nElem; //LinkTp(load_factor * nBucket);
@@ -1254,7 +1320,11 @@ protected:
 	template<class DataIO> void dio_save_fast(DataIO& dio) const {
 		dio << typename DataIO::my_var_uint64_t(nElem);
 		dio << load_factor;
+	  #if defined(HSM_ENABLE_HASH_CACHE)
 		dio << (unsigned char)(intptr_t(pHash) != hash_cache_disabled);
+	  #else
+		dio << (unsigned char)(false);
+	  #endif
 		const NodeLayout nl = m_nl;
 		for (size_t i = 0, n = nElem; i < n; ++i)
 			dio << nl.data(i);
