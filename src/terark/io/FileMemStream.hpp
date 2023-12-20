@@ -48,7 +48,7 @@ public:
     }
 
     void ensureRead(void* vbuf, size_t length) {
-        if (terark_likely(Base::tell() + length < Base::size())) {
+        if (terark_likely(Base::tell() + length < Base::capacity())) {
             Base::ensureRead(vbuf, length);
         }
         else
@@ -135,16 +135,16 @@ public:
     }
     size_t pwrite(stream_position_t pos, const void* data, size_t length) noexcept {
         if (terark_unlikely(Base::tell() + length > m_len)) {
-            resize(std::max<size_t>(pos + length, 64u));
+            reserve(std::max<size_t>(pos + length, 64u));
             if (pos > m_len) memset(Base::begin() + m_len, 0, pos - m_len);
         }
         memcpy(Base::begin() + pos, data, length);
         return length;
     }
 
-    void resize(size_t size) {
-        if (size > Base::size())
-            Base::resize(size);
+    void reserve(size_t size) {
+        if (size > Base::capacity())
+            Base::reserve(size);
         if (size > m_len) memset(Base::begin() + m_len, 0, size - m_len);
         m_len = size;
     }

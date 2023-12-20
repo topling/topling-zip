@@ -553,7 +553,7 @@ public:
                 + sizeof(BlobStoreFileFooter);
 
             assert(m_memStream.size() == file_size - sizeof(BlobStoreFileFooter));
-            m_memStream.stream()->resize(file_size);
+            m_memStream.stream()->reserve(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
                 FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()), m_content_size, offsets_size,
                                    m_options);
@@ -563,7 +563,7 @@ public:
 
             BlobStoreFileFooter footer;
             footer.fileXXHash = xxhash64.digest();
-            m_memStream.stream()->resize(file_size);
+            m_memStream.stream()->reserve(file_size);
             ((BlobStoreFileFooter*)(m_memStream.stream()->end()))[-1] = footer;
         } else {
             m_builder->finish(nullptr);

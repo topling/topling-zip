@@ -867,7 +867,7 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
 	const size_t num = task->num;
 	if (builder->m_entropyZipDataBase) {
         // reserve same of input data for zipped data memory
-        task->obuf.resize(task->ibuf.size());
+        task->obuf.reserve(task->ibuf.size());
 	    auto ctx = GetTlsTerarkContext();
 	    auto entropyBitmap = task->entropyBitmap();
 		for(size_t i = 0; i < num; ++i) {
@@ -880,7 +880,7 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
 	}
 	else {
         // reserve 1/2 of input data for zipped data memory
-        task->obuf.resize(task->ibuf.size() / 2);
+        task->obuf.reserve(task->ibuf.size() / 2);
 		for(size_t i = 0; i < num; ++i) {
 			fstring rec = task->nthRecord(i);
 			builder->zipRecord(rec.udata(), rec.size(), hash, task->obuf);
@@ -1964,7 +1964,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
         m_fpWriter.attach(&m_fp);
     }
     else {
-        m_memStream.stream()->resize(storeSize);
+        m_memStream.stream()->reserve(storeSize);
         m_memStream.seek(sizeof(FileHeader) + pos);
         m_fpWriter.attach(&m_memStream);
     }
@@ -2001,7 +2001,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
                     result.size, result.uintbits);
             }
             else {
-                m_memStream.stream()->resize(storeSize);
+                m_memStream.stream()->reserve(storeSize);
                 zoffsets.risk_set_data(
                     m_memStream.stream()->begin() + sizeof(FileHeader) + pos,
                     result.size, result.uintbits);
@@ -2029,7 +2029,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
                     fileSize);
             }
             else {
-                m_memStream.stream()->resize(storeSize);
+                m_memStream.stream()->reserve(storeSize);
                 szoffsets.risk_set_data(
                     m_memStream.stream()->begin() + sizeof(FileHeader) + pos,
                     fileSize);
@@ -2109,7 +2109,7 @@ void DictZipBlobStoreBuilder::EmbedDict(std::unique_ptr<terark::DictZipBlobStore
     }
     else {
         size_t fileSize = m_memStream.size() + m_strDict.size();
-        m_memStream.stream()->resize(fileSize);
+        m_memStream.stream()->reserve(fileSize);
         auto hp = (FileHeader*)m_memStream.stream()->begin();
         BlobStoreFileFooter footer = *hp->getFileFooter();
         assert(fileSize == hp->fileSize + m_strDict.size());
@@ -2119,13 +2119,13 @@ void DictZipBlobStoreBuilder::EmbedDict(std::unique_ptr<terark::DictZipBlobStore
             if (!ZSTD_isError(zstd_size)) {
                 hp->setEmbeddedDictType(zstd_size, EmbeddedDictType::kZSTD);
                 *hp->getFileFooter() = footer;
-                m_memStream.stream()->resize(hp->fileSize);
+                m_memStream.stream()->reserve(hp->fileSize);
                 return;
             }
         }
         memcpy((byte_t*)hp->getFileFooter(), m_strDict.data(), m_strDict.size());
         hp->setEmbeddedDictType(m_strDict.size(), EmbeddedDictType::kRaw);
-        m_memStream.stream()->resize(hp->fileSize);
+        m_memStream.stream()->reserve(hp->fileSize);
         *hp->getFileFooter() = footer;
     }
 }
@@ -2184,7 +2184,7 @@ void DictZipBlobStoreBuilder::finish(int flag) {
                     fileSize);
             }
             else {
-                m_memStream.stream()->resize(finalSize);
+                m_memStream.stream()->reserve(finalSize);
                 store->m_zOffsets.risk_set_data(
                     m_memStream.stream()->begin() + sizeof(FileHeader) + align_up(m_zipDataSize, 16),
                     fileSize);
@@ -2212,7 +2212,7 @@ void DictZipBlobStoreBuilder::finish(int flag) {
                     result.size, result.uintbits);
             }
             else {
-                m_memStream.stream()->resize(finalSize);
+                m_memStream.stream()->reserve(finalSize);
                 store->m_offsets.risk_set_data(
                     m_memStream.stream()->begin() + sizeof(FileHeader) + align_up(m_zipDataSize, 16),
                     result.size, result.uintbits);

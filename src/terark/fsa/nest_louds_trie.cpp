@@ -2928,7 +2928,7 @@ static byte_t*
 save_mmap_s(const NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* self,
             size_t* pSize) {
 	NativeDataOutput<AutoGrownMemIO> tmpbuf;
-	tmpbuf.resize(8*1024);
+	tmpbuf.reserve(8*1024);
 	size_t trieNum = self->nest_level();
 	size_t version = 2; // now version always == 2
 	tmpbuf << uint32_t(trieNum);
