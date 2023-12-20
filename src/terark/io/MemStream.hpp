@@ -23,8 +23,7 @@ TERARK_DLL_EXPORT terark_no_return void throw_OutOfSpace(const char* func, size_
 
 //! MinMemIO
 //! +--MemIO
-//!    +--SeekableMemIO
-//!       +--AutoGrownMemIO
+//!    +--AutoGrownMemIO
 
 /**
  @brief 最有效的MemIO
@@ -242,32 +241,34 @@ protected:
 	byte* m_end; // only used by set/eof
 };
 
-class TERARK_DLL_EXPORT AutoGrownMemIO;
+/**
+ @brief AutoGrownMemIO 可以管理自己的 buffer
 
-class TERARK_DLL_EXPORT SeekableMemIO : public MemIO
+ @note
+  - 如果只需要 Eofmark, 使用 MemIO 就可以了
+ */
+class TERARK_DLL_EXPORT AutoGrownMemIO : public MemIO
 {
+	DECLARE_NONE_COPYABLE_CLASS(AutoGrownMemIO);
+
+	void growCapAndWrite(const void* data, size_t length) noexcept;
+	void growCapAndWriteByte(byte b) noexcept;
+
+protected:
+	byte* m_beg;
+
 public:
 	typedef boost::mpl::true_ is_seekable; //!< 可以 seek
 
-	SeekableMemIO() { m_pos = m_beg = m_end = 0; }
-	SeekableMemIO(void* buf, size_t size) { set(buf, size); }
-	SeekableMemIO(void* beg, void* end) { set(beg, end); }
-	SeekableMemIO(const MemIO& x) { set(x.current(), x.end()); }
-
-	void set(void* buf, size_t size) throw() {
-		m_pos = (byte*)buf;
-		m_beg = (byte*)buf;
-		m_end = (byte*)buf + size;
-	}
-	void set(void* beg, void* end) throw() {
-		m_pos = (byte*)beg;
-		m_beg = (byte*)beg;
-		m_end = (byte*)end;
-	}
-
 	byte*  begin()const throw() { return m_beg; }
 	byte*  buf()  const throw() { return m_beg; }
-	size_t size() const throw() { return m_end-m_beg; }
+
+	// synonym to size(), this is different to std::vector, user code should
+	// avoid using size(), prefer tell() or capacity(),
+	// because size() is somewhat ambiguous:
+	//   1. In stream semantic: size() is capacity()
+	//   2. In vector semantic: size() is stream.tell()
+	size_t capacity() const noexcept { return m_end - m_beg; }
 
 	const char* c_str() const {
 		assert(m_pos < m_end);
@@ -307,7 +308,7 @@ public:
 		m_pos = m_beg + newPos;
 	}
 
-	void swap(SeekableMemIO& that) noexcept {
+	void swap(AutoGrownMemIO& that) noexcept {
 		std::swap(m_beg, that.m_beg);
 		std::swap(m_end, that.m_end);
 		std::swap(m_pos, that.m_pos);
@@ -322,33 +323,7 @@ public:
 	std::pair<byte*, byte*> whole()const { return std::pair<byte*, byte*>(m_beg, m_end); }
 	//@}
 
-protected:
-	byte* m_beg;
-
-private:
-	SeekableMemIO(AutoGrownMemIO&);
-	SeekableMemIO(const AutoGrownMemIO&);
-};
-
-/**
- @brief AutoGrownMemIO 可以管理自己的 buffer
-
- @note
-  - 如果只需要 Eofmark, 使用 MemIO 就可以了
-  - 如果还需要 seekable, 使用 SeekableMemIO
- */
-//template<bool Use_c_malloc>
-class TERARK_DLL_EXPORT AutoGrownMemIO : public SeekableMemIO
-{
-	DECLARE_NONE_COPYABLE_CLASS(AutoGrownMemIO);
-
-	void growCapAndWrite(const void* data, size_t length) noexcept;
-	void growCapAndWriteByte(byte b) noexcept;
-
-	using SeekableMemIO::size; // make it usable by app code
-
-public:
-	AutoGrownMemIO() {}
+	AutoGrownMemIO() { m_beg = NULL; }
 	explicit AutoGrownMemIO(size_t size) noexcept;
 
 	~AutoGrownMemIO();
@@ -398,13 +373,6 @@ public:
 	void grow_capacity(size_t nGrow) noexcept;
 	void init(size_t size) noexcept;
 
-	// synonym to size(), this is different to std::vector, user code should
-	// avoid using size(), prefer tell() or capacity(),
-	// because size() is somewhat ambiguous:
-	//   1. In stream semantic: size() is capacity()
-	//   2. In vector semantic: size() is stream.tell()
-	size_t capacity() noexcept { return m_end - m_beg; }
-
 	template<class InputStream>
 	void from_input(InputStream& input, size_t length) {
 		if (terark_unlikely(m_pos + length > m_end))
@@ -414,7 +382,6 @@ public:
 	}
 
 	void clear() noexcept;
-	void swap(AutoGrownMemIO& that) noexcept { SeekableMemIO::swap(that); }
 	void shrink_to_fit() noexcept;
 
 	void risk_take_ownership(void* buf, size_t size) noexcept {
@@ -454,22 +421,6 @@ public:
 	}
 
 	#include "var_int_declare_write.hpp"
-
-private:
-	//@{
-	//! disable super::set
-	//!
-	void set(void* buf, size_t size);
-	void set(void* beg, void* end);
-	//@}
-
-	//@{
-	//! disable convert-ability to MemIO
-	//! this cause gcc warning: conversion to a reference to a base class will never use a type conversion operator
-	//! see SeekableMemIO::SeekableMemIO(const AutoGrownMemIO&)
-//	operator const SeekableMemIO&() const;
-//	operator SeekableMemIO&();
-	//@}
 };
 
 //////////////////////////////////////////////////////////////////////////

@@ -53,7 +53,7 @@ void MemIO::throw_OutOfSpace(const char* func, size_t want)
 
 //////////////////////////////////////////////////////////////////////////
 
-void SeekableMemIO::seek(ptrdiff_t newPos)
+void AutoGrownMemIO::seek(ptrdiff_t newPos)
 {
 	assert(newPos >= 0);
 	if (newPos < 0 || newPos > m_end - m_beg) {
@@ -67,7 +67,7 @@ void SeekableMemIO::seek(ptrdiff_t newPos)
 	m_pos = m_beg + newPos;
 }
 
-void SeekableMemIO::seek(ptrdiff_t offset, int origin)
+void AutoGrownMemIO::seek(ptrdiff_t offset, int origin)
 {
 	size_t pos;
 	switch (origin)
@@ -82,7 +82,7 @@ void SeekableMemIO::seek(ptrdiff_t offset, int origin)
 		}
 		case 0: pos = (size_t)(0 + offset); break;
 		case 1: pos = (size_t)(tell() + offset); break;
-		case 2: pos = (size_t)(size() + offset); break;
+		case 2: pos = (size_t)(capacity() + offset); break;
 	}
 	seek(pos);
 }
@@ -90,18 +90,18 @@ void SeekableMemIO::seek(ptrdiff_t offset, int origin)
 // rarely used methods....
 //
 
-std::pair<byte*, byte*> SeekableMemIO::range(size_t ibeg, size_t iend) const
+std::pair<byte*, byte*> AutoGrownMemIO::range(size_t ibeg, size_t iend) const
 {
 	assert(ibeg <= iend);
-	assert(ibeg <= size());
-	assert(iend <= size());
-	if (ibeg <= iend && ibeg <= size() && iend <= size())
+	assert(ibeg <= capacity());
+	assert(iend <= capacity());
+	if (ibeg <= iend && ibeg <= capacity() && iend <= capacity())
 	{
 		return std::pair<byte*, byte*>(m_beg + ibeg, m_beg + iend);
 	}
 	string_appender<> oss;
 	oss << BOOST_CURRENT_FUNCTION
-		<< ": size=" << size()
+		<< ": size=" << capacity()
 		<< ", tell=" << tell()
 		<< ", ibeg=" << ibeg
 		<< ", iend=" << iend
@@ -133,8 +133,8 @@ AutoGrownMemIO::~AutoGrownMemIO()
 
 void AutoGrownMemIO::clone(const AutoGrownMemIO& src) noexcept
 {
-	AutoGrownMemIO t(src.size());
-	memcpy(t.begin(), src.begin(), src.size());
+	AutoGrownMemIO t(src.capacity());
+	memcpy(t.begin(), src.begin(), src.capacity());
 	this->swap(t);
 }
 
@@ -147,7 +147,6 @@ void AutoGrownMemIO::clone(const AutoGrownMemIO& src) noexcept
  */
 void AutoGrownMemIO::reserve(size_t request_cap) noexcept
 {
-	TERARK_VERIFY_LE(tell(), request_cap);
 	size_t oldcap = capacity();
 	if (request_cap <= oldcap) {
 		return;
@@ -203,7 +202,7 @@ void AutoGrownMemIO::init(size_t newcap) noexcept
 void AutoGrownMemIO::growCapAndWrite(const void* data, size_t length) noexcept
 {
 	using namespace std;
-	size_t nSize = size();
+	size_t nSize = capacity();
 	size_t nGrow = max(length, nSize);
 	reserve(max(nSize + nGrow, (size_t)64u));
 	memcpy(m_pos, data, length);
@@ -213,7 +212,7 @@ void AutoGrownMemIO::growCapAndWrite(const void* data, size_t length) noexcept
 void AutoGrownMemIO::growCapAndWriteByte(byte b) noexcept
 {
 	using namespace std;
-	reserve(max(2u * size(), (size_t)64u));
+	reserve(max(2u * capacity(), (size_t)64u));
 	*m_pos++ = b;
 }
 
