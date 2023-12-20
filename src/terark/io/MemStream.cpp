@@ -143,16 +143,16 @@ void AutoGrownMemIO::clone(const AutoGrownMemIO& src) noexcept
 
   不改变 buffer 中的已存内容，不改变 pos
 
- @note must m_pos <= newsize
+ @note must m_pos <= request_cap
  */
-void AutoGrownMemIO::resize(size_t newsize) noexcept
+void AutoGrownMemIO::reserve(size_t request_cap) noexcept
 {
-	TERARK_VERIFY_LE(tell(), newsize);
-	size_t oldsize = size();
-	if (newsize <= oldsize) {
+	TERARK_VERIFY_LE(tell(), request_cap);
+	size_t oldcap = capacity();
+	if (request_cap <= oldcap) {
 		return;
 	}
-	size_t newcap = std::max(oldsize * 103/64, newsize);
+	size_t newcap = std::max(oldcap * 103/64, request_cap);
 	byte* newbeg = (byte*)realloc(m_beg, newcap);
 	if (newbeg) {
 		m_pos = newbeg + (m_pos - m_beg);
@@ -160,17 +160,17 @@ void AutoGrownMemIO::resize(size_t newsize) noexcept
 		m_beg = newbeg;
 	}
 	else {
-		TERARK_DIE("AutoGrownMemIO::resize(newsize = %zd), oldsize = %zd, realloc(newcap = %zd) failed",
-					newsize, oldsize, newcap);
+		TERARK_DIE("AutoGrownMemIO::reserve(request_cap = %zd), oldcap = %zd, realloc(newcap = %zd) failed",
+					request_cap, oldcap, newcap);
 	}
 }
 
-void AutoGrownMemIO::grow(size_t nGrow) noexcept {
-	size_t oldsize = m_end - m_beg;
-	size_t newsize = oldsize + nGrow;
-	size_t newcap = std::max<size_t>(32, oldsize);
-	while (newcap < newsize) newcap *= 2;
-	resize(newcap);
+void AutoGrownMemIO::grow_capacity(size_t nGrow) noexcept {
+	size_t oldcap = m_end - m_beg;
+	size_t request_cap = oldcap + nGrow;
+	size_t newcap = std::max<size_t>(32, oldcap);
+	while (newcap < request_cap) newcap *= 2;
+	reserve(newcap);
 }
 
 /**
@@ -179,41 +179,41 @@ void AutoGrownMemIO::grow(size_t nGrow) noexcept {
   相当于按新尺寸重新构造一个新 AutoGrownMemIO
   不需要把旧内容拷贝到新地址
  */
-void AutoGrownMemIO::init(size_t newsize) noexcept
+void AutoGrownMemIO::init(size_t newcap) noexcept
 {
-	size_t oldsize = (size_t)(m_beg - m_beg);
+	size_t oldcap = (size_t)(m_beg - m_beg);
 	if (m_beg)
 		::free(m_beg);
-	if (newsize) {
-		m_beg = (byte*)::malloc(newsize);
+	if (newcap) {
+		m_beg = (byte*)::malloc(newcap);
 		if (NULL == m_beg) {
 			m_pos = m_end = NULL;
-			TERARK_DIE("malloc failed in AutoGrownMemIO::init(newsize=%lu), oldsize=%lu"
-				, (unsigned long)newsize
-				, (unsigned long)oldsize
+			TERARK_DIE("malloc failed in AutoGrownMemIO::init(newcap=%lu), oldcap=%lu"
+				, (unsigned long)newcap
+				, (unsigned long)oldcap
 				);
 		}
 		m_pos = m_beg;
-		m_end = m_beg + newsize;
+		m_end = m_beg + newcap;
 	}
 	else
 		m_pos = m_end = m_beg = NULL;
 }
 
-void AutoGrownMemIO::growAndWrite(const void* data, size_t length) noexcept
+void AutoGrownMemIO::growCapAndWrite(const void* data, size_t length) noexcept
 {
 	using namespace std;
 	size_t nSize = size();
 	size_t nGrow = max(length, nSize);
-	resize(max(nSize + nGrow, (size_t)64u));
+	reserve(max(nSize + nGrow, (size_t)64u));
 	memcpy(m_pos, data, length);
 	m_pos += length;
 }
 
-void AutoGrownMemIO::growAndWriteByte(byte b) noexcept
+void AutoGrownMemIO::growCapAndWriteByte(byte b) noexcept
 {
 	using namespace std;
-	resize(max(2u * size(), (size_t)64u));
+	reserve(max(2u * size(), (size_t)64u));
 	*m_pos++ = b;
 }
 
@@ -272,7 +272,7 @@ size_t AutoGrownMemIO::printf(const char* format, ...) noexcept
 size_t AutoGrownMemIO::vprintf(const char* format, va_list ap) noexcept
 {
 	if (m_end - m_pos < 64) {
-		this->resize(std::max<size_t>(64, (m_end-m_beg)*2));
+		this->reserve(std::max<size_t>(64, (m_end-m_beg)*2));
 	}
 	while (1) {
 		ptrdiff_t n, size = m_end - m_pos;
@@ -297,7 +297,7 @@ size_t AutoGrownMemIO::vprintf(const char* format, va_list ap) noexcept
 		else           /* glibc 2.0 */
 			size *= 2;  /* twice the old size */
 
-		this->resize((m_pos - m_beg + size) * 2);
+		this->reserve((m_pos - m_beg + size) * 2);
 	}
 }
 

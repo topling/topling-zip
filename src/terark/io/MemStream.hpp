@@ -174,7 +174,7 @@ public:
 	void readAll(ByteArray& ba) {
 		BOOST_STATIC_ASSERT(sizeof(ba[0]) == 1);
 		ptrdiff_t len = m_end - m_pos;
-		ba.resize(len);
+		ba.reserve(len);
 		if (len) {
 			// must be a continuous memory block
 			assert(&*(ba.end()-1) - &*ba.begin() == len-1);
@@ -342,8 +342,10 @@ class TERARK_DLL_EXPORT AutoGrownMemIO : public SeekableMemIO
 {
 	DECLARE_NONE_COPYABLE_CLASS(AutoGrownMemIO);
 
-	void growAndWrite(const void* data, size_t length) noexcept;
-	void growAndWriteByte(byte b) noexcept;
+	void growCapAndWrite(const void* data, size_t length) noexcept;
+	void growCapAndWriteByte(byte b) noexcept;
+
+	using SeekableMemIO::size; // make it usable by app code
 
 public:
 	AutoGrownMemIO() {}
@@ -356,7 +358,7 @@ public:
 		if (terark_likely(m_pos < m_end))
 			*m_pos++ = b;
 		else
-			growAndWriteByte(b);
+			growCapAndWriteByte(b);
 	}
 
 	void ensureWrite(const void* data, size_t length) noexcept {
@@ -365,7 +367,7 @@ public:
 			memcpy(m_pos, data, length);
 			m_pos += length;
 		} else
-			growAndWrite(data, length);
+			growCapAndWrite(data, length);
 	}
 
 	size_t write(const void* data, size_t length) noexcept {
@@ -392,14 +394,21 @@ public:
 
 	// rarely used methods....
 	//
-	void resize(size_t newsize) noexcept;
-	void grow(size_t nGrow) noexcept;
+	void reserve(size_t newcap) noexcept;
+	void grow_capacity(size_t nGrow) noexcept;
 	void init(size_t size) noexcept;
+
+	// synonym to size(), this is different to std::vector, user code should
+	// avoid using size(), prefer tell() or capacity(),
+	// because size() is somewhat ambiguous:
+	//   1. In stream semantic: size() is capacity()
+	//   2. In vector semantic: size() is stream.tell()
+	size_t capacity() noexcept { return m_end - m_beg; }
 
 	template<class InputStream>
 	void from_input(InputStream& input, size_t length) {
 		if (terark_unlikely(m_pos + length > m_end))
-			resize(tell() + length);
+			reserve(tell() + length);
 		input.ensureRead(m_pos, length);
 		m_pos += length;
 	}
@@ -433,7 +442,7 @@ public:
 	void DataIO_loadObject(DataIO& dio, AutoGrownMemIO& x) {
 		typename DataIO::my_var_size_t length;
 		dio >> length;
-		x.resize(length.t);
+		x.reserve(length.t);
 		dio.ensureRead(x.begin(), length.t);
 	}
 
