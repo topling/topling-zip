@@ -483,7 +483,7 @@ ${1}/git-version-%.cpp: Makefile
 	@echo -n '__attribute__ ((visibility ("default"))) const char*' \
 		  'git_version_hash_info_'$$(patsubst git-version-%.cpp,%,$$(notdir $$@))\
 		  '() { return R"StrLiteral(git_version_hash_info_is:' > $$@.tmp
-	@env LC_ALL=C git rev-parse  HEAD >> $$@.tmp
+	@env LC_ALL=C git log -n1  HEAD >> $$@.tmp
 	@env LC_ALL=C git diff >> $$@.tmp
 	@env LC_ALL=C $(CXX) --version >> $$@.tmp
 	@echo INCS = ${INCS}           >> $$@.tmp
