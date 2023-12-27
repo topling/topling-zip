@@ -99,7 +99,7 @@ public:
         ptrdiff_t pos;
         switch (origin) {
         case 0: pos = offset; break;
-        case 1: pos = Base::tell(); break;
+        case 1: pos = Base::tell() + offset; break;
         case 2: pos = ptrdiff_t(m_len) + offset; break;
         default: pos = -1; break;
         }
