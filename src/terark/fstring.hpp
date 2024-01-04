@@ -156,6 +156,8 @@ struct TERARK_DLL_EXPORT basic_fstring {
 	const Char* p;
 	ptrdiff_t   n;
 
+	static constexpr size_t npos = size_t(-1);
+
 	basic_fstring() : p(NULL), n(0) {}
 	basic_fstring(const std_string& x) : p(x.c_str()), n(x.size()) {}
 #ifdef NDEBUG // let compiler compute strlen(string literal) at compilation time
@@ -296,7 +298,19 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		assert(pos <= n);
 		assert(needle.n > 0);
 		if (pos + needle.n > n) return NULL;
-		return terark_fstrstr(p, n, needle.p, needle.n);
+		return terark_fstrstr(p + pos, n - pos, needle.p, needle.n);
+	}
+
+	size_t find(ptrdiff_t pos, basic_fstring needle) const {
+		assert(pos >= 0);
+		assert(pos <= n);
+		assert(needle.n > 0);
+		if (pos + needle.n > n) return npos;
+		const Char* hit = terark_fstrstr(p + pos, n - pos, needle.p, needle.n);
+		return hit ? hit - p : npos;
+	}
+	size_t find(basic_fstring needle) const {
+		return find(0, needle);
 	}
 
 	bool startsWith(basic_fstring x) const {
