@@ -147,6 +147,86 @@ struct string_appender : public String {
 	string_appender& operator<<(float x) { char buf[96]; this->append(buf, num_to_str(buf, x)); return *this; };
 	string_appender& operator<<(double x) { char buf[96]; this->append(buf, num_to_str(buf, x)); return *this; };
 	string_appender& operator<<(long double x) { char buf[96]; this->append(buf, num_to_str(buf, x)); return *this; };
+
+	template<class StreamOperator>
+	auto operator<<(const StreamOperator& op) -> decltype(op(*this))& {
+		return op(*this);
+	}
+	string_appender& write(const typename String::value_type* ptr, size_t len) {
+		this->append(ptr, len);
+		return *this;
+	}
+};
+
+template<class StringView = fstring>
+struct ReplaceChar {
+	template<class OutputStream>
+	OutputStream& operator()(OutputStream& os) const {
+		size_t oldsize = os.size(), textlen = text.size();
+		os.resize(oldsize + textlen);
+		auto src = text.data();
+		auto dst = os.data() + oldsize;
+		for (size_t i = 0; i < textlen; i++) {
+			const auto ch = src[i];
+			dst[i] = ch == match ? replace : ch;
+		}
+		return os;
+	}
+	const StringView text;
+	const typename StringView::value_type match, replace;
+};
+template<class StringView = fstring>
+struct ReplaceSubStr {
+	template<class OutputStream>
+	OutputStream& operator()(OutputStream& os) const {
+		auto text_data = text.data();
+		auto search_pos = size_t(0), hit_pos = text.find(search_pos, match);
+		while (hit_pos != StringView::npos) {
+			os.write(text_data + search_pos, hit_pos - search_pos);
+			os.write(replace.data(), replace.size());
+			search_pos = hit_pos + match.size();
+			hit_pos = text.find(search_pos, match);
+		}
+		TERARK_ASSERT_LE(search_pos, text.size());
+		os.write(text_data + search_pos, text.size() - search_pos);
+		return os;
+	}
+	const StringView text;
+	const StringView match;
+	const StringView replace;
+};
+
+template<class StringView = fstring>
+class ReplaceBySmallTR {
+public:
+	template<class OutputStream>
+	OutputStream& operator()(OutputStream& os) const {
+		size_t oldsize = os.size(), textlen = text.size(), tr_len = match.size();
+		os.resize(oldsize + textlen);
+		auto p_match = match.data(), p_replace = replace.data();
+		auto src = text.data();
+		auto dst = os.data() + oldsize;
+		for (size_t i = 0; i < textlen; i++) {
+			auto ch = src[i];
+			for (size_t j = 0; j < tr_len; j++) {
+				if (ch == p_match[j]) {
+					ch = p_replace[j];
+					break;
+				}
+			}
+			dst[i] = ch;
+		}
+		return os;
+	}
+	ReplaceBySmallTR(StringView _text, StringView _match, StringView _replace)
+		: text(_text), match(_match), replace(_replace)
+	{
+		TERARK_VERIFY_EQ(_match.size(), _replace.size());
+	}
+private:
+	const StringView text;
+	const StringView match;
+	const StringView replace;
 };
 
 template<class String>
