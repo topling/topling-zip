@@ -292,7 +292,7 @@ void ProcPipeStream::wait_finish() noexcept {
         TERARK_IF_MSVC(Sleep(10), usleep(10000)); // 10 ms
         waited_ms += 10;
         if (waited_ms % 5000 == 0) {
-            fprintf(stderr, "INFO: wait onFinish = %zd\n", waited_ms);
+            fprintf(stderr, "INFO: m_child_step = %d, wait onFinish = %zd\n", m_child_step, waited_ms);
         }
     }
 }
