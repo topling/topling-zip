@@ -25,6 +25,11 @@ void vfork_cmd(fstring cmd, fstring stdinData,
                fstring tmpFilePrefix = "");
 
 TERARK_DLL_EXPORT
+void // std_out_err[0] is stdout, std_out_err[1] is stderr
+vfork_cmd(fstring cmd, fstring stdinData, std::string std_out_err[2],
+          fstring tmpFilePrefix = "");
+
+TERARK_DLL_EXPORT
 std::future<std::string>
 vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
 
@@ -85,6 +90,14 @@ TERARK_DLL_EXPORT
 void vfork_cmd(fstring cmd,
                function<void(ProcPipeStream&)> write,
                function<void(std::string&& stdoutData, const std::exception*)>,
+               fstring tmpFilePrefix = "");
+
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd,
+               function<void(ProcPipeStream&)> write,
+               function<void(std::string&& stdoutData,
+                             std::string&& stderrData,
+                             const std::exception*)> onFinish,
                fstring tmpFilePrefix = "");
 
 TERARK_DLL_EXPORT

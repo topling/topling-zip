@@ -320,8 +320,10 @@ struct VforkCmdPromise {
 
 struct VforkCmdImpl {
     std::string tmp_file;
+    std::string tmp_file_stderr;
     string_appender<> cmdw;
-    int fd;
+    int fd = -1;
+    int fd_stderr = -1;
     ProcPipeStream proc;
 
     VforkCmdImpl(fstring cmd, fstring tmpFilePrefix) {
@@ -334,14 +336,19 @@ struct VforkCmdImpl {
             THROW_STD(runtime_error, "mkstemp(%s) = %s", tmp_file.c_str(),
                       strerror(errno));
         }
+        tmp_file_stderr = tmp_file + ".err";
+        fd_stderr = open(tmp_file_stderr.c_str(), O_CREAT|O_RDWR, 0600);
+        if (fd_stderr < 0) {
+            THROW_STD(runtime_error, "open(%s, O_CREAT|O_RDWR, 0600) = %s",
+                      tmp_file_stderr.c_str(), strerror(errno));
+        }
         cmdw.reserve(cmd.size() + 32);
 #if ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET
         // use  " > /dev/fd/xxx" will prevent from tmp_file being
         // deleted unexpected
-        cmdw << cmd << " > /dev/fd/" << fd;
+        cmdw << cmd << " > /dev/fd/" << fd << " 2> /dev/fd/" << fd_stderr;
 #else
-        cmdw << cmd << " > " << tmp_file;
-        ::close(fd); fd = -1;
+        cmdw << cmd << " > " << tmp_file << " 2> " << tmp_file_stderr;
 #endif
     }
 
@@ -352,9 +359,22 @@ struct VforkCmdImpl {
         if (!tmp_file.empty()) {
             ::remove(tmp_file.c_str());
         }
+        if (fd_stderr >= 0) {
+            ::close(fd_stderr);
+        }
+        if (!tmp_file_stderr.empty()) {
+            ::remove(tmp_file_stderr.c_str());
+        }
     }
 
     std::string read_stdout() {
+        return read_output(this->tmp_file, this->fd);
+    }
+    std::string read_stderr() {
+        return read_output(this->tmp_file_stderr, this->fd_stderr);
+    }
+    static
+    std::string read_output(const std::string& tmp_file, int fd) {
         //
         // now cmd sub process must have finished
         //
@@ -405,13 +425,30 @@ void vfork_cmd(fstring cmd,
                function<void(std::string&& stdoutData, const std::exception*)> onFinish,
                fstring tmpFilePrefix)
 {
+    vfork_cmd(cmd, std::move(write),
+        [onFinish=std::move(onFinish)](std::string&& stdoutData,
+                                       std::string&& /*stderrData*/,
+                                       const std::exception* ex) {
+            onFinish(std::move(stdoutData), ex);
+        },
+        tmpFilePrefix);
+}
+
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd,
+               function<void(ProcPipeStream&)> write,
+               function<void(std::string&& stdoutData,
+                             std::string&& stderrData,
+                             const std::exception*)> onFinish,
+               fstring tmpFilePrefix)
+{
     auto share = std::make_shared<VforkCmdImpl>(cmd, tmpFilePrefix);
 
     share->proc.open(share->cmdw, "w",
    [share, onFinish=std::move(onFinish)](ProcPipeStream* proc) {
         try {
             if (proc->err_code() == 0) {
-                onFinish(share->read_stdout(), nullptr);
+                onFinish(share->read_stdout(), share->read_stderr(), nullptr);
             }
             else {
                 string_appender<> msg;
@@ -419,15 +456,35 @@ void vfork_cmd(fstring cmd,
                 msg << "realcmd = " << share->cmdw << ", ";
                 msg << "err_code/childstatus = " << proc->err_code();
                 std::runtime_error ex(msg);
-                onFinish(share->read_stdout(), &ex);
+                onFinish(share->read_stdout(), share->read_stderr(), &ex);
             }
         }
         catch (const std::exception& ex) {
-            onFinish(std::string(""), &ex);
+            onFinish(std::string(""), std::string(""), &ex);
         }
     });
-    write(share->proc);
+    if (write) {
+        write(share->proc);
+    }
     share->proc.close();
+}
+
+TERARK_DLL_EXPORT
+void // std_out_err[0] is stdout, std_out_err[1] is stderr
+vfork_cmd(fstring cmd, fstring stdinData, std::string std_out_err[2],
+          fstring tmpFilePrefix) {
+    auto writeStdinData = [stdinData](ProcPipeStream& pipe) {
+       pipe.ensureWrite(stdinData.data(), stdinData.size());
+    };
+    vfork_cmd(cmd, writeStdinData,
+        [&](std::string&& stdoutData,
+            std::string&& stderrData,
+            const std::exception* ex)
+        {
+            std_out_err[0] = std::move(stdoutData);
+            std_out_err[1] = std::move(stderrData);
+        },
+        tmpFilePrefix);
 }
 
 TERARK_DLL_EXPORT
