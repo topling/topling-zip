@@ -466,6 +466,7 @@ void vfork_cmd(fstring cmd,
     if (write) {
         write(share->proc);
     }
+    share->proc.wait_finish();
     share->proc.close();
 }
 
