@@ -169,7 +169,7 @@ protected:
     FreeList  hugelist;
 	static const ptrdiff_t freelist_disabled = -1;
 
-	double   load_factor;
+	float   load_factor;
 	enum sort_type {
 		en_unsorted,
 		en_sort_by_key,

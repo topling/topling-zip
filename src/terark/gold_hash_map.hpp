@@ -113,7 +113,6 @@ protected:
 	HashTp* pHash;
   #endif
 
-	double  load_factor;
 	size_t  nBucket; // may larger than LinkTp.max if LinkTp is small than size_t
 	LinkTp  nElem;
 	LinkTp  maxElem;
@@ -121,6 +120,7 @@ protected:
 	LinkTp  freelist_head;
 	LinkTp  freelist_size;
     LinkTp  freelist_freq;
+	float   load_factor;
 	bool    is_sorted;
 	bool    m_enable_auto_gc; // will not keep stable index(on elem erased)
 
@@ -312,6 +312,7 @@ public:
 
 		load_factor = y.load_factor;
 		is_sorted = y.is_sorted;
+		m_enable_auto_gc = y.m_enable_auto_gc;
 
 		if (0 == nElem) { // empty
 			nBucket = 1;
@@ -380,6 +381,7 @@ public:
 
 		load_factor =  y.load_factor;
 		is_sorted   =  y.is_sorted;
+		m_enable_auto_gc = y.m_enable_auto_gc;
 
 		y.init(); // reset y as empty
 	}
@@ -410,6 +412,7 @@ public:
 
 		std::swap(load_factor, y.load_factor);
 		std::swap(is_sorted  , y.is_sorted);
+		std::swap(m_enable_auto_gc, y.m_enable_auto_gc);
 		std::swap(static_cast<HashEqual&>(*this), static_cast<HashEqual&>(y));
 		std::swap(static_cast<KeyExtractor&>(*this) , static_cast<KeyExtractor&>(y));
 	}
