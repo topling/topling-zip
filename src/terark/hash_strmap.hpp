@@ -183,7 +183,7 @@ protected:
 
 	float   load_factor;
 	short   fastleng;
-	enum sort_type {
+	enum sort_type : unsigned char {
 		en_unsorted,
 		en_sort_by_key,
 		en_sort_by_val
