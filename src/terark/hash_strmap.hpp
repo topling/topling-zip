@@ -178,11 +178,11 @@ protected:
         size_t  freq;
         FreeList() : head(tail), llen(0), freq(0) {}
 	};
-	ptrdiff_t fastleng;
 	FreeList* fastlist;
-	static const ptrdiff_t freelist_disabled = -1;
+	static const short freelist_disabled = -1;
 
 	float   load_factor;
+	short   fastleng;
 	enum sort_type {
 		en_unsorted,
 		en_sort_by_key,
@@ -1722,7 +1722,7 @@ private:
 		mybeg = LOAD_OFFSET(mybeg);
 		myend = LOAD_OFFSET(myend);
         FreeLink& fl = (FreeLink&)(strpool[mybeg]);
-        FreeList& li = fastlist[std::min(fastIdx, fastleng)];
+        FreeList& li = fastlist[std::min(fastIdx, ptrdiff_t(fastleng))];
         fl.next = li.head;
         li.head = slot;
         li.freq++;
@@ -2433,7 +2433,7 @@ public:
 	}
 	void sort_slow() { sort(fstring_func::IF_SP_ALIGN(less_align, less_unalign)()); return; }
 	void sort_fast() { // with_prefix_optimization
-		ptrdiff_t old_fastleng = fastleng;
+		short old_fastleng = fastleng;
 		LinkTp realdeleted = nDeleted;
 		if (nDeleted) {
 			if (freelist_disabled != old_fastleng)
@@ -2693,7 +2693,7 @@ public:
 	template<class ValueCompare>
 	void sort_by_value(ValueCompare comp) {
 		BOOST_STATIC_ASSERT(!is_value_empty);
-		ptrdiff_t old_fastleng = fastleng;
+		short old_fastleng = fastleng;
 		if (nDeleted) {
 			if (freelist_disabled != old_fastleng)
 				disable_freelist();
