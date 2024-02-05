@@ -1907,6 +1907,7 @@ public:
         if (NULL == newlist) TERARK_DIE("realloc(%zd)", sizeof(FreeList)*(newlistLen+1));
 		fastlist = newlist;
         if (freelist_disabled == fastleng) {
+            fastleng = newlistLen;
             std::fill_n(newlist, newlistLen+1, FreeList());
             if (nDeleted) {
                 for (LinkTp i = 0; i < nNodes; ++i) {
