@@ -105,6 +105,21 @@ struct hash_strmap_node<LinkTp, Value, ValueInline> {
 	Value  value;
 };
 
+template<class Value, class ValuePlace>
+class hash_strmap_ValuesPtr;
+template<class Value> class hash_strmap_ValuesPtr<Value, ValueInline> {
+protected:
+	static constexpr Value* values = nullptr;
+	void set_values_ptr(Value*) {}
+	void swap(hash_strmap_ValuesPtr& y) {}
+};
+template<class Value> class hash_strmap_ValuesPtr<Value, ValueOut> {
+protected:
+	Value* values = nullptr;
+	void set_values_ptr(Value* v) { values = v; }
+	void swap(hash_strmap_ValuesPtr& y) { std::swap(values, y.values); }
+};
+
 //
 // hash_strmap<> hset; // just a set, can be used as a string pool
 //
@@ -121,9 +136,10 @@ template< class Value = ValueOut // ValueOut means empty value, just like a set
 		, class LinkTp = unsigned int // could be unsigned short for small map
 		, class HashTp = HSM_HashTp
 		>
-class hash_strmap : dummy_bucket<LinkTp>, HashFunc, KeyEqual
+class hash_strmap : dummy_bucket<LinkTp>, HashFunc, KeyEqual, hash_strmap_ValuesPtr<Value, ValuePlace>
 {
 protected:
+	using hash_strmap_ValuesPtr<Value, ValuePlace>::values;
 	struct ValueRaw {
 		char block[sizeof(Value)];
 	};
@@ -152,8 +168,6 @@ protected:
 	size_t   lenpool;
 	size_t   maxpool;  // hard limit is maxoffset
 	size_t   freepool; // free pool size
-
-	Value*   values;   // when value out
 
     struct FreeLink {
         LinkTp  next;
@@ -202,7 +216,7 @@ protected:
 		maxpool = 0;
 		freepool = 0;
 
-		values = NULL;
+		this->set_values_ptr(NULL);
 		fastleng = freelist_disabled;
 		fastlist = NULL;
 
@@ -278,6 +292,7 @@ private:
 		if (!is_value_empty) {
 			Value* pv = (Value*)malloc(sizeof(Value) * cap);
 			if (NULL == pv) TERARK_DIE("malloc(%zd)", sizeof(Value) * cap);
+		  if constexpr (ValuePlace::is_value_out && !is_value_empty) {
 			if (values) {
 				Value* oldpv = values;
 				if (nDeleted) {
@@ -291,6 +306,7 @@ private:
 				free(oldpv);
 			}
 			values = pv;
+		  }
 		}
 		if (NULL == pNodes) {
 			pn[0].offset = 0;
@@ -311,7 +327,7 @@ private:
 	void reserve_nodes_impl(size_t cap, FastCopy, ValueOut) {
 		Node* pn = (Node*)realloc(pNodes, allnodes_size(cap));
 		if (NULL == pn) TERARK_DIE("realloc(%zd)", allnodes_size(cap));
-		if (!is_value_empty) {
+		if constexpr (!is_value_empty) {
 			Value* pv = (Value*)realloc(values, sizeof(Value) * cap);
 			if (NULL == pv) {
 				pNodes = pn; // maxNodes unchanged
@@ -423,7 +439,7 @@ private:
 			free(bucket);
 		if (strpool)
 			free(strpool);
-		if (ValuePlace::is_value_out && !is_value_empty && values)
+		if constexpr (ValuePlace::is_value_out && !is_value_empty)
 			free(values);
 	}
 
@@ -509,7 +525,7 @@ public:
 
 		load_factor = y.load_factor;
 		sort_flag = y.sort_flag;
-		values = NULL;
+		this->set_values_ptr(NULL);
 		fastleng = y.fastleng;
 		fastlist = NULL;
 
@@ -557,7 +573,7 @@ public:
 			init(); // reset to safe state
 			TERARK_DIE("malloc(%zd)", y.lenpool);
 		}
-		if (ValuePlace::is_value_out &&	!is_value_empty) {
+		if constexpr (ValuePlace::is_value_out && !is_value_empty) {
 			values = (Value*)malloc(sizeof(Value) * nNodes);
 			if (NULL == values) {
 			  #if defined(HSM_ENABLE_HASH_CACHE)
@@ -573,7 +589,9 @@ public:
 		if (freelist_disabled != fastleng) {
 			fastlist = (FreeList*)malloc(sizeof(FreeList) * (fastleng+1));
 			if (NULL == fastlist) {
+			  if constexpr (ValuePlace::is_value_out && !is_value_empty) {
 				if (NULL != values) free(values);
+			  }
 			  #if defined(HSM_ENABLE_HASH_CACHE)
 				if (intptr_t(pHash) != hash_cache_disabled) free(pHash);
 			  #endif
@@ -594,7 +612,7 @@ public:
 			memcpy(bucket , y.bucket , sizeof(LinkTp) * nBucket);
 			if (0 == y.nDeleted || CopyStrategy::is_fast_copy) {
 				std::uninitialized_copy(y.pNodes, y.pNodes + nNodes, pNodes);
-				if (ValuePlace::is_value_out &&	!is_value_empty)
+				if constexpr (ValuePlace::is_value_out && !is_value_empty)
 					std::uninitialized_copy(y.values, y.values + nNodes, values);
 			}
 			else {
@@ -643,7 +661,7 @@ public:
 				while (j > 0) // roll back
 					nth_value(j-1).~Value(), --j;
 			}
-			if (ValuePlace::is_value_out && !is_value_empty) {
+			if constexpr (ValuePlace::is_value_out && !is_value_empty) {
 				TERARK_VERIFY(NULL != values);
 				free(values);
 			}
@@ -686,7 +704,9 @@ public:
 		maxpool  =  y.maxpool;
 		freepool =  y.freepool;
 
-        values   =  y.values;
+		if constexpr (ValuePlace::is_value_out && !is_value_empty) {
+			values   =  y.values;
+		}
         fastleng =  y.fastleng;
         fastlist =  y.fastlist;
 
@@ -723,7 +743,7 @@ public:
 		std::swap(maxpool , y.maxpool);
 		std::swap(freepool, y.freepool);
 
-        std::swap(values  , y.values);
+		hash_strmap_ValuesPtr<Value, ValuePlace>::swap(y);
         std::swap(fastleng, y.fastleng);
         std::swap(fastlist, y.fastlist);
 
