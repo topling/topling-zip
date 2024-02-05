@@ -1953,7 +1953,7 @@ public:
     void disable_freelist() {
 		TERARK_VERIFY_F((NULL != fastlist && freelist_disabled != fastleng) ||
 					    (NULL == fastlist && freelist_disabled == fastleng),
-					    "fastlist = %p, fastleng = %zd", fastlist, fastleng);
+					    "fastlist = %p, fastleng = %d", fastlist, fastleng);
 		if (fastlist) {
 			free(fastlist);
 			fastlist = NULL;
