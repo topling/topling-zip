@@ -77,7 +77,7 @@ struct SafeCopy {
 	}
 };
 
-struct SafeMove { // destruct source on move
+struct SafeMove : SafeCopy { // destruct source on move
 	enum { is_fast_copy = 0 };
 	template<class T> // when dst and src overlap
 	static void move_cons_backward(T* dst, T& src) {
