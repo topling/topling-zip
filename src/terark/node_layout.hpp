@@ -68,16 +68,16 @@ struct SafeCopy {
 	template<class T>
 	static void move_cons(T* dst_raw, T& src) {
 		new(dst_raw)T(std::move(src));
-		src.~T();
+		// src.~T(); // do not destruct src
 	}
 	template<class T>
 	static void move_assign(T* dst, T& src) {
 		*dst = std::move(src);
-		src.~T();
+		// src.~T(); // do not destruct src
 	}
 };
 
-struct MoveCopy { // move without destruct source
+struct SafeMove { // destruct source on move
 	enum { is_fast_copy = 0 };
 	template<class T> // when dst and src overlap
 	static void move_cons_backward(T* dst, T& src) {
@@ -92,12 +92,12 @@ struct MoveCopy { // move without destruct source
 	template<class T>
 	static void move_cons(T* dst_raw, T& src) {
 		new(dst_raw)T(std::move(src));
-		// src.~T(); // do not destruct src
+		src.~T();
 	}
 	template<class T>
 	static void move_assign(T* dst, T& src) {
 		*dst = std::move(src);
-		// src.~T(); // do not destruct src
+		src.~T();
 	}
 };
 
