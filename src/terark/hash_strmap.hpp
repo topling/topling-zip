@@ -166,7 +166,6 @@ protected:
 	};
 	ptrdiff_t fastleng;
 	FreeList* fastlist;
-    FreeList  hugelist;
 	static const ptrdiff_t freelist_disabled = -1;
 
 	float   load_factor;
@@ -206,7 +205,6 @@ protected:
 		values = NULL;
 		fastleng = freelist_disabled;
 		fastlist = NULL;
-        hugelist = FreeList();
 
 		load_factor = 0.3;
 		sort_flag = en_unsorted;
@@ -514,7 +512,6 @@ public:
 		values = NULL;
 		fastleng = y.fastleng;
 		fastlist = NULL;
-		hugelist = y.hugelist;
 
 		if (0 == nNodes) { // empty
 			nBucket = 1;
@@ -574,7 +571,7 @@ public:
 			}
 		}
 		if (freelist_disabled != fastleng) {
-			fastlist = (FreeList*)malloc(sizeof(FreeList) * fastleng);
+			fastlist = (FreeList*)malloc(sizeof(FreeList) * (fastleng+1));
 			if (NULL == fastlist) {
 				if (NULL != values) free(values);
 			  #if defined(HSM_ENABLE_HASH_CACHE)
@@ -584,9 +581,9 @@ public:
 				free(pNodes);
 				free(bucket);
 				init(); // reset to safe state
-				TERARK_DIE("malloc(%zd)", sizeof(FreeList) * fastleng);
+				TERARK_DIE("malloc(%zd)", sizeof(FreeList) * (fastleng+1));
 			}
-			memcpy(fastlist, y.fastlist, sizeof(FreeList) * fastleng);
+			memcpy(fastlist, y.fastlist, sizeof(FreeList) * (fastleng+1));
 		}
 		if (0 == y.nDeleted || freelist_disabled != fastleng) {
 		  #if defined(HSM_ENABLE_HASH_CACHE)
@@ -692,7 +689,6 @@ public:
         values   =  y.values;
         fastleng =  y.fastleng;
         fastlist =  y.fastlist;
-        hugelist =  y.hugelist;
 
 		load_factor =  y.load_factor;
 		sort_flag =  y.sort_flag;
@@ -730,7 +726,6 @@ public:
         std::swap(values  , y.values);
         std::swap(fastleng, y.fastleng);
         std::swap(fastlist, y.fastlist);
-        std::swap(hugelist, y.hugelist);
 
 		std::swap(load_factor, y.load_factor);
 		std::swap(sort_flag, y.sort_flag);
@@ -751,8 +746,7 @@ public:
 	void erase_all() {
 		if (nDeleted && fastlist) {
 			TERARK_VERIFY_NE(freelist_disabled, fastleng);
-			std::fill_n(fastlist, fastleng, FreeList());
-			hugelist = FreeList();
+			std::fill_n(fastlist, fastleng+1, FreeList());
 		}
 		if (nNodes > nDeleted) {
 			if (!boost::has_trivial_destructor<Value>::value) {
@@ -1708,7 +1702,7 @@ private:
 		mybeg = LOAD_OFFSET(mybeg);
 		myend = LOAD_OFFSET(myend);
         FreeLink& fl = (FreeLink&)(strpool[mybeg]);
-        FreeList& li = fastIdx < fastleng ? fastlist[fastIdx] : hugelist;
+        FreeList& li = fastlist[std::min(fastIdx, fastleng)];
         fl.next = li.head;
         li.head = slot;
         li.freq++;
@@ -1736,6 +1730,7 @@ private:
 					return slot;
 				}
             } else {
+				FreeList& hugelist = fastlist[fastleng];
                 LinkTp* curp = &hugelist.head;
                 LinkTp  curr;
                 while ((curr = *curp) != tail) {
@@ -1861,11 +1856,15 @@ public:
 		TERARK_VERIFY_GT(maxKeyLen, 0);
         TERARK_VERIFY_LT(maxKeyLen, 32*1024);
         ptrdiff_t newlistLen = SAVE_OFFSET(maxKeyLen + SP_ALIGN - 1);
+		if (newlistLen == fastleng) {
+			return;
+		}
         FreeList* newlist = fastlist;
         const Node* pn = pNodes;
         char* ps = strpool;
         if (newlistLen < fastleng) {
             // move separated free slots to hugelist
+			FreeList& hugelist = fastlist[fastleng];
             for (ptrdiff_t  i =  newlistLen; i < fastleng; ++i) {
                 LinkTp* pcurr = &newlist[i].head;
                 LinkTp  ihead =  newlist[i].head;
@@ -1881,13 +1880,14 @@ public:
                     hugelist.llen += newlist[i].llen;
                 }
             }
+			fastlist[newlistLen] = fastlist[fastleng]; // hugelist
             fastleng = newlistLen;
         }
-        newlist = t_realloc(newlist, newlistLen);
-        if (NULL == newlist) TERARK_DIE("realloc(%zd)", sizeof(FreeList)*newlistLen);
+        newlist = t_realloc(newlist, newlistLen + 1);
+        if (NULL == newlist) TERARK_DIE("realloc(%zd)", sizeof(FreeList)*(newlistLen+1));
 		fastlist = newlist;
         if (freelist_disabled == fastleng) {
-            std::fill_n(newlist, newlistLen, FreeList());
+            std::fill_n(newlist, newlistLen+1, FreeList());
             if (nDeleted) {
                 for (LinkTp i = 0; i < nNodes; ++i) {
                     if (delmark == pn[i].link)
@@ -1896,6 +1896,8 @@ public:
             }
         }
         else if (fastleng < newlistLen) {
+			// enlarge fastlist & move suitable slots in hugelist to fastlist
+			FreeList& hugelist = newlist[newlistLen] = newlist[fastleng];
             std::fill(newlist + fastleng, newlist + newlistLen, FreeList());
             // move slots from hugelist to fastlist
             LinkTp *pprev = &hugelist.head, curr = hugelist.head;
@@ -1921,6 +1923,12 @@ public:
         fastleng = newlistLen;
     }
 
+	const FreeList& get_fastlist(ptrdiff_t i) const {
+		TERARK_ASSERT_LE(i, fastleng);
+		return fastlist[i];
+	}
+	size_t get_fastleng() const { return fastleng; }
+
     void disable_freelist() {
 		TERARK_VERIFY_F((NULL != fastlist && freelist_disabled != fastleng) ||
 					    (NULL == fastlist && freelist_disabled == fastleng),
@@ -1930,7 +1938,6 @@ public:
 			fastlist = NULL;
 		}
         fastleng = freelist_disabled;
-        hugelist = FreeList();
     }
 
 	bool is_deleted(size_t idx) const {
