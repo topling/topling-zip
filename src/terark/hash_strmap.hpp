@@ -1175,7 +1175,7 @@ public:
 			size_t yend = LOAD_OFFSET(y[1].offset);
 			size_t ylen = yend - ybeg - extralen(yend);
 			if (equal(key, fstring(strpool + ybeg, ylen))) {
-				*erased = nth_value(p, ValuePlace());
+				*erased = std::move(nth_value(p, ValuePlace()));
 				*p_ptr = pNodes[p].link; // ulink_impl(p, h);
 				risk_slot_free(p);
 				return 1;
