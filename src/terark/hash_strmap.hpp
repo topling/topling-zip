@@ -165,9 +165,8 @@ protected:
                      // and more when size_t is 64 bits
 
 	char*    strpool;
-	size_t   lenpool;
-	size_t   maxpool;  // hard limit is maxoffset
-	size_t   freepool; // free pool size
+	LinkTp   lenpool;
+	LinkTp   maxpool;  // hard limit is SAVE_OFFSET(maxoffset)
 
     struct FreeLink {
         LinkTp  next;
@@ -181,8 +180,9 @@ protected:
 	FreeList* fastlist;
 	static const short freelist_disabled = -1;
 
-	float   load_factor;
+	LinkTp  freepool; // LinkTp is uint32 for most cases
 	short   fastleng;
+	byte_t  load_factor; // real load factor = load_factor / 256
 	enum sort_type : unsigned char {
 		en_unsorted,
 		en_sort_by_key,
@@ -220,7 +220,7 @@ protected:
 		fastleng = freelist_disabled;
 		fastlist = NULL;
 
-		load_factor = 0.3;
+		load_factor = byte_t(256.0 * 0.3);
 		sort_flag = en_unsorted;
 
 //		enable_freelist(256);
@@ -282,7 +282,7 @@ private:
 			}
 			free(oldpn);
 		}
-		pn[nNodes].offset = SAVE_OFFSET(lenpool);
+		pn[nNodes].offset = lenpool;
 		pn[nNodes].link = tail; // guard for next_i
 		pNodes = pn;
 	}
@@ -563,7 +563,7 @@ public:
 			}
 		}
 	  #endif
-		strpool = (char*)malloc(y.lenpool);
+		strpool = (char*)malloc(LOAD_OFFSET(y.lenpool));
 		if (NULL == strpool) {
 		  #if defined(HSM_ENABLE_HASH_CACHE)
 			if (intptr_t(pHash) != hash_cache_disabled) free(pHash);
@@ -571,7 +571,7 @@ public:
 			free(pNodes);
 			free(bucket);
 			init(); // reset to safe state
-			TERARK_DIE("malloc(%zd)", y.lenpool);
+			TERARK_DIE("malloc(%zd)", LOAD_OFFSET(y.lenpool));
 		}
 		if constexpr (ValuePlace::is_value_out && !is_value_empty) {
 			values = (Value*)malloc(sizeof(Value) * nNodes);
@@ -608,7 +608,7 @@ public:
 			if (intptr_t(pHash) != hash_cache_disabled)
 				memcpy(pHash, y.pHash, sizeof(HashTp) * nNodes);
 		  #endif
-			memcpy(strpool, y.strpool, sizeof(char) * lenpool);
+			memcpy(strpool, y.strpool, sizeof(char) * LOAD_OFFSET(lenpool));
 			memcpy(bucket , y.bucket , sizeof(LinkTp) * nBucket);
 			if (0 == y.nDeleted || CopyStrategy::is_fast_copy) {
 				std::uninitialized_copy(y.pNodes, y.pNodes + nNodes, pNodes);
@@ -623,7 +623,7 @@ public:
 						   new(&nth_value(i))Value(y.nth_value(i));
 				}
 			}
-			pNodes[nNodes].offset = SAVE_OFFSET(lenpool);
+			pNodes[nNodes].offset = lenpool;
 			pNodes[nNodes].link = tail;
 			return;
 		}
@@ -653,7 +653,7 @@ public:
 			TERARK_VERIFY_EQ(j, nNodes);
 			pNodes[j].offset = SAVE_OFFSET(loffset);
 			pNodes[j].link = tail;
-			lenpool = loffset;
+			lenpool = SAVE_OFFSET(loffset);
 			relink();
 		}
 		catch (...) {
@@ -753,7 +753,7 @@ public:
 		std::swap(static_cast<KeyEqual&>(*this), static_cast<KeyEqual&>(y));
 	}
 
-	fstring whole_strpool() const { return fstring(strpool, lenpool); }
+	fstring whole_strpool() const { return fstring(strpool, LOAD_OFFSET(lenpool)); }
 
 	size_t capacity() const { return maxNodes; }
 
@@ -798,12 +798,12 @@ public:
 			return;
 		}
 		if (maxpool != lenpool) {
-			strpool = (char*)realloc(strpool, lenpool); // never fail
+			strpool = (char*)realloc(strpool, LOAD_OFFSET(lenpool)); // never fail
 			maxpool = lenpool;
 		}
 		reserve_nodes(nNodes);
 		if (NULL != bucket)
-			rehash(size_t(nNodes / load_factor + 1));
+			rehash(size_t(nNodes * 256.0 / load_factor + 1));
 	}
 
 	// very risky, you must know what you are doing
@@ -852,7 +852,7 @@ public:
 			enable_hash_cache();
 		}
 	  #endif
-		rehash(nNodes/load_factor);
+		rehash(size_t(nNodes * 256.0 / load_factor + 1));
 	}
 
 	size_t rehash(size_t newBucketSize) {
@@ -873,7 +873,7 @@ public:
 			nBucket = newBucketSize;
 			relink();
 			using namespace std;
-			maxload = LinkTp(min<double>(newBucketSize*load_factor, maxlink));
+			maxload = LinkTp(min<double>(newBucketSize/256.0 * load_factor, maxlink));
 		}
 		return newBucketSize;
 	}
@@ -885,13 +885,13 @@ public:
 		if (cap > maxlink)
 			cap = maxlink;
 		reserve_nodes(cap);
-		rehash(size_t(cap / load_factor + 1));
+		rehash(size_t(cap * 256.0 / load_factor + 1));
 	}
 
 	// with rehash
 	void reserve(size_t cap, size_t poolcap) {
 		TERARK_VERIFY_GE(cap, nNodes);
-		TERARK_VERIFY_GE(poolcap, lenpool);
+		TERARK_VERIFY_GE(poolcap, LOAD_OFFSET(lenpool));
 // commented, because strpool realloc is cheap, Value realloc may expense,
 // reserve more Value space may get benefit
 //		if (poolcap < IF_SP_ALIGN(LOAD_OFFSET(1), 2) * cap)
@@ -902,17 +902,17 @@ public:
 			cap = maxlink;
 		reserve_strpool(poolcap);
 		reserve_nodes(cap);
-		rehash(size_t(cap / load_factor + 1));
+		rehash(size_t(cap * 256.0 / load_factor + 1));
 	}
 
 	// just enlarge/shrink strpool
 	void reserve_strpool(size_t poolcap) {
-		TERARK_VERIFY_GE(poolcap, lenpool);
+		TERARK_VERIFY_GE(poolcap, LOAD_OFFSET(lenpool));
 		char* ps = (char*)realloc(strpool, poolcap);
 		if (NULL == ps)
 			TERARK_DIE("realloc(%zd)", poolcap);
 		strpool = ps;
-		maxpool = poolcap;
+		maxpool = SAVE_OFFSET(poolcap);
 	}
 
 	// without rehash
@@ -940,12 +940,12 @@ public:
 		if (fact >= 0.999) {
 			throw std::logic_error("load factor must <= 0.999");
 		}
-		load_factor = fact;
+		load_factor = std::max<byte_t>(byte_t(fact * 256.0), 1);
 		using namespace std;
 		maxload = &tail == bucket ? 0
 				: LinkTp(min<double>(nBucket * fact, maxlink));
 	}
-	double get_load_factor() const { return load_factor; }
+	double get_load_factor() const { return load_factor / 256.0; }
 
 	HashTp hash_value(size_t i) const {
 		TERARK_ASSERT_LT(i, nNodes);
@@ -1006,7 +1006,7 @@ public:
 	  #endif
 	}
 
-	size_t total_key_size() const { return lenpool; }
+	size_t total_key_size() const { return LOAD_OFFSET(lenpool); }
 	bool    empty() const { return nNodes== nDeleted; }
 	size_t   size() const { return nNodes - nDeleted; }
 	size_t  end_i() const { return nNodes; }
@@ -1144,7 +1144,7 @@ public:
 			const Node* y = &pNodes[p];
 			TERARK_ASSERT_LT(p, nNodes);
 			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
-			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1169,7 +1169,7 @@ public:
 			const Node* y = &pNodes[p];
 			TERARK_ASSERT_LT(p, nNodes);
 			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
-			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1207,7 +1207,7 @@ private:
 		if (0 == nDeleted) {
 			for (; i < n; ++i) {
 				TERARK_ASSERT_LT(pn[i+0].offset, pn[i+1].offset);
-				TERARK_ASSERT_LE(pn[i+1].offset, SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LE(pn[i+1].offset, maxpool);
 				const size_t  mybeg = LOAD_OFFSET(pn[i+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[i+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1223,7 +1223,7 @@ private:
 			loffset = LOAD_OFFSET(pn[i].offset); // begin of first deleted
 			for (size_t j = i+1; j < n; ++j) {
 				TERARK_ASSERT_LT(pn[j+0].offset, pn[j+1].offset);
-				TERARK_ASSERT_LE(pn[j+1].offset, SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LE(pn[j+1].offset, maxpool);
 				const size_t  mybeg = LOAD_OFFSET(pn[j+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[j+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1248,7 +1248,7 @@ private:
 		else { // 0 != nDeleted
 			for (; i < n; ++i) {
 				TERARK_ASSERT_LT(pn[i+0].offset, pn[i+1].offset);
-				TERARK_ASSERT_LE(pn[i+1].offset, SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LE(pn[i+1].offset, maxpool);
 				const size_t  mybeg = LOAD_OFFSET(pn[i+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[i+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1264,7 +1264,7 @@ private:
 			loffset = LOAD_OFFSET(pn[i].offset); // begin of first deleted
 			for (size_t j = i+1; j < n; ++j) {
 				TERARK_ASSERT_LT(pn[j+0].offset, pn[j+1].offset);
-				TERARK_ASSERT_LE(pn[j+1].offset, SAVE_OFFSET(maxpool));
+				TERARK_ASSERT_LE(pn[j+1].offset, maxpool);
 				const size_t  mybeg = LOAD_OFFSET(pn[j+0].offset);
 				const size_t  myend = LOAD_OFFSET(pn[j+1].offset);
 				const size_t  mylen = myend - mybeg;
@@ -1289,7 +1289,7 @@ private:
 			}
 		}
 		size_t nDeleted0 = nDeleted;
-		lenpool = loffset;
+		lenpool = SAVE_OFFSET(loffset);
 		nNodes = LinkTp(i);
 		pn[i].offset = SAVE_OFFSET(loffset);
 		pn[i].link = tail; // guard for next_i
@@ -1361,7 +1361,7 @@ public:
 		LinkTp nErased = 0;
 		for (LinkTp i = 0; i < n; ++i) {
 			TERARK_ASSERT_LT(pn[i+0].offset, pn[i+1].offset);
-			TERARK_ASSERT_LE(pn[i+1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(pn[i+1].offset, maxpool);
 			const size_t  mybeg = LOAD_OFFSET(pn[i+0].offset);
 			const size_t  myend = LOAD_OFFSET(pn[i+1].offset);
 			const size_t  mylen = myend - mybeg;
@@ -1386,7 +1386,7 @@ public:
 				myval.~Value();
 				put_to_freelist(i);
 				nErased++;
-				freepool += mylen;
+				freepool += SAVE_OFFSET(mylen);
 			}
 		}
 		nDeleted += nErased;
@@ -1442,9 +1442,9 @@ private:
 				++idx1;
 			}
 		}
-		TERARK_VERIFY_EQ(loffset + freepool, lenpool);
+		TERARK_VERIFY_EQ(loffset + LOAD_OFFSET(freepool), LOAD_OFFSET(lenpool));
 		TERARK_VERIFY_EQ(nNodes  - nDeleted, (LinkTp)idx1);
-		lenpool = loffset;
+		lenpool = SAVE_OFFSET(loffset);
 		pn[idx1].offset = SAVE_OFFSET(loffset);
 		pn[idx1].link = tail; // guard for next_i
 
@@ -1540,7 +1540,7 @@ public:
 			TERARK_ASSERT_LT(p, n);
 			const Node* y = &pNodes[p];
 			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
-			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1588,7 +1588,7 @@ public:
 			TERARK_ASSERT_LT(p, nNodes);
 			const Node* y = &pNodes[p];
 			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
-			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1644,7 +1644,7 @@ public:
 			TERARK_ASSERT_LT(p, nNodes);
 			const Node* y = &pNodes[p];
 			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
-			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1692,7 +1692,7 @@ public:
 			TERARK_ASSERT_LT(p, n);
 			const Node* y = &pNodes[p];
 			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
-			TERARK_ASSERT_LE(y[1].offset, SAVE_OFFSET(maxpool));
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
 		// doesn't need to compare cached hash value, it almost always true
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
@@ -1743,9 +1743,9 @@ private:
                 #endif
 					fastlist[fastIdx].llen--;
 					fastlist[fastIdx].head = ((FreeLink&)strpool[mybeg]).next;
-                    TERARK_ASSERT_GE(freepool, real_len);
+                    TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
                     TERARK_ASSERT_GE(nDeleted, 1);
-                    freepool -= real_len;
+                    freepool -= SAVE_OFFSET(real_len);
                     nDeleted--;
 					return slot;
 				}
@@ -1760,9 +1760,9 @@ private:
                     if (myend - mybeg == real_len) {
                         *curp = *next;
                         hugelist.llen--;
-                        TERARK_ASSERT_GE(freepool, real_len);
+                        TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
                         TERARK_ASSERT_GE(nDeleted, 1);
-                        freepool -= real_len;
+                        freepool -= SAVE_OFFSET(real_len);
                         nDeleted--;
                         return curr;
                     }
@@ -1775,28 +1775,28 @@ private:
 			TERARK_VERIFY_LT(nNodes, maxlink);
 			reserve_nodes(0 == nNodes ? 1 : (nNodes + 1) * 103 / 64);
 		}
-		if (terark_unlikely(lenpool + real_len > maxpool)) {
+		if (terark_unlikely(SAVE_OFFSET(real_len) > maxpool - lenpool)) {
 			using namespace std; // for std::max
-			TERARK_VERIFY_LE(lenpool + real_len, maxoffset);
-			if (freelist_disabled == fastleng && freepool >= max(maxpool/4, real_len))
+			TERARK_VERIFY_LE(LOAD_OFFSET(lenpool) + real_len, maxoffset);
+			if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= max(LOAD_OFFSET(maxpool)/4, real_len))
 				revoke_deleted();
 			else { // if lenpool is random, expansion scale is about 1.6
-                size_t expect = __hsm_align_pow2((lenpool + real_len)*5/4);
+                size_t expect = __hsm_align_pow2((LOAD_OFFSET(lenpool) + real_len)*5/4);
 				size_t newmax = min(expect, (size_t)maxoffset);
 				char*  newpch = (char*)realloc(strpool, newmax);
 				if (NULL == newpch) {
-					if (freelist_disabled == fastleng && freepool >= real_len)
+					if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= real_len)
 						revoke_deleted();
 					else
 						TERARK_DIE("realloc(%zd)", newmax);
 				} else {
-					maxpool = newmax;
+					maxpool = SAVE_OFFSET(newmax);
 					strpool = newpch;
 				}
 			}
 		}
-        lenpool += real_len;
-		pNodes[nNodes+1].offset = SAVE_OFFSET(lenpool);
+        lenpool += SAVE_OFFSET(real_len);
+		pNodes[nNodes+1].offset = lenpool;
 		pNodes[nNodes+1].link = tail; // guard for next_i
         return nNodes++;
     }
@@ -1832,11 +1832,11 @@ public:
 		if (terark_unlikely(nNodes-1 == idx)) {
 			nNodes--;
 			pNodes[idx].link = tail; // guard for next_i
-			TERARK_ASSERT_GE(lenpool, mylen);
-			lenpool = mybeg;
+			TERARK_ASSERT_GE(LOAD_OFFSET(lenpool), mylen);
+			lenpool = SAVE_OFFSET(mybeg);
 			return;
 		}
-		freepool += mylen;
+		freepool += SAVE_OFFSET(mylen);
 		++nDeleted;
         if (freelist_disabled == fastleng) {
     		if (nDeleted >= nNodes/2)
@@ -1971,7 +1971,7 @@ public:
 		TERARK_ASSERT_GE(nNodes, 1);
 		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
-		TERARK_ASSERT_LT(mybeg, lenpool);
+		TERARK_ASSERT_LT(mybeg, LOAD_OFFSET(lenpool));
 		return strpool + mybeg;
 	}
 	size_t key_len(size_t idx) const {
@@ -1982,14 +1982,14 @@ public:
 		size_t extra = extralen(myend);
 		size_t mylen = myend - mybeg - extra;
 		TERARK_ASSERT_LT(mybeg, myend);
-		TERARK_ASSERT_LE(myend, lenpool);
+		TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 		return mylen;
 	}
 	size_t key_offset(size_t idx) const {
 		TERARK_ASSERT_GE(nNodes, 1);
 		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
-		TERARK_ASSERT_LT(mybeg, lenpool);
+		TERARK_ASSERT_LT(mybeg, LOAD_OFFSET(lenpool));
 		return mybeg;
 	}
 	size_t key_offset_raw(size_t idx) const {
@@ -1997,7 +1997,7 @@ public:
 		TERARK_ASSERT_GE(nNodes, 1);
 		TERARK_ASSERT_LT(idx, nNodes);
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
-		TERARK_ASSERT_LT(mybeg, lenpool);
+		TERARK_ASSERT_LT(mybeg, LOAD_OFFSET(lenpool));
 	#endif
 		return pNodes[idx+0].offset;
 	}
@@ -2009,7 +2009,7 @@ public:
 		size_t extra = extralen(myend);
 		size_t mylen = myend - mybeg - extra;
 		TERARK_ASSERT_LT(mybeg, myend);
-		TERARK_ASSERT_LE(myend, lenpool);
+		TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 		return fstring(strpool + mybeg, mylen);
 	}
 
@@ -2022,7 +2022,7 @@ public:
 		size_t extra = extralen(myend);
 		size_t mylen = myend - mybeg - extra;
 		TERARK_ASSERT_LT(mybeg, myend);
-		TERARK_ASSERT_LE(myend, lenpool);
+		TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 		return fstring(strpool + mybeg, mylen);
 	}
 
@@ -2040,7 +2040,7 @@ private:
 					const size_t extra = extralen(ps, myend);
 					const size_t mylen = myend - mybeg - extra;
 					TERARK_ASSERT_LT(mybeg, myend);
-					TERARK_ASSERT_LE(myend, lenpool);
+					TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 					KeyValue kv(fstring(ps + mybeg, mylen)
 							, nth_value(i, ValuePlace()));
 					f(kv);
@@ -2054,7 +2054,7 @@ private:
 				const size_t extra = extralen(ps, myend);
 				const size_t mylen = myend - mybeg - extra;
 				TERARK_ASSERT_LT(mybeg, myend);
-				TERARK_ASSERT_LE(myend, lenpool);
+				TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 				KeyValue kv(fstring(ps + mybeg, mylen)
 						, nth_value(i, ValuePlace()));
 				f(kv);
@@ -2084,7 +2084,7 @@ public:
 					const size_t extra = extralen(ps, myend);
 					const size_t mylen = myend - mybeg - extra;
 					TERARK_ASSERT_LT(mybeg, myend);
-					TERARK_ASSERT_LE(myend, lenpool);
+					TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 					f(fstring(ps + mybeg, mylen));
 				}
 			}
@@ -2096,7 +2096,7 @@ public:
 				const size_t extra = extralen(ps, myend);
 				const size_t mylen = myend - mybeg - extra;
 				TERARK_ASSERT_LT(mybeg, myend);
-				TERARK_ASSERT_LE(myend, lenpool);
+				TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 				f(fstring(ps + mybeg, mylen));
 			}
 		}
@@ -2165,7 +2165,7 @@ private:
 			const size_t mylen = myend - mybeg - extra;
 			TERARK_ASSERT_LE(extra, SP_ALIGN);
 			TERARK_ASSERT_LT(mybeg, myend);
-			TERARK_ASSERT_LE(myend, lenpool);
+			TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 			pn[i].link = LinkTp(mylen); // 'link' save the strlen
 		}
 	}
@@ -2184,7 +2184,7 @@ private:
 			const size_t mylen = myend - mybeg - extra;
 			TERARK_ASSERT_LE(extra, SP_ALIGN);
 			TERARK_ASSERT_LT(mybeg, myend);
-			TERARK_ASSERT_LE(myend, lenpool);
+			TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 			index[i].offset = SAVE_OFFSET(mybeg);
 			index[i].length = pn[i].link = LinkTp(mylen);
 			index[i].idx = LinkTp(i);
@@ -2284,9 +2284,9 @@ private:
 	}
 
 	void rearrange_strpool() {
-		char* s2 = (char*)malloc(lenpool);
+		char* s2 = (char*)malloc(LOAD_OFFSET(lenpool));
 		if (NULL == s2) {
-			TERARK_DIE("malloc(%zd)", lenpool);
+			TERARK_DIE("malloc(%zd)", LOAD_OFFSET(lenpool));
 		}
 		size_t loffset = 0;
 		char* ps = strpool;
@@ -2299,7 +2299,7 @@ private:
 			pn[i].offset = SAVE_OFFSET(loffset);
 			loffset += len;
 		}
-		TERARK_VERIFY_EQ(loffset, lenpool);
+		TERARK_VERIFY_EQ(loffset, LOAD_OFFSET(lenpool));
 		free(strpool);
 		strpool = s2;
 		maxpool = lenpool;
@@ -2335,7 +2335,7 @@ private:
 			const size_t mylen = myend - mybeg - extra;
 			TERARK_ASSERT_LE(extra, SP_ALIGN);
 			TERARK_ASSERT_LT(mybeg, myend);
-			TERARK_ASSERT_LE(myend, lenpool);
+			TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 			index[i].offset = SAVE_OFFSET(mybeg);
 			index[i].length = pn[i].link = LinkTp(mylen);
 			if (mylen >= sizeof(index[i].prefix))
@@ -2380,7 +2380,7 @@ private:
 			const size_t mylen = myend - mybeg - extra;
 			TERARK_ASSERT_LE(extra, SP_ALIGN);
 			TERARK_ASSERT_LT(mybeg, myend);
-			TERARK_ASSERT_LE(myend, lenpool);
+			TERARK_ASSERT_LE(myend, LOAD_OFFSET(lenpool));
 			// TODO: &pnp[0].value may overlap with &pn[0].value, now just support FastCopy
 			CopyStrategy::move_cons_backward(&pnp[i].value, pn[i].value);
 			if (mylen >= sizeof(pnp[i].prefix))
@@ -2401,7 +2401,7 @@ private:
 			pn[i].link = pnp[i].length;
 			CopyStrategy::move_cons_forward(&pn[i].value, pnp[i].value);
 		}
-		pn[nNodes].offset = SAVE_OFFSET(lenpool);
+		pn[nNodes].offset = lenpool;
 		pn[nNodes].link = tail;
 		if (boost::is_same<CopyStrategy, FastCopy>::value) {
 			pNodes = pn;
