@@ -330,6 +330,30 @@ public:
     size_t full_mem_size() const { return sizeof(T) * c; }
     size_t free_mem_size() const { return sizeof(T) * (c - n); }
 
+    void reserve_aligned(size_t align, size_t newcap) {
+        TERARK_VERIFY_F((align & (align-1)) == 0, "align = %zd(%#zX) is not of power 2", align, align);
+        if (newcap <= c) {
+            if ((size_t(p) & (align-1)) == 0) { // p is already aligned
+                return;
+            }
+            newcap = c;
+        }
+        size_t bytes = pow2_align_up(sizeof(T) * newcap, align);
+        newcap = bytes / sizeof(T);
+        T* mem = (T*)aligned_alloc(align, bytes); // C11 & C++17
+        TERARK_VERIFY_NE(mem, nullptr);
+        if (n) {
+            memcpy(mem, p, sizeof(T)*n);
+        }
+        if (c) {
+            free(p);
+        } else {
+            // allowing old be user memory(c == 0)
+        }
+        p = mem;
+        c = newcap;
+    }
+
     void reserve(size_t newcap) {
         TERARK_ASSERT_LE(n, c);
         if (newcap <= c)
