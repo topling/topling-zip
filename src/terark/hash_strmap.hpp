@@ -120,6 +120,24 @@ protected:
 	void swap(hash_strmap_ValuesPtr& y) { std::swap(values, y.values); }
 };
 
+template<class LinkTp, bool>
+class hash_strmap_FreeList {
+protected:
+	struct FreeList {
+		LinkTp  head;
+		LinkTp  llen; ///< list length
+        size_t  freq;
+        FreeList() : head(dummy_bucket<LinkTp>::tail), llen(0), freq(0) {}
+	};
+	FreeList* fastlist = nullptr;
+};
+template<class LinkTp>
+class hash_strmap_FreeList<LinkTp, false> {
+protected:
+	struct FreeList {};
+	static constexpr FreeList* fastlist = nullptr;
+};
+
 //
 // hash_strmap<> hset; // just a set, can be used as a string pool
 //
@@ -135,8 +153,10 @@ template< class Value = ValueOut // ValueOut means empty value, just like a set
 		, class CopyStrategy = FastCopy
 		, class LinkTp = unsigned int // could be unsigned short for small map
 		, class HashTp = HSM_HashTp
+		, bool WithFreeList = true // true: can enable or disable
 		>
 class hash_strmap : dummy_bucket<LinkTp>, HashFunc, KeyEqual, hash_strmap_ValuesPtr<Value, ValuePlace>
+                  , hash_strmap_FreeList<LinkTp, WithFreeList>
 {
 protected:
 	using hash_strmap_ValuesPtr<Value, ValuePlace>::values;
@@ -171,13 +191,8 @@ protected:
     struct FreeLink {
         LinkTp  next;
     };
-	struct FreeList {
-		LinkTp  head;
-		LinkTp  llen; ///< list length
-        size_t  freq;
-        FreeList() : head(tail), llen(0), freq(0) {}
-	};
-	FreeList* fastlist;
+	typedef typename hash_strmap_FreeList<LinkTp, WithFreeList>::FreeList FreeList;
+	using            hash_strmap_FreeList<LinkTp, WithFreeList>::fastlist;
 	static const short freelist_disabled = -1;
 
 	LinkTp  freepool; // LinkTp is uint32 for most cases
@@ -218,12 +233,13 @@ protected:
 
 		this->set_values_ptr(NULL);
 		fastleng = freelist_disabled;
-		fastlist = NULL;
+		if constexpr (WithFreeList) {
+			fastlist = NULL;
+			enable_freelist();
+		}
 
 		load_factor = byte_t(256.0 * 0.3);
 		sort_flag = en_unsorted;
-
-//		enable_freelist(256);
 	}
 
 	Value& nth_value(size_t nth, ValueInline) const { return pNodes[nth].value; }
@@ -421,7 +437,7 @@ private:
 	void relink_fill() { relink_impl(true); }
 
 	void destroy() {
-        if (fastlist)
+        if constexpr (WithFreeList)
             free(fastlist);
 		if (pNodes) {
 			if (!boost::has_trivial_destructor<Value>::value) {
@@ -526,8 +542,11 @@ public:
 		load_factor = y.load_factor;
 		sort_flag = y.sort_flag;
 		this->set_values_ptr(NULL);
-		fastleng = y.fastleng;
-		fastlist = NULL;
+
+		if constexpr (WithFreeList) {
+			fastleng = y.fastleng;
+			fastlist = NULL;
+		}
 
 		if (0 == nNodes) { // empty
 			nBucket = 1;
@@ -586,6 +605,7 @@ public:
 				TERARK_DIE("malloc(%zd)", sizeof(Value) * nNodes);
 			}
 		}
+		if constexpr (WithFreeList) {
 		if (freelist_disabled != fastleng) {
 			fastlist = (FreeList*)malloc(sizeof(FreeList) * (fastleng+1));
 			if (NULL == fastlist) {
@@ -602,6 +622,7 @@ public:
 				TERARK_DIE("malloc(%zd)", sizeof(FreeList) * (fastleng+1));
 			}
 			memcpy(fastlist, y.fastlist, sizeof(FreeList) * (fastleng+1));
+		}
 		}
 		if (0 == y.nDeleted || freelist_disabled != fastleng) {
 		  #if defined(HSM_ENABLE_HASH_CACHE)
@@ -707,8 +728,10 @@ public:
 		if constexpr (ValuePlace::is_value_out && !is_value_empty) {
 			values   =  y.values;
 		}
-        fastleng =  y.fastleng;
-        fastlist =  y.fastlist;
+		if constexpr (WithFreeList) {
+			fastleng =  y.fastleng;
+			fastlist =  y.fastlist;
+		}
 
 		load_factor =  y.load_factor;
 		sort_flag =  y.sort_flag;
@@ -744,8 +767,10 @@ public:
 		std::swap(freepool, y.freepool);
 
 		hash_strmap_ValuesPtr<Value, ValuePlace>::swap(y);
-        std::swap(fastleng, y.fastleng);
-        std::swap(fastlist, y.fastlist);
+		if constexpr (WithFreeList)	{
+			std::swap(fastleng, y.fastleng);
+			std::swap(fastlist, y.fastlist);
+		}
 
 		std::swap(load_factor, y.load_factor);
 		std::swap(sort_flag, y.sort_flag);
@@ -764,9 +789,11 @@ public:
 
 	// erase all key-values, but keep memory, don't free
 	void erase_all() {
-		if (nDeleted && fastlist) {
-			TERARK_VERIFY_NE(freelist_disabled, fastleng);
-			std::fill_n(fastlist, fastleng+1, FreeList());
+		if constexpr (WithFreeList) {
+			if (nDeleted && fastlist) {
+				TERARK_VERIFY_NE(freelist_disabled, fastleng);
+				std::fill_n(fastlist, fastleng+1, FreeList());
+			}
 		}
 		if (nNodes > nDeleted) {
 			if (!boost::has_trivial_destructor<Value>::value) {
@@ -1731,6 +1758,7 @@ private:
 
     LinkTp alloc_slot(size_t real_len) {
 		TERARK_ASSERT_AL(real_len, SP_ALIGN);
+		if constexpr (WithFreeList) {
         if (freelist_disabled != fastleng) {
             ptrdiff_t fastIdx = SAVE_OFFSET(real_len - 1);
             if (fastIdx < fastleng) {
@@ -1770,6 +1798,7 @@ private:
                 }
             }
         }
+		} // if constexpr (WithFreeList)
         // make new slot
 		if (terark_unlikely(nNodes == maxNodes)) {
 			TERARK_VERIFY_LT(nNodes, maxlink);
@@ -1838,6 +1867,7 @@ public:
 		}
 		freepool += SAVE_OFFSET(mylen);
 		++nDeleted;
+	  if constexpr (WithFreeList) {
         if (freelist_disabled == fastleng) {
     		if (nDeleted >= nNodes/2)
     			revoke_deleted();
@@ -1846,6 +1876,10 @@ public:
         //    	sort_flag = en_unsorted;
         } else
             put_to_freelist(LinkTp(idx));
+	  } else {
+		if (nDeleted >= nNodes/2)
+			revoke_deleted();
+	  }
 	}
 
 	// unlink from bucket and collision list, but keep the elem valid,
@@ -1873,6 +1907,7 @@ public:
 	}
 
     void enable_freelist(ptrdiff_t maxKeyLen = 1024) {
+		static_assert(WithFreeList);
 		TERARK_VERIFY_GT(maxKeyLen, 0);
         TERARK_VERIFY_LT(maxKeyLen, 32*1024);
         ptrdiff_t newlistLen = SAVE_OFFSET(maxKeyLen + SP_ALIGN - 1);
@@ -1945,12 +1980,14 @@ public:
     }
 
 	const FreeList& get_fastlist(ptrdiff_t i) const {
+		static_assert(WithFreeList);
 		TERARK_ASSERT_LE(i, fastleng);
 		return fastlist[i];
 	}
 	size_t get_fastleng() const { return fastleng; }
 
     void disable_freelist() {
+		static_assert(WithFreeList);
 		TERARK_VERIFY_F((NULL != fastlist && freelist_disabled != fastleng) ||
 					    (NULL == fastlist && freelist_disabled == fastleng),
 					    "fastlist = %p, fastleng = %d", fastlist, fastleng);
@@ -2415,11 +2452,12 @@ private:
 public:
 	template<class KeyCompare>
 	void sort(const KeyCompare& comp) {
-		ptrdiff_t old_fastleng = fastleng;
-		LinkTp realdeleted = nDeleted;
+		short old_fastleng = fastleng;
 		if (nDeleted) {
-			if (freelist_disabled != old_fastleng)
-				disable_freelist();
+			if constexpr (WithFreeList) {
+				if (freelist_disabled != old_fastleng)
+					disable_freelist();
+			}
 			revoke_deleted_no_relink();
 		}
 		if (nNodes >= 2) {
@@ -2428,17 +2466,20 @@ public:
 			if (bucket) // is hash disabled?
 				relink_fill();
 		}
-		if (realdeleted && freelist_disabled != old_fastleng)
-			enable_freelist(old_fastleng);
+		if constexpr (WithFreeList) {
+			if (freelist_disabled != old_fastleng)
+				enable_freelist(old_fastleng);
+		}
 		sort_flag = en_sort_by_key;
 	}
 	void sort_slow() { sort(fstring_func::IF_SP_ALIGN(less_align, less_unalign)()); return; }
 	void sort_fast() { // with_prefix_optimization
 		short old_fastleng = fastleng;
-		LinkTp realdeleted = nDeleted;
 		if (nDeleted) {
-			if (freelist_disabled != old_fastleng)
-				disable_freelist();
+			if constexpr (WithFreeList) {
+				if (freelist_disabled != old_fastleng)
+					disable_freelist();
+			}
 			revoke_deleted_no_relink();
 		}
 		if (nNodes >= 2) {
@@ -2448,8 +2489,10 @@ public:
 			if (bucket) // is hash disabled?
 				relink_fill();
 		}
-		if (realdeleted && freelist_disabled != old_fastleng)
-			enable_freelist(old_fastleng);
+		if constexpr (WithFreeList) {
+			if (freelist_disabled != old_fastleng)
+				enable_freelist(old_fastleng);
+		}
 		sort_flag = en_sort_by_key;
    	}
 
@@ -2696,16 +2739,20 @@ public:
 		BOOST_STATIC_ASSERT(!is_value_empty);
 		short old_fastleng = fastleng;
 		if (nDeleted) {
-			if (freelist_disabled != old_fastleng)
-				disable_freelist();
+			if constexpr (WithFreeList) {
+				if (freelist_disabled != old_fastleng)
+					disable_freelist();
+			}
 			revoke_deleted_no_relink();
 		}
 		if (nNodes >= 2) {
 			save_strlen_to_link();
 			sort_by_value_impl(comp, ValuePlace(), sort_by_index());
 		}
-		if (freelist_disabled != old_fastleng)
-			enable_freelist(old_fastleng);
+		if constexpr (WithFreeList) {
+			if (freelist_disabled != old_fastleng)
+				enable_freelist(old_fastleng);
+		}
 		sort_flag = en_sort_by_val;
 	}
 	void sort_by_value() {
