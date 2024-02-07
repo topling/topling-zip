@@ -155,7 +155,8 @@ template< class Value = ValueOut // ValueOut means empty value, just like a set
 		, class HashTp = HSM_HashTp
 		, bool WithFreeList = true // true: can enable or disable
 		>
-class hash_strmap : dummy_bucket<LinkTp>, HashFunc, KeyEqual, hash_strmap_ValuesPtr<Value, ValuePlace>
+class hash_strmap : dummy_bucket<LinkTp>, HashFunc, KeyEqual
+                  , hash_strmap_ValuesPtr<Value, ValuePlace>
                   , hash_strmap_FreeList<LinkTp, WithFreeList>
 {
 protected:
