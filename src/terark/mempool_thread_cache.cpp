@@ -664,7 +664,7 @@ default_new_tc(ThreadCacheMemPool* mp) {
 // param request must be aligned by AlignSize
 ThreadCacheMemPoolMF(size_t)alloc(size_t request) {
     assert(request > 0);
-    auto tc = this->get_tls(bind(&m_new_tc, this));
+    auto tc = this->get_tls();
     if (terark_unlikely(nullptr == tc)) {
         return size_t(-1); // fail
     }
@@ -675,7 +675,7 @@ ThreadCacheMemPoolMF(size_t)
 alloc3(size_t oldpos, size_t oldlen, size_t newlen) {
     assert(newlen > 0);
     assert(oldlen > 0);
-    auto tc = this->get_tls(bind(&m_new_tc, this));
+    auto tc = this->get_tls();
     return alloc3(oldpos, oldlen, newlen, tc);
 }
 
@@ -714,7 +714,7 @@ ThreadCacheMemPoolMF(void)sfree(size_t pos, size_t len) {
     assert(len > 0);
     assert(pos < mem::n);
     assert(pos % AlignSize == 0);
-    auto tc = this->get_tls(bind(&m_new_tc, this));
+    auto tc = this->get_tls();
     sfree(pos, len, tc);
 }
 
@@ -736,14 +736,14 @@ ThreadCacheMemPoolMF(void)tc_populate(size_t sz) {
         assert(oldn + chunk_len <= cap);
     } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
 
-    auto tc = this->get_tls(bind(&m_new_tc, this));
+    auto tc = this->get_tls();
     tc->set_hot_area(base, oldn, chunk_len);
     //tc->populate_hot_area(base, m_chunk_size);
     tc->populate_hot_area(base, 4*1024);
 }
 
 ThreadCacheMemPoolMF(TCMemPoolOneThread<AlignSize>*)create_tls_obj() const {
-    TERARK_DIE("Should Not Be Called");
+    return m_new_tc(const_cast<ThreadCacheMemPool*>(this));
 }
 
 template class TCMemPoolOneThread<4>;

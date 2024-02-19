@@ -188,9 +188,7 @@ public:
 
     static TCMemPoolOneThread<AlignSize>* default_new_tc(ThreadCacheMemPool*);
 
-    TCMemPoolOneThread<AlignSize>* tls() {
-        return this->get_tls([this] { return m_new_tc(this); });
-    }
+    TCMemPoolOneThread<AlignSize>* tls() { return this->get_tls(); }
 
     // param request must be aligned by AlignSize
     size_t alloc(size_t request);
