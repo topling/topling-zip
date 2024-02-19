@@ -93,7 +93,7 @@ alloc(byte_t* base, size_t request) {
         if (loop_cnt > 200) { \
             fprintf(stderr, "%s:%d: loop_cnt = %zd\n", __FILE__, __LINE__, loop_cnt); \
         }} while (0)
-    if (request <= m_freelist_head.size() * AlignSize) {
+    if (terark_likely(request <= m_freelist_head.size() * AlignSize)) {
         size_t idx = request / AlignSize - 1;
         auto& list = m_freelist_head[idx];
         size_t next = list.head;
@@ -135,7 +135,7 @@ alloc(byte_t* base, size_t request) {
             assert(m_hot_end <= m_mempool->size());
             size_t pos = m_hot_pos;
             size_t End = pos + request;
-            if (End <= m_hot_end) {
+            if (terark_likely(End <= m_hot_end)) {
                 m_hot_pos = End;
                 ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 mptc1t_debug_fill_alloc(base + pos, request);
@@ -266,7 +266,7 @@ alloc(byte_t* base, size_t request) {
         assert(m_hot_end <= m_mempool->size());
         size_t pos = m_hot_pos;
         size_t End = pos + request;
-        if (End <= m_hot_end) {
+        if (terark_likely(End <= m_hot_end)) {
             m_hot_pos = End;
             ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
             mptc1t_debug_fill_alloc(base + pos, request);
@@ -321,12 +321,12 @@ TCMemPoolOneThreadMF(void)sfree(byte_t* base, size_t pos, size_t len) {
     assert(pos % AlignSize == 0);
     assert(len % AlignSize == 0);
     assert(len >= sizeof(link_t));
-    if (pos + len == m_hot_pos) {
+    if (terark_unlikely(pos + len == m_hot_pos)) {
         ASAN_POISON_MEMORY_REGION(base + pos, len);
         m_hot_pos = pos;
         return;
     }
-    if (len <= m_freelist_head.size() * AlignSize) {
+    if (terark_likely(len <= m_freelist_head.size() * AlignSize)) {
         size_t idx = len / AlignSize - 1;
         auto& list = m_freelist_head[idx];
         mptc1t_debug_fill_free((link_t*)(base + pos) + 1, len-sizeof(link_t));
