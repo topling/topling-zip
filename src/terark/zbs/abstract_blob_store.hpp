@@ -22,8 +22,8 @@ protected:
     bool            m_isUserMem;
     bool            m_isDetachMeta;
     MemoryCloseType m_dictCloseType;
-	int             m_checksumLevel;
-	int             m_checksumType;
+	uint08_t        m_checksumLevel;
+	uint08_t        m_checksumType;
 	const struct FileHeaderBase* m_mmapBase;
 
 	void risk_swap(AbstractBlobStore& y);
