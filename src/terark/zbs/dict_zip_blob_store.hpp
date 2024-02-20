@@ -23,7 +23,7 @@ public:
 			kHuffmanO1,
 			kFSE
 		);
-		enum SampleSortPolicy {
+		enum SampleSortPolicy : uint08_t {
 			kSortNone,
 			kSortLeft,
 			kSortRight,
@@ -37,12 +37,12 @@ public:
 		bool useSuffixArrayLocalMatch;
 		bool useNewRefEncoding; // now unused
 		bool compressGlobalDict;
+        bool embeddedDict : 1;
+        bool enableLake   : 1;
+        bool inputIsPerm  : 1;
         uint8_t entropyInterleaved;
 		int  offsetArrayBlockUnits; // 0 for no compress
         float entropyZipRatioRequire;
-        bool embeddedDict;
-        bool enableLake;
-        bool inputIsPerm;
         int  recordsPerBatch;
         int  bytesPerBatch;
 
