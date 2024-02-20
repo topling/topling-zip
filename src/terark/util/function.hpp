@@ -51,6 +51,13 @@ namespace terark {
 	using std::remove_reference;
 #endif
 
+    class CacheAlignedNewDelete {
+    public:
+        void* operator new(size_t);
+        void* operator new(size_t, void* p) { return p; } // placement new
+        void operator delete(void* p, size_t);
+    };
+
     enum class MemType : unsigned char {
         Malloc,
         Mmap,

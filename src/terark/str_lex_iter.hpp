@@ -1,11 +1,12 @@
 #pragma once
 #include <terark/valvec.hpp>
 #include <terark/fstring.hpp>
+#include <terark/util/function.hpp>
 
 namespace terark {
 
 template<class CharT>
-class TERARK_DLL_EXPORT StringLexIteratorT : boost::noncopyable {
+class TERARK_DLL_EXPORT StringLexIteratorT : public CacheAlignedNewDelete, boost::noncopyable {
 protected:
     typedef typename terark_get_uchar_type<CharT>::type uch_t;
 	valvec<uch_t>  m_word;

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "../stdtypes.hpp"
+#include "function.hpp"
 #include <assert.h>
 #if __clang__
 # pragma clang diagnostic push
@@ -49,7 +50,7 @@ public:
 /**
  @brief 一般 RefCounter，使用虚函数实现，用于 boost::terark_ptr
  */
-class TERARK_DLL_EXPORT RefCounter
+class TERARK_DLL_EXPORT RefCounter : public CacheAlignedNewDelete
 {
 	DECLARE_NONE_COPYABLE_CLASS(RefCounter)
 	std::atomic<intptr_t> nRef;

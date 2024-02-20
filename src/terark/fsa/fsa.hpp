@@ -177,7 +177,8 @@ protected:
 TERARK_DLL_EXPORT BaseDFA* BaseDFA_load(fstring fname);
 TERARK_DLL_EXPORT BaseDFA* BaseDFA_load(FILE*);
 
-class TERARK_DLL_EXPORT BaseDFA { // readonly dfa interface
+// readonly dfa interface
+class TERARK_DLL_EXPORT BaseDFA : public CacheAlignedNewDelete {
 protected:
 	BaseDFA(const BaseDFA&);
 	BaseDFA& operator=(const BaseDFA&);
