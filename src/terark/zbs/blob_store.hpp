@@ -2,7 +2,7 @@
 #include <terark/valvec.hpp>
 #include <terark/fstring.hpp>
 #include <terark/util/function.hpp>
-#include <terark/util/refcount.hpp>
+#include <atomic>
 
 namespace terark {
 
@@ -11,7 +11,7 @@ class LruReadonlyCache;
 template<bool ZipOffset>
 struct BlobStoreRecBuffer;
 
-class TERARK_DLL_EXPORT BlobStore : public RefCounter {
+class TERARK_DLL_EXPORT BlobStore : public CacheAlignedNewDelete {
 public:
     struct TERARK_DLL_EXPORT Dictionary {
         Dictionary();
@@ -46,7 +46,7 @@ public:
     valvec<Block> get_data_blocks() const;
 
     BlobStore();
-    ~BlobStore() override;
+    virtual ~BlobStore();
     bool support_zero_copy() const { return m_supportZeroCopy; }
     size_t num_records() const { return m_numRecords; }
     uint64_t total_data_size() const { return m_unzipSize; }
@@ -180,6 +180,19 @@ protected:
     bool        m_mmap_aio;
     bool        m_supportZeroCopy;
     uint16_t    m_min_prefetch_pages;
+	std::atomic<int32_t> m_refcnt{0};
+
+	friend void intrusive_ptr_add_ref(BlobStore* p) {
+		assert(NULL != p);
+		assert(p->m_refcnt >= 0);
+		++p->m_refcnt;
+	}
+	friend void intrusive_ptr_release(BlobStore* p) {
+		assert(NULL != p);
+		assert(p->m_refcnt > 0);
+		if (0 == --p->m_refcnt)
+			delete p;
+	}
 
     typedef void (BlobStore::*get_record_append_func_t)(size_t recID, valvec<byte_t>* recData) const;
     get_record_append_func_t m_get_record_append;

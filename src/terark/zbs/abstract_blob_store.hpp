@@ -9,7 +9,7 @@ class LruReadonlyCache;
 
 class TERARK_DLL_EXPORT AbstractBlobStore : public BlobStore {
 public:
-    struct TERARK_DLL_EXPORT Builder : public RefCounter {
+    struct TERARK_DLL_EXPORT Builder : public CacheAlignedNewDelete {
         static Builder* createBuilder(fstring clazz, fstring outputFileName, fstring moreConfig);
         virtual ~Builder();
         virtual Builder* getPreBuilder() const;
