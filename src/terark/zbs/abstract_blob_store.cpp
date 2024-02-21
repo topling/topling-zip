@@ -215,6 +215,7 @@ AbstractBlobStore::AbstractBlobStore()
     m_unzipSize = 0;
 }
 AbstractBlobStore::~AbstractBlobStore() {
+    free(m_fpath_str);
 }
 
 void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
