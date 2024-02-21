@@ -80,6 +80,7 @@ private:
     Options::EntropyAlgo m_entropyAlgo;
     byte_t        m_entropyInterleaved;
     byte_t        m_gOffsetBits; // = My_bsr_size_t(dicLen - gMinLen) + 1;
+    byte_t        m_reserveOutputMultiplier;
     bool          m_isNewRefEncoding; // now unused
     bool          m_dict_verified;
 	union {
@@ -89,7 +90,6 @@ private:
 		UintVecMin0   m_offsets;
 		SortedUintVec m_zOffsets;
 	};
-    size_t        m_reserveOutputMultiplier;
 	void*         m_globalEntropyTableObject;
     const Huffman::decoder_o1* m_huffman_decoder;
     febitvec      m_entropyBitmap;

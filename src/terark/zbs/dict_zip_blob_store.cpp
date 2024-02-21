@@ -2330,7 +2330,8 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 
     // auto grow expected capacity is 1.5x of real size
     if (m_ptrList.size() != 0) {
-        m_reserveOutputMultiplier = ceiled_div(m_unzipSize, m_ptrList.size()) * 3 / 2;
+        m_reserveOutputMultiplier = std::min<size_t>
+            (ceiled_div(m_unzipSize, m_ptrList.size()) * 3 / 2, 255);
     }
 	if (mmapBase->zipOffsets_log2_blockUnits) {
 		new(&m_zOffsets)SortedUintVec();
