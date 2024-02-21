@@ -4,6 +4,7 @@
 #include <terark/fsa/fsa.hpp>
 #include <terark/bitmap.hpp>
 #include <terark/int_vector.hpp>
+#include <terark/valvec32.hpp>
 #include <terark/succinct/rank_select_se_256.hpp>
 #include <terark/succinct/rank_select_il_256.hpp>
 #include <terark/succinct/rank_select_se_512.hpp>
@@ -77,7 +78,7 @@ public:
 };
 
 template<class RankSelect, class RankSelect2 = RankSelect, bool FastLabel = false>
-class TERARK_DLL_EXPORT NestLoudsTrieTpl {
+class TERARK_DLL_EXPORT NestLoudsTrieTpl : public CacheAlignedNewDelete {
 public: // protected:
     typedef typename RankSelect::index_t index_t;
     RankSelect    m_louds;
@@ -89,6 +90,7 @@ public: // protected:
 	size_t        m_core_len_mask;
 	byte_t        m_core_len_bits;
 	byte_t        m_core_min_len;
+	uint32_t      m_max_strlen;
 	size_t        m_core_max_link_val;
 	uint64_t      m_total_zpath_len;
 	NestLoudsTrieTpl<RankSelect, RankSelect>* m_next_trie;
@@ -101,7 +103,7 @@ public: // protected:
 #if defined(TERARK_NLT_ENABLE_SEL0_CACHE)
     valvec<uint32_t>    m_sel0_cache;
 #endif
-	valvec<layer_id_rank_t> m_layer_id_rank;
+	valvec32<layer_id_rank_t> m_layer_id_rank;
 	const layer_ref_t*  m_layer_ref = nullptr;
 	void risk_layer_load_user_mem(const void* mem, size_t num, size_t len) {
 		TERARK_VERIFY_EQ(m_layer_id_rank.size(), 0);
@@ -119,7 +121,6 @@ public: // protected:
 
 	uint32_t            m_max_layer_id;
 	uint32_t            m_max_layer_size;
-    uint32_t            m_max_strlen;
 
 public:
 	typedef RankSelect rank_select_t;
