@@ -12,6 +12,7 @@ template<bool ZipOffset>
 struct BlobStoreRecBuffer;
 
 class TERARK_DLL_EXPORT BlobStore : public CacheAlignedNewDelete {
+    DECLARE_NONE_MOVEABLE_CLASS(BlobStore);
 public:
     struct TERARK_DLL_EXPORT Dictionary {
         Dictionary();
