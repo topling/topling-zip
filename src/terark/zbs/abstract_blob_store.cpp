@@ -183,11 +183,15 @@ const char* AbstractBlobStore::name() const {
 }
 
 void AbstractBlobStore::set_fpath(fstring fpath) {
-  m_fpath.assign(fpath.begin(), fpath.end());
+    free(m_fpath_str);
+    m_fpath_str = (char*)malloc(fpath.size() + 1);
+    m_fpath_len = (uint16_t)(fpath.size());
+    TERARK_VERIFY_NE(m_fpath_str, nullptr);
+    memcpy(m_fpath_str, fpath.data(), fpath.size() + 1);
 }
 
 fstring AbstractBlobStore::get_fpath() const {
-  return m_fpath;
+    return fstring(m_fpath_str, m_fpath_len);
 }
 
 AbstractBlobStore::Dictionary AbstractBlobStore::get_dict() const {
@@ -199,7 +203,8 @@ fstring AbstractBlobStore::get_mmap() const {
 }
 
 AbstractBlobStore::AbstractBlobStore()
-  : m_fpath()
+  : m_fpath_str(nullptr)
+  , m_fpath_len(0)
   , m_isMmapData(false)
   , m_isUserMem(false)
   , m_isDetachMeta(false)
@@ -218,7 +223,8 @@ void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
     std::swap(m_mmap_aio     , y.m_mmap_aio     );
     std::swap(m_supportZeroCopy, y.m_supportZeroCopy);
     std::swap(m_min_prefetch_pages, y.m_min_prefetch_pages);
-	std::swap(m_fpath        , y.m_fpath        );
+    std::swap(m_fpath_str    , y.m_fpath_str    );
+    std::swap(m_fpath_len    , y.m_fpath_len    );
     std::swap(m_isMmapData   , y.m_isMmapData   );
     std::swap(m_isUserMem    , y.m_isUserMem    );
     std::swap(m_isDetachMeta , y.m_isDetachMeta );

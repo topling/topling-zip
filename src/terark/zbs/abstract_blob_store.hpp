@@ -17,7 +17,8 @@ public:
         virtual void finish() = 0;
     };
 protected:
-	std::string m_fpath;
+	char*           m_fpath_str;
+    uint16_t        m_fpath_len;
     bool            m_isMmapData;
     bool            m_isUserMem;
     bool            m_isDetachMeta;

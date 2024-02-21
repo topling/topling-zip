@@ -2234,7 +2234,7 @@ void DictZipBlobStoreBuilder::finish(int flag) {
         else {
             store->m_checksumLevel = 1;
         }
-        store->m_fpath = m_fpath;
+        store->set_fpath(m_fpath);
         store->m_unzipSize = m_unzipSize;
         store->m_numRecords = m_lengthCount;
         store->m_entropyInterleaved = m_opt.entropyInterleaved;
@@ -2294,7 +2294,7 @@ void DictZipBlobStoreBuilder::abandon() {
 // when using user memory, disable global dict compression
 void DictZipBlobStore::init_from_memory(fstring dataMem, Dictionary dict) {
     destroyMe();
-    m_dictCloseType = ReadDict(dataMem, dict, m_fpath + "-dict");
+    m_dictCloseType = ReadDict(dataMem, dict, get_fpath() + "-dict");
     m_strDict.risk_set_data((byte*)dict.memory.data(), dict.memory.size());
     auto mmapBase = (const FileHeader*)dataMem.data();
     if (mmapBase->globalDictSize != dict.memory.size()) {
@@ -2444,7 +2444,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
     set_func_ptr();
 
   if (g_debugLevel >= 2) {
-    fprintf(stderr, "DictZipBlobStore::setDataMemory(%s): checking offsets\n", m_fpath.c_str());
+    fprintf(stderr, "DictZipBlobStore::setDataMemory(%s): checking offsets\n", m_fpath_str);
 	if (offsetsIsSortedUintVec()) {
 		for(size_t i = 0; i < m_numRecords; ++i) {
 			auto BegEnd = m_zOffsets.get2(i);
@@ -2480,13 +2480,13 @@ void DictZipBlobStore::load_mmap_with_dict_memory(fstring fpath, Dictionary dict
 }
 
 void DictZipBlobStore::save_mmap(fstring fpath) const {
-    if (fpath == m_fpath) {
+    if (fpath == get_fpath()) {
         return;
     }
     auto mmapBase = (const FileHeader*)m_mmapBase;
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         std::string newDictFname = fpath + "-dict";
-        std::string oldDictFname = m_fpath + "-dict";
+        std::string oldDictFname = get_fpath() + "-dict";
         FileStream dictFp(newDictFname, "wb");
         dictFp.disbuf();
         dictFp.cat(oldDictFname);
@@ -3211,7 +3211,7 @@ DictZipBlobStore::reorder_and_load(ZReorderMap& newToOld,
 	fp.close();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         std::string newDictFname = newFile + "-dict";
-        std::string oldDictFname = m_fpath + "-dict";
+        std::string oldDictFname = get_fpath() + "-dict";
         if (keepOldFile) {
             FileStream dictFp(newDictFname, "wb");
             dictFp.disbuf();
@@ -3223,7 +3223,7 @@ DictZipBlobStore::reorder_and_load(ZReorderMap& newToOld,
             if (::rename(oldDictFname.c_str(), newDictFname.c_str()) < 0) {
                 fprintf(stderr, "ERROR: DictZipBlobStore::reorder_and_load()");
             }
-            ::remove(m_fpath.c_str());
+            ::remove(m_fpath_str);
         }
     }
     this->load_mmap(newFile);
@@ -3413,7 +3413,7 @@ void DictZipBlobStore::purge_and_load(const bm_uint_t* isDel,
 	fp.close();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         std::string newDictFname = newFile + "-dict";
-        std::string oldDictFname = m_fpath + "-dict";
+        std::string oldDictFname = get_fpath() + "-dict";
         if (keepOldFile) {
             FileStream dictFp(newDictFname, "wb");
             dictFp.disbuf();
@@ -3428,7 +3428,7 @@ void DictZipBlobStore::purge_and_load(const bm_uint_t* isDel,
                     , oldDictFname.c_str(), newDictFname.c_str()
                     , strerror(errno));
             }
-            ::remove(m_fpath.c_str());
+            ::remove(m_fpath_str);
         }
     }
 	this->load_mmap(newFile);

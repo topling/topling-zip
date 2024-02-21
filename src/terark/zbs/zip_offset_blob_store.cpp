@@ -109,7 +109,7 @@ void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
         const uint64_t hashVal = hash.digest();
         auto &footer = ((const BlobStoreFileFooter*)((const byte_t*)(mmapBase) + mmapBase->fileSize))[-1];
         if (hashVal != footer.fileXXHash) {
-            std::string msg = "ZipOffsetBlobStore::load_mmap(\"" + m_fpath + "\")";
+            std::string msg = "ZipOffsetBlobStore::load_mmap(\"" + get_fpath() + "\")";
             throw BadChecksumException(msg, footer.fileXXHash, hashVal);
         }
     }
