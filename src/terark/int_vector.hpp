@@ -8,13 +8,13 @@ namespace terark {
 
 class OutputBuffer;
 
-// memory layout is binary compatible to SortedUintVec
+// memory layout is binary compatible to SortedUintVec on 64 bit platform
 class TERARK_DLL_EXPORT UintVecMin0Base {
 protected:
-	valvec<byte> m_data;
-	size_t m_bits;
-	size_t m_mask;
-	size_t m_size;
+	valvec<byte> m_data; // corresponding to SortedUintVec::m_data
+	size_t m_bits; // corresponding to SortedUintVec::XXXX, m_bits <= 64
+	size_t m_mask; // corresponding to SortedUintVec::m_index
+	size_t m_size; // corresponding to SortedUintVec::m_size
 
 	void nullize() {
 		m_bits = 0;
@@ -79,8 +79,7 @@ private:
 public:
 	void push_back(size_t val) {
 		assert(m_bits <= 64);
-		if (compute_mem_size(m_bits, m_size+1) < m_data.size()
-                && val <= m_mask) {
+		if (compute_mem_size(m_bits, m_size+1) < m_data.size() && val <= m_mask) {
             set_wire(m_size++, val);
 		} else {
 			push_back_slow_path(val);
