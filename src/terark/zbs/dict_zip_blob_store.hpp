@@ -2,6 +2,7 @@
 #include <terark/util/enum.hpp>
 #include <terark/int_vector.hpp>
 #include <terark/io/FileMemStream.hpp>
+#include <terark/valvec32.hpp>
 #include <terark/zbs/abstract_blob_store.hpp>
 #include <terark/util/function.hpp>
 #include <terark/util/sorted_uint_vec.hpp>
@@ -73,10 +74,14 @@ private:
                     valvec<byte_t>* recData, const byte_t* dic,
                     size_t gOffsetBits, size_t reserveOutputMultiplier);
     UnzipFuncPtr  m_unzip;
-	valvec<byte>  m_strDict;
+	valvec32<byte> m_strDict;
 	valvec<byte>  m_ptrList;
-    febitvec      m_entropyBitmap;
 
+    Options::EntropyAlgo m_entropyAlgo;
+    byte_t        m_entropyInterleaved;
+    byte_t        m_gOffsetBits; // = My_bsr_size_t(dicLen - gMinLen) + 1;
+    bool          m_isNewRefEncoding; // now unused
+    bool          m_dict_verified;
 	union {
 		// layout of UintVecMin0 is compatible to SortedUintVec
 		static_assert(sizeof(UintVecMin0)==sizeof(SortedUintVec),
@@ -87,11 +92,7 @@ private:
     size_t        m_reserveOutputMultiplier;
 	void*         m_globalEntropyTableObject;
     const Huffman::decoder_o1* m_huffman_decoder;
-	Options::EntropyAlgo m_entropyAlgo;
-	bool          m_isNewRefEncoding; // now unused
-    byte_t        m_entropyInterleaved;
-    byte_t        m_gOffsetBits; // = My_bsr_size_t(dicLen - gMinLen) + 1;
-    bool          m_dict_verified;
+    febitvec      m_entropyBitmap;
 
 	bool offsetsIsSortedUintVec() const {
 		return m_zOffsets.isSortedUintVec();
