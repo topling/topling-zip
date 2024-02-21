@@ -180,7 +180,11 @@ public:
     ///
     terark_forceinline
     bool insert(fstring key, void* value, WriterToken* token) {
+      #if defined(_MSC_VER)
         return (this->*m_insert)(key, value, token);
+      #else
+        return m_insert(this, key, value, token);
+      #endif
     }
 
     ConcurrentLevel concurrent_level() const { return m_writing_concurrent_level; }
@@ -257,7 +261,12 @@ public:
 protected:
     Patricia();
     bool insert_readonly_throw(fstring key, void* value, WriterToken*);
+    typedef bool (Patricia::*insert_pmf_t)(fstring, void*, WriterToken*);
+#if defined(_MSC_VER)
     typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*);
+#else
+    typedef bool (*insert_func_t)(Patricia*, fstring, void*, WriterToken*);
+#endif
     insert_func_t    m_insert;
     ConcurrentLevel  m_writing_concurrent_level;
     ConcurrentLevel  m_mempool_concurrent_level;

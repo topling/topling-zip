@@ -742,6 +742,10 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
   return m_stat;
 }
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 template<size_t Align>
 void PatriciaMem<Align>::mempool_set_readonly() {
   if (m_is_virtual_alloc && mmap_base) {
@@ -766,7 +770,7 @@ void PatriciaMem<Align>::mempool_set_readonly() {
 #endif
   }
   auto conLevel = m_writing_concurrent_level;
-  m_insert = (insert_func_t)&PatriciaMem::insert_readonly_throw;
+  m_insert = (insert_func_t)(insert_pmf_t)&PatriciaMem::insert_readonly_throw;
   m_writing_concurrent_level = NoWriteReadOnly;
   if (MultiWriteMultiRead == conLevel) {
       m_mempool_lock_free.sync_frag_size_full();
@@ -793,11 +797,11 @@ case MultiWriteMultiRead: m_mempool_lock_free.print_stat(fp); break;
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
 default: TERARK_DIE("Unknown == conLevel"); break;
-case NoWriteReadOnly    : m_insert = (insert_func_t)&MainPatricia::insert_readonly_throw;                 break;
-case SingleThreadStrict : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadStrict>; break;
-case SingleThreadShared : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadShared>; break;
-case OneWriteMultiRead  : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<OneWriteMultiRead >; break;
-case MultiWriteMultiRead: m_insert = (insert_func_t)&MainPatricia::insert_multi_writer;                   break;
+case NoWriteReadOnly    : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_readonly_throw;                 break;
+case SingleThreadStrict : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_one_writer<SingleThreadStrict>; break;
+case SingleThreadShared : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_one_writer<SingleThreadShared>; break;
+case OneWriteMultiRead  : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_one_writer<OneWriteMultiRead >; break;
+case MultiWriteMultiRead: m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_multi_writer;                   break;
     }
 }
 
