@@ -74,9 +74,6 @@ private:
                     valvec<byte_t>* recData, const byte_t* dic,
                     size_t gOffsetBits, size_t reserveOutputMultiplier);
     UnzipFuncPtr  m_unzip;
-	valvec32<byte> m_strDict;
-	valvec<byte>  m_ptrList;
-
     Options::EntropyAlgo m_entropyAlgo;
     byte_t        m_entropyInterleaved;
     byte_t        m_gOffsetBits; // = My_bsr_size_t(dicLen - gMinLen) + 1;
@@ -90,6 +87,8 @@ private:
 		UintVecMin0   m_offsets;
 		SortedUintVec m_zOffsets;
 	};
+	valvec32<byte> m_strDict;
+	valvec<byte>  m_ptrList;
 	void*         m_globalEntropyTableObject;
     const Huffman::decoder_o1* m_huffman_decoder;
     febitvec      m_entropyBitmap;
