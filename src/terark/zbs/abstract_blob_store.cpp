@@ -232,6 +232,7 @@ void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
 	std::swap(m_checksumLevel, y.m_checksumLevel);
 	std::swap(m_mmapBase     , y.m_mmapBase     );
     std::swap(m_get_record_append             , y.m_get_record_append             );
+    std::swap(m_get_record_append_fiber_vm_prefetch, y.m_get_record_append_fiber_vm_prefetch);
     std::swap(m_get_record_append_CacheOffsets, y.m_get_record_append_CacheOffsets);
     std::swap(m_fspread_record_append         , y.m_fspread_record_append         );
     std::swap(m_pread_record_append           , y.m_pread_record_append           );
