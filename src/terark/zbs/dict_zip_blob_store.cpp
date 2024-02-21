@@ -3093,6 +3093,12 @@ void DictZipBlobStore::set_func_ptr() {
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 #endif
 
+#if defined(_MSC_VER)
+    #define CastCacheOffsetFunc(...) static_cast<get_record_append_func_t>(__VA_ARGS__)
+#else
+    #define CastCacheOffsetFunc(...) __VA_ARGS__
+#endif
+
 // CacheOffsets::recData is first field, so:
 // get_record_append can be used as
 // get_record_append_CacheOffsets
@@ -3101,7 +3107,7 @@ ZipOffset                                                         \
 ?  BlobStoreStaticCastPMF(get_record_append_CacheOffsets_func_t,  \
   &DictZipBlobStore::get_record_append_CacheOffsets_tpl<b, c, d>) \
 :  BlobStoreReinterpretCastPMF(get_record_append_CacheOffsets_func_t, \
-   BlobStoreStaticCastPMF(get_record_append_func_t, \
+   CastCacheOffsetFunc( \
   &DictZipBlobStore::get_record_append_tpl  <ZipOffset, b, c, d>))
 
 #define SetFunc(a,b,c,d) \
