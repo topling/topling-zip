@@ -16,6 +16,10 @@
 #include <terark/zbs/xxhash_helper.hpp>
 #include <terark/io/StreamBuffer.hpp>
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 REGISTER_BlobStore(PlainBlobStore);
@@ -159,18 +163,18 @@ PlainBlobStore::PlainBlobStore() {
     m_supportZeroCopy = true;
     m_checksumLevel = 3;
     m_checksumType = 0;
-    m_get_record_append = static_cast<get_record_append_func_t>
-                    (&PlainBlobStore::get_record_append_imp<false>);
+    m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                    &PlainBlobStore::get_record_append_imp<false>);
     m_get_record_append_fiber_vm_prefetch =
-                    static_cast<get_record_append_func_t>
-                    (&PlainBlobStore::get_record_append_imp<true>);
-    m_fspread_record_append = static_cast<fspread_record_append_func_t>
-                    (&PlainBlobStore::fspread_record_append_imp);
+                    BlobStoreStaticCastPMF(get_record_append_func_t,
+                    &PlainBlobStore::get_record_append_imp<true>);
+    m_fspread_record_append = BlobStoreStaticCastPMF(fspread_record_append_func_t,
+                    &PlainBlobStore::fspread_record_append_imp);
     // binary compatible:
     m_get_record_append_CacheOffsets =
-        reinterpret_cast<get_record_append_CacheOffsets_func_t>
-        (m_get_record_append);
-    m_get_zipped_size = dest_scast(&PlainBlobStore::get_zipped_size_imp);
+        reinterpret_cast<get_record_append_CacheOffsets_func_t>(
+        m_get_record_append);
+    m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t, &PlainBlobStore::get_zipped_size_imp);
 }
 
 PlainBlobStore::~PlainBlobStore() {

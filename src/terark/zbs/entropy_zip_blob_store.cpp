@@ -20,6 +20,10 @@
 #include <terark/int_vector.hpp>
 #include <utility>
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 REGISTER_BlobStore(EntropyZipBlobStore);
@@ -108,21 +112,22 @@ bool EntropyZipBlobStore::is_order1() const {
 
 void EntropyZipBlobStore::init_get_calls() {
     if (!is_order1()) {
-        m_get_record_append = static_cast<get_record_append_func_t>
-            (&EntropyZipBlobStore::get_record_append_imp<0>);
-        m_fspread_record_append = static_cast<fspread_record_append_func_t>
-            (&EntropyZipBlobStore::fspread_record_append_imp<0>);
+        m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+             &EntropyZipBlobStore::get_record_append_imp<0>);
+        m_fspread_record_append = BlobStoreStaticCastPMF(
+             fspread_record_append_func_t,
+             &EntropyZipBlobStore::fspread_record_append_imp<0>);
         m_get_record_append_CacheOffsets =
-            static_cast<get_record_append_CacheOffsets_func_t>
-            (&EntropyZipBlobStore::get_record_append_CacheOffsets<0>);
+            BlobStoreStaticCastPMF(get_record_append_CacheOffsets_func_t,
+             &EntropyZipBlobStore::get_record_append_CacheOffsets<0>);
     } else {
-        m_get_record_append = static_cast<get_record_append_func_t>
-            (&EntropyZipBlobStore::get_record_append_imp<1>);
-        m_fspread_record_append = static_cast<fspread_record_append_func_t>
-            (&EntropyZipBlobStore::fspread_record_append_imp<1>);
+        m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+             &EntropyZipBlobStore::get_record_append_imp<1>);
+        m_fspread_record_append = BlobStoreStaticCastPMF(fspread_record_append_func_t,
+             &EntropyZipBlobStore::fspread_record_append_imp<1>);
         m_get_record_append_CacheOffsets =
-            static_cast<get_record_append_CacheOffsets_func_t>
-            (&EntropyZipBlobStore::get_record_append_CacheOffsets<1>);
+            BlobStoreStaticCastPMF(get_record_append_CacheOffsets_func_t,
+             &EntropyZipBlobStore::get_record_append_CacheOffsets<1>);
     }
 }
 

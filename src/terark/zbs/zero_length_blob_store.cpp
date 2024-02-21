@@ -13,6 +13,10 @@
 #include <terark/zbs/xxhash_helper.hpp>
 #include <terark/io/StreamBuffer.hpp>
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 REGISTER_BlobStore(ZeroLengthBlobStore);
@@ -49,17 +53,20 @@ void ZeroLengthBlobStore::save_mmap(function<void(const void*, size_t)> write) c
 
 ZeroLengthBlobStore::ZeroLengthBlobStore() {
     m_supportZeroCopy = true;
-    m_get_record_append = static_cast<get_record_append_func_t>
-               (&ZeroLengthBlobStore::get_record_append_imp);
-    m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
-               (&ZeroLengthBlobStore::get_record_append_imp);
+    m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                &ZeroLengthBlobStore::get_record_append_imp);
+    m_get_record_append_fiber_vm_prefetch = BlobStoreStaticCastPMF(
+                get_record_append_func_t,
+                &ZeroLengthBlobStore::get_record_append_imp);
     // binary compatible:
     m_get_record_append_CacheOffsets =
         reinterpret_cast<get_record_append_CacheOffsets_func_t>
         (m_get_record_append);
-    m_fspread_record_append = static_cast<fspread_record_append_func_t>
-               (&ZeroLengthBlobStore::fspread_record_append_imp);
-    m_get_zipped_size = dest_scast(&ZeroLengthBlobStore::get_zipped_size_imp);
+    m_fspread_record_append = BlobStoreStaticCastPMF(
+               fspread_record_append_func_t,
+               &ZeroLengthBlobStore::fspread_record_append_imp);
+    m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t,
+               &ZeroLengthBlobStore::get_zipped_size_imp);
 }
 
 ZeroLengthBlobStore::~ZeroLengthBlobStore() {

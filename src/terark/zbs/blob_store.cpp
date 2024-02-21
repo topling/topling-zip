@@ -15,6 +15,10 @@
 #   include <unistd.h> // for usleep
 #endif
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 BlobStore::BlobStore() {
@@ -27,7 +31,8 @@ BlobStore::BlobStore() {
     m_get_record_append_fiber_vm_prefetch = NULL;
     m_get_record_append_CacheOffsets = NULL;
     m_fspread_record_append = NULL;
-    m_pread_record_append = &BlobStore::pread_record_append_default_impl;
+    m_pread_record_append = BlobStoreStaticCastPMF(pread_record_append_func_t,
+        &BlobStore::pread_record_append_default_impl);
     m_get_zipped_size = NULL;
 }
 
@@ -66,7 +71,7 @@ size_t BlobStore::lower_bound(size_t lo, size_t hi, fstring target,
     struct Ptr {
         fstring operator[](ptrdiff_t i) {
             co_->recData.erase_all();
-            (this_->*call_)(i, co_);
+            BlobStoreInvokePMF_EX(call_, this_, i, co_);
             last_ = i;
             return co_->recData;
         }
@@ -89,7 +94,7 @@ size_t BlobStore::lower_bound(size_t lo, size_t hi, fstring target,
   struct Ptr {
       fstring operator[](ptrdiff_t i) {
           rec_->erase_all();
-          (this_->*call_)(i, rec_);
+          BlobStoreInvokePMF_EX(call_, this_, i, rec_);
           last_ = i;
           return *rec_;
       }
@@ -192,10 +197,10 @@ const {
         BlobStoreLruCachePosRead fspread(rdbuf);
         fspread.cache = cache;
         fspread.fi    = fd; // fd is really fi for cache
-        (this->*m_fspread_record_append)(c_callback(fspread), &fspread, baseOffset, recID, recData, rdbuf);
+        BlobStoreInvokePMF(m_fspread_record_append, c_callback(fspread), &fspread, baseOffset, recID, recData, rdbuf);
     }
     else {
-        (this->*m_fspread_record_append)(&os_fspread, (void*)fd, baseOffset, recID, recData, rdbuf);
+        BlobStoreInvokePMF(m_fspread_record_append, &os_fspread, (void*)fd, baseOffset, recID, recData, rdbuf);
     }
 }
 

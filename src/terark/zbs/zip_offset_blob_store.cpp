@@ -20,6 +20,10 @@
 #include <terark/int_vector.hpp>
 #include <zstd/zstd.h>
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 REGISTER_BlobStore(ZipOffsetBlobStore);
@@ -172,7 +176,8 @@ ZipOffsetBlobStore::ZipOffsetBlobStore() {
     m_get_record_append = nullptr;
     m_fspread_record_append = nullptr;
     m_get_record_append_CacheOffsets = nullptr;
-    m_get_zipped_size = dest_scast(&ZipOffsetBlobStore::get_zipped_size_imp);
+    m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t,
+            &ZipOffsetBlobStore::get_zipped_size_imp);
 }
 
 ZipOffsetBlobStore::~ZipOffsetBlobStore() {
@@ -198,8 +203,8 @@ ZipOffsetBlobStore::~ZipOffsetBlobStore() {
 void ZipOffsetBlobStore::set_func() {
 #define FiberVmPrefetchSetFunc(Compress, ChecksumLen) \
     m_get_record_append_fiber_vm_prefetch = \
-        static_cast<get_record_append_func_t> \
-        (&ZipOffsetBlobStore::get_record_append_imp<Compress, ChecksumLen, true>)
+        BlobStoreStaticCastPMF(get_record_append_func_t, \
+         &ZipOffsetBlobStore::get_record_append_imp<Compress, ChecksumLen, true>)
     if (m_compressLevel > 0) {
         if (2 == m_checksumLevel) {
             if (kCRC16C == m_checksumType)
@@ -221,18 +226,18 @@ void ZipOffsetBlobStore::set_func() {
     if (m_compressLevel > 0) { \
         if (2 == m_checksumLevel) { \
             if (kCRC16C == m_checksumType) \
-                 m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<true, 2>); \
-            else m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<true, 4>); \
+                 m_##func = BlobStoreStaticCastPMF(func##_func_t, &ZipOffsetBlobStore::func##_imp<true, 2>); \
+            else m_##func = BlobStoreStaticCastPMF(func##_func_t, &ZipOffsetBlobStore::func##_imp<true, 4>); \
         } else { \
-            m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<true, 0>); \
+            m_##func = BlobStoreStaticCastPMF(func##_func_t, &ZipOffsetBlobStore::func##_imp<true, 0>); \
         } \
     } else { \
         if (2 == m_checksumLevel) { \
             if (kCRC16C == m_checksumType) \
-                 m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<false, 2>); \
-            else m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<false, 4>); \
+                 m_##func = BlobStoreStaticCastPMF(func##_func_t, &ZipOffsetBlobStore::func##_imp<false, 2>); \
+            else m_##func = BlobStoreStaticCastPMF(func##_func_t, &ZipOffsetBlobStore::func##_imp<false, 4>); \
         } else { \
-            m_##func = static_cast<func##_func_t>(&ZipOffsetBlobStore::func##_imp<false, 0>); \
+            m_##func = BlobStoreStaticCastPMF(func##_func_t, &ZipOffsetBlobStore::func##_imp<false, 0>); \
         } \
     }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -12,6 +12,10 @@
 #include "blob_store_file_header.hpp"
 #include "zip_reorder_map.hpp"
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 REGISTER_BlobStore(MixedLenBlobStore);
@@ -149,32 +153,39 @@ template<class rank_select_t>
 void MixedLenBlobStoreTpl<rank_select_t>::set_func_ptr() {
 	if (m_isFixedLen.empty()) {
 		if (size_t(-1) != m_fixedLen) {
-            m_get_record_append = static_cast<get_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::getFixLenRecordAppend<false>);
-            m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::getFixLenRecordAppend<true>);
-            m_fspread_record_append = static_cast<fspread_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::fspread_FixLenRecordAppend);
-            m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getFixLenRecordSize);
+            m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                      &MixedLenBlobStoreTpl::getFixLenRecordAppend<false>);
+            m_get_record_append_fiber_vm_prefetch = BlobStoreStaticCastPMF(
+                      get_record_append_func_t,
+                      &MixedLenBlobStoreTpl::getFixLenRecordAppend<true>);
+            m_fspread_record_append = BlobStoreStaticCastPMF(
+                      fspread_record_append_func_t,
+                      &MixedLenBlobStoreTpl::fspread_FixLenRecordAppend);
+            m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t,
+                      &MixedLenBlobStoreTpl::getFixLenRecordSize);
 		}
 		else {
-            m_get_record_append = static_cast<get_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::getVarLenRecordAppend<false>);
-            m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::getVarLenRecordAppend<true>);
-            m_fspread_record_append = static_cast<fspread_record_append_func_t>
-                      (&MixedLenBlobStoreTpl::fspread_VarLenRecordAppend);
-            m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getVarLenRecordSize);
+            m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                      &MixedLenBlobStoreTpl::getVarLenRecordAppend<false>);
+            m_get_record_append_fiber_vm_prefetch = BlobStoreStaticCastPMF(
+                      get_record_append_func_t,
+                      &MixedLenBlobStoreTpl::getVarLenRecordAppend<true>);
+            m_fspread_record_append = BlobStoreStaticCastPMF(fspread_record_append_func_t,
+                      &MixedLenBlobStoreTpl::fspread_VarLenRecordAppend);
+            m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t,
+                      &MixedLenBlobStoreTpl::getVarLenRecordSize);
 		}
 	}
 	else {
-        m_get_record_append = static_cast<get_record_append_func_t>
-                  (&MixedLenBlobStoreTpl::get_record_append_has_fixed_rs<false>);
-        m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t>
-                  (&MixedLenBlobStoreTpl::get_record_append_has_fixed_rs<true>);
-        m_fspread_record_append = static_cast<fspread_record_append_func_t>
-                  (&MixedLenBlobStoreTpl::fspread_record_append_has_fixed_rs);
-        m_get_zipped_size = dest_scast(&MixedLenBlobStoreTpl::getMixLenRecordSize);
+        m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                  &MixedLenBlobStoreTpl::get_record_append_has_fixed_rs<false>);
+        m_get_record_append_fiber_vm_prefetch = BlobStoreStaticCastPMF(
+                  get_record_append_func_t,
+                  &MixedLenBlobStoreTpl::get_record_append_has_fixed_rs<true>);
+        m_fspread_record_append = BlobStoreStaticCastPMF(fspread_record_append_func_t,
+                  &MixedLenBlobStoreTpl::fspread_record_append_has_fixed_rs);
+        m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t,
+                  &MixedLenBlobStoreTpl::getMixLenRecordSize);
 	}
     // binary compatible:
     m_get_record_append_CacheOffsets =

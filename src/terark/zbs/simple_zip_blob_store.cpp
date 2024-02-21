@@ -16,14 +16,18 @@
 	#include <unistd.h> // for usleep
 #endif
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 namespace terark {
 
 SimpleZipBlobStore::SimpleZipBlobStore() {
 	m_mmapBase = nullptr;
 	m_unzipSize = 0;
 	m_lenBits = 0;
-    m_get_record_append = static_cast<get_record_append_func_t>
-                (&SimpleZipBlobStore::get_record_append_imp);
+    m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                &SimpleZipBlobStore::get_record_append_imp);
     // binary compatible:
     m_get_record_append_CacheOffsets =
         reinterpret_cast<get_record_append_CacheOffsets_func_t>

@@ -3088,26 +3088,30 @@ void DictZipBlobStore::set_func_ptr() {
   case kFSE:       break;
   }
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 // CacheOffsets::recData is first field, so:
 // get_record_append can be used as
 // get_record_append_CacheOffsets
 #define CacheOffsetFunc(ZipOffset, b, c, d)                       \
 ZipOffset                                                         \
-?        static_cast<get_record_append_CacheOffsets_func_t>(      \
+?  BlobStoreStaticCastPMF(get_record_append_CacheOffsets_func_t,  \
   &DictZipBlobStore::get_record_append_CacheOffsets_tpl<b, c, d>) \
-:   reinterpret_cast<get_record_append_CacheOffsets_func_t>(      \
+:  BlobStoreReinterpretCastPMF(get_record_append_CacheOffsets_func_t, \
   &DictZipBlobStore::get_record_append_tpl  <ZipOffset, b, c, d>)
 
 #define SetFunc(a,b,c,d) \
-  m_get_record_append = static_cast<get_record_append_func_t> \
-  (&DictZipBlobStore::get_record_append_tpl<a,b,c,d>); \
-  m_get_record_append_fiber_vm_prefetch = static_cast<get_record_append_func_t> \
-  (&DictZipBlobStore::get_record_append_fiber_vm_prefetch_tpl<a,b,c,d>); \
+  m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t, \
+   &DictZipBlobStore::get_record_append_tpl<a,b,c,d>); \
+  m_get_record_append_fiber_vm_prefetch = BlobStoreStaticCastPMF(get_record_append_func_t, \
+   &DictZipBlobStore::get_record_append_fiber_vm_prefetch_tpl<a,b,c,d>); \
   m_get_record_append_CacheOffsets = CacheOffsetFunc(a,b,c,d); \
-  m_pread_record_append = static_cast<pread_record_append_func_t> \
-  (&DictZipBlobStore::pread_record_append_tpl<a,b,c,d>); \
-  m_fspread_record_append = static_cast<fspread_record_append_func_t> \
-  (&DictZipBlobStore::fspread_record_append_tpl<a,b,c,d>); \
+  m_pread_record_append = BlobStoreStaticCastPMF(pread_record_append_func_t, \
+   &DictZipBlobStore::pread_record_append_tpl<a,b,c,d>); \
+  m_fspread_record_append = BlobStoreStaticCastPMF(fspread_record_append_func_t, \
+   &DictZipBlobStore::fspread_record_append_tpl<a,b,c,d>); \
   break
 
 #define TemplateArgsAre(a, b) \
@@ -3120,9 +3124,9 @@ ZipOffset                                                         \
   const int  gOffsetBytes = m_gOffsetBits <= 24 ? 3 : 4;
   const int  EI = m_entropyInterleaved;
   if (ZipOffset) {
-      m_get_zipped_size = dest_scast(&DictZipBlobStore::get_zipped_size_tpl<true>);
+      m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t, &DictZipBlobStore::get_zipped_size_tpl<true>);
   } else {
-      m_get_zipped_size = dest_scast(&DictZipBlobStore::get_zipped_size_tpl<false>);
+      m_get_zipped_size = BlobStoreStaticCastPMF(get_zipped_size_func_t, &DictZipBlobStore::get_zipped_size_tpl<false>);
   }
 
 // UnzipID is a perfect hash function to compute a unique id for switch-case

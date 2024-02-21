@@ -7,6 +7,10 @@
 # pragma clang diagnostic ignored "-Wdynamic-class-memaccess"
 #endif
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+#endif
+
 #define _SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING
 
 namespace terark {
@@ -15,8 +19,8 @@ namespace terark {
 /// NestLoudsTrieBlobStore:
 template<class NestLoudsTrie>
 NestLoudsTrieBlobStore<NestLoudsTrie>::NestLoudsTrieBlobStore() {
-    this->m_get_record_append = static_cast<get_record_append_func_t>
-                  (&NestLoudsTrieBlobStore::get_record_append_imp);
+    m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t,
+                  &NestLoudsTrieBlobStore::get_record_append_imp);
     m_get_record_append_fiber_vm_prefetch = m_get_record_append;
 
     // binary compatible:
