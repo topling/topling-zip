@@ -1,4 +1,5 @@
 #pragma once
+#include <terark/valvec32.hpp>
 #include <terark/util/function.hpp>
 #include <terark/thread/instance_tls_owner.hpp>
 #include <boost/integer/static_log2.hpp>
@@ -8,7 +9,8 @@ namespace terark {
 
 template<int AlignSize> class ThreadCacheMemPool; // forward declare
 template<int AlignSize>
-class TERARK_DLL_EXPORT TCMemPoolOneThread : boost::noncopyable {
+class TERARK_DLL_EXPORT TCMemPoolOneThread : public CacheAlignedNewDelete {
+    DECLARE_NONE_MOVEABLE_CLASS(TCMemPoolOneThread);
 public:
     BOOST_STATIC_ASSERT((AlignSize & (AlignSize-1)) == 0);
     BOOST_STATIC_ASSERT(AlignSize >= 4);
@@ -30,12 +32,7 @@ public:
     };
     size_t         fragment_size;
     intptr_t       m_frag_inc;
-    huge_link_t    huge_list; // huge_list.size is max height of skiplist
-    valvec<head_t> m_freelist_head;
-    size_t  huge_size_sum;
-    size_t  huge_node_cnt;
-    ThreadCacheMemPool<AlignSize>* m_mempool;
-    TCMemPoolOneThread* m_next_free;
+    valvec32<head_t> m_freelist_head;
     size_t  m_hot_end; // only be accessed by tls
     size_t  m_hot_pos; // only be accessed by tls, frequently changing
 
@@ -44,10 +41,15 @@ public:
 
     ThreadCacheMemPool<AlignSize>* tls_owner() const { return m_mempool; }
 
+    huge_link_t    huge_list; // huge_list.size is max height of skiplist
   #if defined(__GNUC__)
     unsigned int m_rand_seed = 1;
     unsigned int rand() { return rand_r(&m_rand_seed); }
   #endif
+    size_t  huge_size_sum;
+    size_t  huge_node_cnt;
+    TCMemPoolOneThread* m_next_free;
+    ThreadCacheMemPool<AlignSize>* m_mempool;
     size_t random_level();
 
     void reduce_frag_size(size_t request);
