@@ -51,7 +51,7 @@ namespace terark {
 	using std::remove_reference;
 #endif
 
-    class CacheAlignedNewDelete {
+    class TERARK_DLL_EXPORT CacheAlignedNewDelete {
     public:
         void* operator new(size_t);
         void* operator new(size_t, void* p) { return p; } // placement new

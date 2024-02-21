@@ -3101,7 +3101,8 @@ ZipOffset                                                         \
 ?  BlobStoreStaticCastPMF(get_record_append_CacheOffsets_func_t,  \
   &DictZipBlobStore::get_record_append_CacheOffsets_tpl<b, c, d>) \
 :  BlobStoreReinterpretCastPMF(get_record_append_CacheOffsets_func_t, \
-  &DictZipBlobStore::get_record_append_tpl  <ZipOffset, b, c, d>)
+   BlobStoreStaticCastPMF(get_record_append_func_t, \
+  &DictZipBlobStore::get_record_append_tpl  <ZipOffset, b, c, d>))
 
 #define SetFunc(a,b,c,d) \
   m_get_record_append = BlobStoreStaticCastPMF(get_record_append_func_t, \

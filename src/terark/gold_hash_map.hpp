@@ -144,7 +144,7 @@ private:
 		freelist_size = 0;
         freelist_freq = 0;
 
-		load_factor = 0.8;
+		load_factor = 0.8f;
 		is_sorted = true;
 		m_enable_auto_gc = false;
 	}

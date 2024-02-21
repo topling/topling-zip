@@ -58,6 +58,13 @@ size_t NestTrieDAWG<NestTrie, DawgType>::iter_mem_size() const {
 	return m_trie->iter_mem_size(this);
 }
 
+#if defined(_MSC_VER)
+// warning C4291 : 'void *terark::CacheAlignedNewDelete::operator new(size_t,void *)' :
+// no matching operator delete found; memory will not be freed if initialization throws an exception
+// -- because we defined placement new in CacheAlignedNewDelete, this should be a msvc bug
+#pragma warning(disable: 4291)
+#endif
+
 template<class NestTrie, class DawgType>
 void NestTrieDAWG<NestTrie, DawgType>::cons_iter(void* mem) const {
 	new(mem)Iterator(this);

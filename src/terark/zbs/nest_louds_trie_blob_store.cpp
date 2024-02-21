@@ -11,7 +11,15 @@
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 #endif
 
+#if defined(_MSC_VER)
+// warning C4996: std::aligned_storage<576,8>::type': warning STL4034:
+// std::aligned_storage and std::aligned_storage_t are deprecated in C++23.
+// Prefer alignas(T) std::byte t_buff[sizeof(T)].
+// You can define _SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING or
+// _SILENCE_ALL_CXX23_DEPRECATION_WARNINGS to suppress this warning
 #define _SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING
+#pragma warning(disable: 4996)
+#endif
 
 namespace terark {
 

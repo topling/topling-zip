@@ -308,6 +308,9 @@ public:
 
     void reserve_aligned(size_t align, size_t newcap) {
         TERARK_VERIFY_F((align & (align-1)) == 0, "align = %zd(%#zX) is not of power 2", align, align);
+      #if defined(_MSC_VER)
+        reserve(newcap);
+      #else
         if (newcap <= c) {
             if ((size_t(p) & (align-1)) == 0) { // p is already aligned
                 return;
@@ -328,6 +331,7 @@ public:
         }
         p = mem;
         c = newcap;
+      #endif
     }
 
     void reserve(size_t newcap) {
