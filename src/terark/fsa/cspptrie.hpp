@@ -143,7 +143,7 @@ public:
     public:
         ~SingleWriterToken();
     };
-    class TERARK_DLL_EXPORT Iterator : public ReaderToken, public ADFA_LexIterator {
+    class TERARK_DLL_EXPORT Iterator : public ADFA_LexIterator, public ReaderToken {
     protected:
         Iterator(Patricia*);
         ~Iterator();
