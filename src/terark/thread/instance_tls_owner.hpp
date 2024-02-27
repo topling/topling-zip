@@ -65,6 +65,7 @@ protected:
     bool m_is_dying = false;
     bool m_is_fixed_cap = false;
 
+    terark_no_inline
     TlsMember* fill_tls(TlsPtr& tls) const {
         return fill_tls(tls, [this]() {
             return static_cast<const Owner*>(this)->create_tls_obj();
@@ -238,7 +239,7 @@ public:
     TlsMember* get_tls_or_null() const { return m_tls_ptr.get().ptr; }
     TlsMember* get_tls() const {
         TlsPtr& tls = m_tls_ptr.get();
-        if (tls.ptr)
+        if (terark_likely(nullptr != tls.ptr))
             return tls.ptr;
         else
             return fill_tls(tls);
@@ -246,7 +247,7 @@ public:
     template<class NewTLS>
     TlsMember* get_tls(NewTLS New) const {
         TlsPtr& tls = m_tls_ptr.get();
-        if (tls.ptr)
+        if (terark_likely(nullptr != tls.ptr))
             return tls.ptr;
         else
             return fill_tls(tls, New);
