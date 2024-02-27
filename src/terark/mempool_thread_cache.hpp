@@ -190,7 +190,7 @@ public:
 
     static TCMemPoolOneThread<AlignSize>* default_new_tc(ThreadCacheMemPool*);
 
-    TCMemPoolOneThread<AlignSize>* tls() { return this->get_tls(); }
+    using TLS::get_tls;
 
     // param request must be aligned by AlignSize
     size_t alloc(size_t request);

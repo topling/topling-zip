@@ -399,7 +399,7 @@ PatriciaMem<Align>::LazyFreeList&
 PatriciaMem<Align>::lazy_free_list(ConcurrentLevel conLevel) {
     TERARK_ASSERT_EQ(conLevel, m_mempool_concurrent_level);
     if (MultiWriteMultiRead == conLevel) {
-        auto tc = m_mempool_lock_free.tls();
+        auto tc = m_mempool_lock_free.get_tls();
         return static_cast<LazyFreeListTLS&>(*tc);
     } else {
         return *m_lazy_free_list_sgl;
@@ -411,7 +411,7 @@ terark_flatten
 Patricia::WriterTokenPtr&
 PatriciaMem<Align>::tls_writer_token() noexcept {
     if (terark_likely(MultiWriteMultiRead == m_mempool_concurrent_level)) {
-        auto tc = m_mempool_lock_free.tls();
+        auto tc = m_mempool_lock_free.get_tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
         return lzf->m_writer_token;
     }
@@ -450,7 +450,7 @@ terark_flatten
 Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() noexcept {
     ReaderToken* tok = NULL;
     if (terark_likely(MultiWriteMultiRead == m_mempool_concurrent_level)) {
-        auto tc = m_mempool_lock_free.tls();
+        auto tc = m_mempool_lock_free.get_tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
         assert(NULL != lzf->m_reader_token.get());
         tok = lzf->m_reader_token.get();
@@ -1997,7 +1997,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     TERARK_ASSERT_GE(token->m_verseq, m_dummy.m_min_verseq);
     auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     TERARK_ASSERT_NE(nullptr, lzf);
-    TERARK_ASSERT_EQ(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()), lzf);
+    TERARK_ASSERT_EQ(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.get_tls()), lzf);
     TERARK_ASSERT_EQ(AcquireDone, token->m_flags.state);
     if (terark_unlikely(token->m_flags.is_head)) {
         //now is_head is set before m_dummy.m_next, this assert
@@ -3298,7 +3298,7 @@ Patricia::TokenBase::~TokenBase() {
 void Patricia::TokenBase::init_tls(Patricia* trie0) noexcept {
     m_thread_id = ThisThreadID();
     auto trie = static_cast<MainPatricia*>(trie0);
-    auto tc = trie->m_mempool_lock_free.tls();
+    auto tc = trie->m_mempool_lock_free.get_tls();
     if (nullptr == tc) {
         TERARK_DIE("Alloc TLS fail");
     }
