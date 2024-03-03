@@ -209,6 +209,7 @@ protected:
 			delete p;
 	}
 
+public:
     BlobStoreDefinePMF(void, get_record_append_func_t, size_t recID, valvec<byte_t>* recData);
     get_record_append_func_t m_get_record_append;
     get_record_append_func_t m_get_record_append_fiber_vm_prefetch;
