@@ -42,6 +42,8 @@ public:
 	Dictionary get_dict() const override;
 	fstring get_mmap() const override;
 
+    uint08_t get_checksum_level() const { return m_checksumLevel; }
+
 	AbstractBlobStore();
 	virtual ~AbstractBlobStore();
     virtual void reorder_zip_data(ZReorderMap& newToOld,
