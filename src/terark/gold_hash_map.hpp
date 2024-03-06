@@ -260,7 +260,8 @@ private:
 	}
 
 public:
-	explicit gold_hash_tab(HashEqual he = HashEqual()
+	gold_hash_tab() { init(); }
+	explicit gold_hash_tab(HashEqual he
                          , KeyExtractor keyExtr = KeyExtractor())
 	  : HashEqual(he), KeyExtractor(keyExtr) {
 		init();

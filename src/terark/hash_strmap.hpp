@@ -498,7 +498,8 @@ public:
 	typedef boost::mpl::true_  sort_by_index_yes;
 
 public:
-	explicit hash_strmap(HashFunc hashfn = HashFunc(), KeyEqual equalfn = KeyEqual())
+	hash_strmap() { init(); }
+	explicit hash_strmap(HashFunc hashfn, KeyEqual equalfn = KeyEqual())
 	  : HashFunc(hashfn), KeyEqual(equalfn) {
 		init();
 	}
