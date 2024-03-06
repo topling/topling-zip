@@ -1774,47 +1774,18 @@ private:
     LinkTp alloc_slot(size_t real_len) {
 		TERARK_ASSERT_AL(real_len, SP_ALIGN);
 		if constexpr (WithFreeList) {
-        if (freelist_disabled != fastleng) {
-            ptrdiff_t fastIdx = SAVE_OFFSET(real_len - 1);
-            if (fastIdx < fastleng) {
-                LinkTp slot = fastlist[fastIdx].head;
-				if (tail != slot) {
-					size_t mybeg = LOAD_OFFSET(pNodes[slot+0].offset);
-                #if defined(_DEBUG) || !defined(NDEBUG)
-				    size_t myend = LOAD_OFFSET(pNodes[slot+1].offset);
-                    TERARK_ASSERT_EQ(myend - mybeg, real_len);
-                #endif
-					fastlist[fastIdx].llen--;
-					fastlist[fastIdx].head = ((FreeLink&)strpool[mybeg]).next;
-                    TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
-                    TERARK_ASSERT_GE(nDeleted, 1);
-                    freepool -= SAVE_OFFSET(real_len);
-                    nDeleted--;
-					return slot;
+			if (freelist_disabled != fastleng) {
+				ptrdiff_t fastIdx = SAVE_OFFSET(real_len - 1);
+				if (fastIdx < fastleng) {
+					LinkTp slot = fastlist[fastIdx].head;
+					if (terark_likely(tail != slot))
+						return alloc_in_fastlist(real_len, fastIdx, slot);
+				} else {
+					LinkTp slot = alloc_in_hugelist(real_len);
+					if (tail != slot)
+						return slot;
 				}
-            } else {
-				FreeList& hugelist = fastlist[fastleng];
-                LinkTp* curp = &hugelist.head;
-                LinkTp  curr;
-                size_t search_max = 5; // to avoid perf decay
-                size_t search_num = 0;
-                while ((curr = *curp) != tail && search_num++ < search_max) {
-                    size_t mybeg = LOAD_OFFSET(pNodes[curr+0].offset);
-                    size_t myend = LOAD_OFFSET(pNodes[curr+1].offset);
-                    LinkTp* next = &((FreeLink&)strpool[mybeg]).next;
-                    if (myend - mybeg == real_len) {
-                        *curp = *next;
-                        hugelist.llen--;
-                        TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
-                        TERARK_ASSERT_GE(nDeleted, 1);
-                        freepool -= SAVE_OFFSET(real_len);
-                        nDeleted--;
-                        return curr;
-                    }
-                    curp = next;
-                }
-            }
-        }
+			}
 		} // if constexpr (WithFreeList)
         // make new slot
 		if (terark_unlikely(nNodes == maxNodes)) {
@@ -1822,30 +1793,74 @@ private:
 			reserve_nodes(0 == nNodes ? 1 : (nNodes + 1) * 103 / 64);
 		}
 		if (terark_unlikely(SAVE_OFFSET(real_len) > maxpool - lenpool)) {
-			using namespace std; // for std::max
-			TERARK_VERIFY_LE(LOAD_OFFSET(lenpool) + real_len, maxoffset);
-			if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= max(LOAD_OFFSET(maxpool)/4, real_len))
-				revoke_deleted();
-			else { // if lenpool is random, expansion scale is about 1.6
-                size_t expect = pow2_align_up((LOAD_OFFSET(lenpool) + real_len) * 103 / 64, 64);
-				size_t newmax = min(expect, (size_t)maxoffset);
-				char*  newpch = (char*)realloc(strpool, newmax);
-				if (NULL == newpch) {
-					if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= real_len)
-						revoke_deleted();
-					else
-						TERARK_DIE("realloc(%zd)", newmax);
-				} else {
-					maxpool = SAVE_OFFSET(newmax);
-					strpool = newpch;
-				}
-			}
+			gc_on_strpool_is_full(real_len);
 		}
         lenpool += SAVE_OFFSET(real_len);
 		pNodes[nNodes+1].offset = lenpool;
 		pNodes[nNodes+1].link = tail; // guard for next_i
         return nNodes++;
     }
+
+	terark_forceinline
+	LinkTp alloc_in_fastlist(size_t real_len, ptrdiff_t fastIdx, LinkTp slot) {
+		size_t mybeg = LOAD_OFFSET(pNodes[slot+0].offset);
+	#if defined(_DEBUG) || !defined(NDEBUG)
+		size_t myend = LOAD_OFFSET(pNodes[slot+1].offset);
+		TERARK_ASSERT_EQ(myend - mybeg, real_len);
+	#endif
+		fastlist[fastIdx].llen--;
+		fastlist[fastIdx].head = ((FreeLink&)strpool[mybeg]).next;
+		TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
+		TERARK_ASSERT_GE(nDeleted, 1);
+		freepool -= SAVE_OFFSET(real_len);
+		nDeleted--;
+		return slot;
+	}
+
+	LinkTp alloc_in_hugelist(size_t real_len) {
+		FreeList& hugelist = fastlist[fastleng];
+		LinkTp* curp = &hugelist.head;
+		LinkTp  curr;
+		size_t search_max = 5; // to avoid perf decay
+		size_t search_num = 0;
+		while ((curr = *curp) != tail && search_num++ < search_max) {
+			size_t mybeg = LOAD_OFFSET(pNodes[curr+0].offset);
+			size_t myend = LOAD_OFFSET(pNodes[curr+1].offset);
+			LinkTp* next = &((FreeLink&)strpool[mybeg]).next;
+			if (myend - mybeg == real_len) {
+				*curp = *next;
+				hugelist.llen--;
+				TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
+				TERARK_ASSERT_GE(nDeleted, 1);
+				freepool -= SAVE_OFFSET(real_len);
+				nDeleted--;
+				return curr;
+			}
+			curp = next;
+		}
+		return tail;
+	}
+
+	void gc_on_strpool_is_full(size_t real_len) {
+		using namespace std; // for std::max
+		TERARK_VERIFY_LE(LOAD_OFFSET(lenpool - freepool) + real_len, maxoffset);
+		if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= max(LOAD_OFFSET(maxpool)/2, real_len))
+			revoke_deleted();
+		else { // if lenpool is random, expansion scale is about 1.6
+			size_t expect = pow2_align_up((LOAD_OFFSET(lenpool) + real_len) * 103 / 64, 64);
+			size_t newmax = min(expect, (size_t)maxoffset);
+			char*  newpch = (char*)realloc(strpool, newmax);
+			if (NULL == newpch) {
+				if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= real_len)
+					revoke_deleted();
+				else
+					TERARK_DIE("realloc(%zd)", newmax);
+			} else {
+				maxpool = SAVE_OFFSET(newmax);
+				strpool = newpch;
+			}
+		}
+	}
 
 	void ulink_impl(const LinkTp idx, const HashTp h) {
 		size_t const i = size_t(h % nBucket);
