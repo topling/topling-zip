@@ -548,6 +548,14 @@ public:
 		if constexpr (WithFreeList) {
 			fastleng = y.fastleng;
 			fastlist = NULL;
+			if (0 == nNodes && freelist_disabled != fastleng) {
+				size_t bytes = sizeof(FreeList) * (fastleng+1);
+				fastlist = (FreeList*)malloc(bytes);
+				if (nullptr == fastlist) {
+					TERARK_DIE("malloc(fastleng %d, bytes %zd)", fastleng, bytes);
+				}
+				std::uninitialized_fill_n(fastlist, fastleng+1, FreeList());
+			}
 		}
 
 		if (0 == nNodes) { // empty
