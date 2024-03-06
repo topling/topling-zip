@@ -1827,7 +1827,7 @@ private:
 			if (freelist_disabled == fastleng && LOAD_OFFSET(freepool) >= max(LOAD_OFFSET(maxpool)/4, real_len))
 				revoke_deleted();
 			else { // if lenpool is random, expansion scale is about 1.6
-                size_t expect = __hsm_align_pow2((LOAD_OFFSET(lenpool) + real_len)*5/4);
+                size_t expect = pow2_align_up((LOAD_OFFSET(lenpool) + real_len) * 103 / 64, 64);
 				size_t newmax = min(expect, (size_t)maxoffset);
 				char*  newpch = (char*)realloc(strpool, newmax);
 				if (NULL == newpch) {
