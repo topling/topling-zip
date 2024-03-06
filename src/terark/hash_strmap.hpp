@@ -1129,6 +1129,11 @@ public:
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
 	std::pair<iterator, bool>
+	insert(const std::pair<const char*, Value>& kv) {
+		std::pair<size_t, bool> ib = insert_i(kv);
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+	std::pair<iterator, bool>
 	insert(const fstring& k) {
 		std::pair<size_t, bool> ib = insert_i(k);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
