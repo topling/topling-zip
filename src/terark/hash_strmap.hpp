@@ -1796,7 +1796,9 @@ private:
 				FreeList& hugelist = fastlist[fastleng];
                 LinkTp* curp = &hugelist.head;
                 LinkTp  curr;
-                while ((curr = *curp) != tail) {
+                size_t search_max = 5; // to avoid perf decay
+                size_t search_num = 0;
+                while ((curr = *curp) != tail && search_num++ < search_max) {
                     size_t mybeg = LOAD_OFFSET(pNodes[curr+0].offset);
                     size_t myend = LOAD_OFFSET(pNodes[curr+1].offset);
                     LinkTp* next = &((FreeLink&)strpool[mybeg]).next;
