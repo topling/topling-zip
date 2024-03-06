@@ -153,7 +153,9 @@ template< class Value = ValueOut // ValueOut means empty value, just like a set
 		, class CopyStrategy = FastCopy
 		, class LinkTp = unsigned int // could be unsigned short for small map
 		, class HashTp = HSM_HashTp
-		, bool WithFreeList = true // true: can enable or disable
+		, bool WithFreeList = !CopyStrategy::is_fast_copy
+		    // WithFreeList true: free list can be enabled or disabled,
+		    // WithFreeList default equal to 'slow copy'
 		>
 class hash_strmap : dummy_bucket<LinkTp>, HashFunc, KeyEqual
                   , hash_strmap_ValuesPtr<Value, ValuePlace>
