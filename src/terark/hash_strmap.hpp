@@ -194,6 +194,9 @@ protected:
     struct FreeLink {
         LinkTp  next;
     };
+	// When WithFreeList is true, FreeLink must be fit into SP_ALIGN,
+	// this is very unlikely to happen, but we need to ensure it!
+	static_assert(!WithFreeList || sizeof(FreeLink) <= SP_ALIGN);
 	typedef typename hash_strmap_FreeList<LinkTp, WithFreeList>::FreeList FreeList;
 	using            hash_strmap_FreeList<LinkTp, WithFreeList>::fastlist;
 	static const short freelist_disabled = -1;
@@ -1903,7 +1906,7 @@ public:
 		++nDeleted;
 	  if constexpr (WithFreeList) {
         if (freelist_disabled == fastleng) {
-    		if (nDeleted >= nNodes/2)
+            if (terark_unlikely(nDeleted >= nNodes/2))
     			revoke_deleted();
     	//	relaxed: allow for key sorted and POD value sorted
         //	if (!boost::has_trivial_destructor<Value>::value && en_sort_by_val == sort_flag)
@@ -1911,7 +1914,7 @@ public:
         } else
             put_to_freelist(LinkTp(idx));
 	  } else {
-		if (nDeleted >= nNodes/2)
+		if (terark_unlikely(nDeleted >= nNodes/2))
 			revoke_deleted();
 	  }
 	}
