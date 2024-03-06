@@ -380,7 +380,7 @@ const {
     size_t len = BegEnd[1] - BegEnd[0];
     size_t offset = sizeof(FileHeader) + BegEnd[0];
     auto pData = fspread(lambda, baseOffset + offset, len, rdbuf);
-    assert(NULL != pData);
+    assert(NULL != pData || 0 == len);
     if (Compress) {
         ZipOffsetBlobStore_AppendDecompress(recID, pData, len, recData);
         return;
