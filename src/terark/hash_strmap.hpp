@@ -1921,7 +1921,7 @@ public:
 		risk_slot_free(idx);
 	}
 
-    void enable_freelist(ptrdiff_t maxKeyLen = 1024) {
+    void enable_freelist(ptrdiff_t maxKeyLen = 120) {
 		static_assert(WithFreeList);
 		TERARK_VERIFY_GT(maxKeyLen, 0);
         TERARK_VERIFY_LT(maxKeyLen, 32*1024);
