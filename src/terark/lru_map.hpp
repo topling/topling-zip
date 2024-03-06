@@ -250,9 +250,21 @@ protected:
     virtual void lru_evict(const Key&, Value*) = 0;
 };
 
-template<class Value, class... OtherArgs>
+template< class Value
+		, class HashFunc = fstring_func::IF_SP_ALIGN(hash_align, hash)
+		, class KeyEqual = fstring_func::IF_SP_ALIGN(equal_align, equal)
+		, class ValuePlace = std::conditional_t
+                < sizeof(Value) % sizeof(intptr_t) == 0 && sizeof(Value) <= 48
+				, ValueInline
+				, ValueOut // If Value is empty, ValueOut will not use memory
+			    >
+		, class CopyStrategy = FastCopy
+		, class LinkTp = unsigned int // could be unsigned short for small map
+		, class HashTp = HSM_HashTp
+        >
 using lru_hash_strmap = lru_map_impl<fstring, Value,
-          hash_strmap<LruValueNode<Value>, OtherArgs...> >;
+          hash_strmap<LruValueNode<Value>, HashFunc, KeyEqual, ValuePlace,
+                      CopyStrategy, LinkTp, HashTp, true/*WithFreeList*/> >;
 
 template<class Key, class Value, class... OtherArgs>
 using lru_gold_hash_map = lru_map_impl<Key, Value,
