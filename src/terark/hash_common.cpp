@@ -1,8 +1,10 @@
 #include "hash_common.hpp"
+#include "valvec.hpp"
 
 namespace terark {
 
 TERARK_DLL_EXPORT
+terark_flatten
 size_t __hsm_stl_next_prime(size_t __n) {
 	static const size_t primes[] =
 	{
@@ -50,10 +52,9 @@ size_t __hsm_stl_next_prime(size_t __n) {
       /* 61    */ (size_t)18446744073709551557ull,
 #endif // TERARK_WORD_BITS == 64
 	};
-	const size_t* __first = primes;
-	const size_t* __last = primes + sizeof(primes)/sizeof(primes[0]);
-	const size_t* pos = std::lower_bound(__first, __last, __n);
-	return pos == __last ? __last[-1] : *pos;
+      const size_t extent = sizeof(primes) / sizeof(primes[0]);
+      const size_t pos = lower_bound_0(primes, extent, __n);
+      return primes[std::min(pos, extent-1)];
 }
 
 template<class Uint, int Bits> const Uint dummy_bucket<Uint, Bits>::tail;
