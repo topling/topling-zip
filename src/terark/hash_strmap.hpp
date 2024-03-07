@@ -250,7 +250,6 @@ protected:
 		fastleng = freelist_disabled;
 		if constexpr (WithFreeList) {
 			fastlist = NULL;
-			enable_freelist();
 		}
 
 		load_factor = byte_t(256.0 * 0.3);
