@@ -835,6 +835,7 @@ public:
 		nDeleted = 0;
 		nNodes = 0;
 		lenpool = 0;
+		freepool = 0;
 	}
 
 	void shrink_to_fit() {
