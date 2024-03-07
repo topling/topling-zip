@@ -120,14 +120,23 @@ protected:
 	void swap(hash_strmap_ValuesPtr& y) { std::swap(values, y.values); }
 };
 
+#if !defined(HSM_FreeListWithDebug)
+	#if defined(NDEBUG)
+		#define HSM_FreeListWithDebug 0
+	#else
+		#define HSM_FreeListWithDebug 1
+	#endif
+#endif
+
 template<class LinkTp, bool>
 class hash_strmap_FreeList {
 protected:
 	struct FreeList {
-		LinkTp  head;
-		LinkTp  llen; ///< list length
-        size_t  freq;
-        FreeList() : head(dummy_bucket<LinkTp>::tail), llen(0), freq(0) {}
+		LinkTp  head = dummy_bucket<LinkTp>::tail;
+	  #if HSM_FreeListWithDebug
+		LinkTp  llen = 0; ///< list length
+		size_t  freq = 0;
+	  #endif
 	};
 	FreeList* fastlist = nullptr;
 };
@@ -1772,8 +1781,10 @@ private:
         FreeList& li = fastlist[std::min(fastIdx, ptrdiff_t(fastleng))];
         fl.next = li.head;
         li.head = slot;
+      #if HSM_FreeListWithDebug
         li.freq++;
         li.llen++;
+      #endif
     }
 
     LinkTp alloc_slot(size_t real_len) {
@@ -1813,7 +1824,9 @@ private:
 		size_t myend = LOAD_OFFSET(pNodes[slot+1].offset);
 		TERARK_ASSERT_EQ(myend - mybeg, real_len);
 	#endif
+	#if HSM_FreeListWithDebug
 		fastlist[fastIdx].llen--;
+	#endif
 		fastlist[fastIdx].head = ((FreeLink&)strpool[mybeg]).next;
 		TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
 		TERARK_ASSERT_GE(nDeleted, 1);
@@ -1834,7 +1847,9 @@ private:
 			LinkTp* next = &((FreeLink&)strpool[mybeg]).next;
 			if (myend - mybeg == real_len) {
 				*curp = *next;
+			#if HSM_FreeListWithDebug
 				hugelist.llen--;
+			#endif
 				TERARK_ASSERT_GE(LOAD_OFFSET(freepool), real_len);
 				TERARK_ASSERT_GE(nDeleted, 1);
 				freepool -= SAVE_OFFSET(real_len);
@@ -1968,8 +1983,10 @@ public:
                     } while (tail != *pcurr);
                     *pcurr = hugelist.head;
                     hugelist.head  = ihead;
+                  #if HSM_FreeListWithDebug
                     hugelist.freq += newlist[i].freq;
                     hugelist.llen += newlist[i].llen;
+                  #endif
                 }
             }
 			fastlist[newlistLen] = fastlist[fastleng]; // hugelist
@@ -2003,10 +2020,12 @@ public:
                     FreeList& rFast = newlist[iFast];
                     rCurr.next = rFast.head;
                     rFast.head = curr;
+                  #if HSM_FreeListWithDebug
                     rFast.freq++;
                     rFast.llen++;
                     hugelist.freq--;
                     hugelist.llen--;
+                  #endif
                     *pprev = next; // delete curr from hugelist
                 } else
                     pprev = &rCurr.next; // keep track, only non-deleted
