@@ -5027,6 +5027,7 @@ Patricia::MemStat Patricia::mem_get_stat() const {
 void MainPatricia::str_stat(std::string* str) const {
     MemStat ms = mem_get_stat();
     auto& oss = static_cast<string_appender<>&>(*str);
+    oss.reserve(oss.size() + 256);
     oss|"num_words: "|m_n_words|"\n";
     oss|"num_nodes: "|m_n_nodes|"\n";
     oss|"max_word_len: "|m_max_word_len|"\n";
