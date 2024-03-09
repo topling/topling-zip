@@ -53,7 +53,7 @@ public:
     uint64_t total_data_size() const { return m_unzipSize; }
     virtual size_t mem_size() const = 0;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__clang__)
     #define BlobStoreDefinePMF(Ret, pmf, ...) typedef Ret (BlobStore::*pmf)(__VA_ARGS__) const
     #define BlobStoreInvokePMF(pmf, ...)          (this->*pmf)(__VA_ARGS__)
     #define BlobStoreInvokePMF_EX(pmf, self, ...) (self->*pmf)(__VA_ARGS__)

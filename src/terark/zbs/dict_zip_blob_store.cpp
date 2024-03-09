@@ -3089,13 +3089,10 @@ void DictZipBlobStore::set_func_ptr() {
   case kFSE:       break;
   }
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-#endif
-
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(__clang__)
     #define CastCacheOffsetFunc(...) static_cast<get_record_append_func_t>(__VA_ARGS__)
 #else
+    #pragma GCC diagnostic ignored "-Wpmf-conversions"
     #define CastCacheOffsetFunc(...) __VA_ARGS__
 #endif
 

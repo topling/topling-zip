@@ -742,7 +742,8 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
   return m_stat;
 }
 
-#if defined(__GNUC__)
+#if defined(_MSC_VER) || defined(__clang__)
+#else
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 #endif
 
