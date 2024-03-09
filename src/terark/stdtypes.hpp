@@ -173,7 +173,7 @@ struct valvec_reserve { // moved from valvec.hpp for common use
 #	define TERARK_IF_DEBUG(Then, Else)  Else
 #	define TERARK_RT_assert(exp, ExceptionT)  \
 	if (terark_unlikely(!(exp))) { \
-		terark::string_appender<> oss;\
+		terark::string_appender<> oss; oss.reserve(512);\
 		oss << "expression=\"" << #exp << "\", exception=\"" << #ExceptionT << "\"\n" \
 			<< __FILE__ ":" BOOST_STRINGIZE(__LINE__) ", in function: " \
 			<< BOOST_CURRENT_FUNCTION; \
