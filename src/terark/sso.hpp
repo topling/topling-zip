@@ -26,7 +26,7 @@ struct UninitializedFillN {
   const T src;
 };
 
-template <size_t SizeSSO>
+template <size_t SizeSSO, bool WithEOS = true>
 class minimal_sso {
   static_assert(SizeSSO >= 32 && SizeSSO % 8 == 0 && SizeSSO <= 248);
   struct Local {
@@ -57,7 +57,8 @@ class minimal_sso {
     return m_alloc.m_ptr + m_alloc.m_len;
   }
   void init_to_local_empty() {
-    m_local.m_space[0] = '\0';
+    if (WithEOS)
+      m_local.m_space[0] = '\0';
     m_local.m_unused_len = sizeof(m_local.m_space);
   }
 
@@ -94,7 +95,8 @@ public:
   minimal_sso(size_t n, DataPopulator populate) {
     if (n <= sizeof(m_local.m_space)) {
       populate(m_local.m_space, n);
-      m_local.m_space[n] = '\0';
+      if (WithEOS)
+        m_local.m_space[n] = '\0';
       m_local.m_unused_len = sizeof(m_local.m_space) - n;
     } else {
       size_t cap = pow2_align_up(n + 1, 64);
@@ -104,7 +106,8 @@ public:
       m_alloc.m_cap = cap - 1;
       m_alloc.m_flag = 255;
       populate(ptr, n);
-      ptr[n] = '\0';
+      if (WithEOS)
+        ptr[n] = '\0';
     }
   }
   minimal_sso(size_t cap, valvec_reserve) { reserve(cap); }
@@ -148,7 +151,7 @@ private:
     size_t len = m_alloc.m_len;
     if (len <= sizeof(m_local.m_space)) { // localize
       char* ptr = m_alloc.m_ptr;
-      memcpy(m_local.m_space, ptr, len + 1); // also copy end '\0'
+      memcpy(m_local.m_space, ptr, len + WithEOS);
       m_local.m_unused_len = sizeof(m_local.m_space) - len;
       free(ptr);
     } else {
@@ -168,7 +171,8 @@ public:
       init_to_local_empty();
     } else {
       m_alloc.m_len = 0;
-      m_alloc.m_ptr[0] = '\0';
+      if (WithEOS)
+        m_alloc.m_ptr[0] = '\0';
     }
   }
   void destroy() {
@@ -183,7 +187,8 @@ public:
         cap = pow2_align_up(cap + 1, 64);
         char* ptr = (char*)malloc(cap);
         memcpy(ptr, m_local.m_space, len);
-        ptr[len] = '\0';
+        if (WithEOS)
+          ptr[len] = '\0';
         m_alloc.m_ptr = ptr;
         m_alloc.m_len = len;
         m_alloc.m_cap = cap - 1;
@@ -211,7 +216,8 @@ public:
       oldsize = sizeof(m_local.m_space) - m_local.m_unused_len;
       TERARK_ASSUME(oldsize <= sizeof(m_local.m_space));
       if (newsize <= oldsize) {
-        m_local.m_space[newsize] = '\0';
+        if (WithEOS)
+          m_local.m_space[newsize] = '\0';
         m_local.m_unused_len = sizeof(m_local.m_space) - newsize;
         return oldsize;
       }
@@ -219,7 +225,8 @@ public:
       oldsize = m_alloc.m_len;
       if (newsize <= oldsize) {
         m_alloc.m_len = newsize;
-        m_alloc.m_ptr[newsize] = '\0';
+        if (WithEOS)
+          m_alloc.m_ptr[newsize] = '\0';
         return oldsize;
       }
     }
@@ -265,7 +272,8 @@ public:
       size_t newsize = oldsize + addsize;
       if (newsize <= sizeof(m_local.m_space)) {
         populate(m_local.m_space + oldsize, addsize);
-        m_local.m_space[newsize] = '\0';
+        if (WithEOS)
+          m_local.m_space[newsize] = '\0';
         m_local.m_unused_len = sizeof(m_local.m_space) - newsize;
         TERARK_ASSERT_EQ(local_size(), newsize);
       } else {
@@ -273,7 +281,8 @@ public:
         char*  ptr = (char*)malloc(cap);
         memcpy(ptr, m_local.m_space, oldsize);
         populate(ptr + oldsize, addsize);
-        ptr[newsize] = '\0';
+        if (WithEOS)
+          ptr[newsize] = '\0';
         m_alloc.m_ptr = ptr;
         m_alloc.m_len = newsize;
         m_alloc.m_cap = cap - 1;
@@ -289,7 +298,8 @@ public:
         m_alloc.m_cap = real_cap - 1;
       }
       populate(m_alloc.m_ptr + oldsize, addsize);
-      m_alloc.m_ptr[newsize] = '\0';
+      if (WithEOS)
+        m_alloc.m_ptr[newsize] = '\0';
       m_alloc.m_len = newsize;
     }
   }
@@ -300,10 +310,12 @@ public:
     assert(!empty());
     if (m_local.m_unused_len != 255) { // local
         m_local.m_unused_len++;
-        m_local.m_space[local_size()] = '\0';
+        if (WithEOS)
+          m_local.m_space[local_size()] = '\0';
     } else {
         m_alloc.m_len--;
-        m_alloc.m_ptr[m_alloc.m_len] = '\0';
+        if (WithEOS)
+          m_alloc.m_ptr[m_alloc.m_len] = '\0';
     }
   }
   bool empty() const {
@@ -387,6 +399,7 @@ public:
       return Tstring(m_alloc.m_ptr, m_alloc.m_len);
     }
   }
+  const char* c_str() const { assert('\0' == *end()); return data(); }
   std::string str() const { return to<std::string>(); }
 
   template <class Tstring>
