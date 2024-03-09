@@ -110,6 +110,15 @@ inline bool bitset_has_subset(IntX set, IntX subset) {
 	return ((set) & (subset)) == (subset);
 }
 
+struct valvec_no_init { // moved from valvec.hpp for common use
+	template<class Vec>
+	void operator()(Vec& v, size_t n) const { v.resize_no_init(n); }
+};
+struct valvec_reserve { // moved from valvec.hpp for common use
+	template<class Vec>
+	void operator()(Vec& v, size_t n) const { v.reserve(n); }
+};
+
 /////////////////////////////////////////////////////////////
 //
 //! @note Need declare public/protected after call this macro!!

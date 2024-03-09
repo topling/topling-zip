@@ -25,15 +25,6 @@
 
 namespace terark {
 
-struct valvec_no_init {
-    template<class Vec>
-    void operator()(Vec& v, size_t n) const { v.resize_no_init(n); }
-};
-struct valvec_reserve {
-    template<class Vec>
-    void operator()(Vec& v, size_t n) const { v.reserve(n); }
-};
-
 /// begin sed gen valvec32
 /// DONT DELETE OR CHANGE THIS LINE
 
