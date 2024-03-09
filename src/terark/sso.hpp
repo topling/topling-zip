@@ -126,7 +126,7 @@ public:
       m_alloc.m_ptr  = y.m_alloc.m_ptr;
       m_alloc.m_len  = y.m_alloc.m_len;
       m_alloc.m_cap  = y.m_alloc.m_cap;
-      m_alloc.m_flag = y.m_alloc.m_flag;
+      m_alloc.m_flag = 255;
     }
     y.init_to_local_empty();
   }
