@@ -172,7 +172,7 @@ public:
     }
   }
   void destroy() {
-    ~minimal_sso();
+    this->~minimal_sso();
     init_to_local_empty();
   }
   terark_flatten void reserve(size_t cap) {
