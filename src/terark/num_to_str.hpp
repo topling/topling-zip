@@ -113,6 +113,7 @@ public:
 template<class String = std::string>
 struct string_appender : public String {
 	using String::String;
+	string_appender(valvec_reserve, size_t cap) { this->reserve(cap); }
 
 	const String& str() const { return *this; }
 	String& str() { return *this; }
