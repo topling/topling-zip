@@ -137,10 +137,10 @@ public:
               n, // SFINAE size_t n, populate("", 1) must be well formed
               DataPopulator populate) {
     if (n <= sizeof(m_local.m_space)) {
-      populate(m_local.m_space, n);
+      m_local.m_unused_len = sizeof(m_local.m_space) - n;
       if (WithEOS)
         m_local.m_space[n] = '\0';
-      m_local.m_unused_len = sizeof(m_local.m_space) - n;
+      populate(m_local.m_space, n);
     } else {
       malloc_populate(n, populate);
     }
