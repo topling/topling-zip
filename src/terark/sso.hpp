@@ -284,7 +284,15 @@ public:
     if (terark_likely(m_local.m_unused_len != 255)) {  // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
       new(this)minimal_sso(n, populate);
-    } else if (terark_likely(m_alloc.m_cap < n)) {
+    } else {
+      assign_slow_path(n, populate);
+    }
+  }
+private:
+  template<class DataPopulator>
+  terark_no_inline
+  void assign_slow_path(size_t n, DataPopulator populate) {
+    if (terark_likely(m_alloc.m_cap < n)) {
       free(m_alloc.m_ptr);
       new(this)minimal_sso(n, populate);
     } else {
@@ -294,6 +302,8 @@ public:
       populate(m_alloc.m_ptr, n);
     }
   }
+
+public:
   template <class Tstring>
   auto append(const Tstring& s) -> std::enable_if_t
   <std::is_same_v<decltype(s.data()), const char*>, void>
