@@ -133,7 +133,9 @@ public:
   minimal_sso(const char* s, size_t n) : minimal_sso(n, UninitializedCopyN<char>{s}) {}
   minimal_sso(size_t n, char ch) : minimal_sso(n, UninitializedFillN<char>{ch}) {}
   template<class DataPopulator>
-  minimal_sso(size_t n, DataPopulator populate) {
+  minimal_sso(decltype(((*(DataPopulator*)(nullptr))("", 1), (size_t)1))
+              n, // SFINAE size_t n, populate("", 1) must be well formed
+              DataPopulator populate) {
     if (n <= sizeof(m_local.m_space)) {
       populate(m_local.m_space, n);
       if (WithEOS)
