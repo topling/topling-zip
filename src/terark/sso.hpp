@@ -78,6 +78,7 @@ class minimal_sso {
   terark_no_inline
   void malloc_append(size_t addsize, DataPopulator populate,
                      size_t oldsize, size_t newsize) {
+    TERARK_ASSUME(oldsize <= sizeof(m_local.m_space));
     size_t cap = pow2_align_up(newsize + 1, 64);
     char*  ptr = (char*)malloc(cap);
     memcpy(ptr, m_local.m_space, oldsize);
@@ -282,12 +283,10 @@ public:
   decltype((populate("", size_t(1)), void(0))) {
     if (terark_likely(m_local.m_unused_len != 255)) {  // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
-    Construct:
       new(this)minimal_sso(n, populate);
     } else if (terark_likely(m_alloc.m_cap < n)) {
       free(m_alloc.m_ptr);
-      // new(this)minimal_sso(n, populate); // same with label Construct:
-      goto Construct; // to minimize code size
+      new(this)minimal_sso(n, populate);
     } else {
       m_alloc.m_len = n;
       if (WithEOS)
