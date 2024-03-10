@@ -289,8 +289,10 @@ public:
       // new(this)minimal_sso(n, populate); // same with label Construct:
       goto Construct; // to minimize code size
     } else {
-      populate(m_alloc.m_ptr, n);
       m_alloc.m_len = n;
+      if (WithEOS)
+        m_alloc.m_ptr[n] = '\0';
+      populate(m_alloc.m_ptr, n);
     }
   }
   template <class Tstring>
