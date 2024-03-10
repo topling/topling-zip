@@ -280,11 +280,11 @@ public:
   template<class DataPopulator>
   auto assign(size_t n, DataPopulator populate) -> // SFINAE void
   decltype((populate("", size_t(1)), void(0))) {
-    if (m_local.m_unused_len != 255) {  // local
+    if (terark_likely(m_local.m_unused_len != 255)) {  // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
     Construct:
       new(this)minimal_sso(n, populate);
-    } else if (m_alloc.m_cap < n) {
+    } else if (terark_likely(m_alloc.m_cap < n)) {
       free(m_alloc.m_ptr);
       // new(this)minimal_sso(n, populate); // same with label Construct:
       goto Construct; // to minimize code size
@@ -303,7 +303,7 @@ public:
   template<class DataPopulator>
   auto append(size_t addsize, DataPopulator populate) -> // SFINAE void
   decltype((populate("", size_t(1)), void(0))) {
-    if (m_local.m_unused_len != 255) {  // local
+    if (terark_likely(m_local.m_unused_len != 255)) {  // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
       size_t oldsize = local_size();
       size_t newsize = oldsize + addsize;
