@@ -136,7 +136,7 @@ public:
   minimal_sso(decltype(((*(DataPopulator*)(nullptr))("", 1), (size_t)1))
               n, // SFINAE size_t n, populate("", 1) must be well formed
               DataPopulator populate) {
-    if (n <= sizeof(m_local.m_space)) {
+    if (terark_likely(n <= sizeof(m_local.m_space))) {
       m_local.m_unused_len = sizeof(m_local.m_space) - n;
       if (WithEOS)
         m_local.m_space[n] = '\0';
