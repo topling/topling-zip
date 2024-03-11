@@ -1333,6 +1333,7 @@ build_strpool2(SortableStrVec& strVec, valvec<size_t>& linkVec,
 	else {
 		assert(m_is_link.max_rank1() == 0);
 		m_label_data = label.risk_release_ownership();
+	  if (conf.debugLevel >= 1)
 		fprintf(stderr
 			, "WARN: %s: strVec is empty: curNestLevel = %d  maxNestLevel = %d\n"
 			, BOOST_CURRENT_FUNCTION, conf.nestLevel-1, conf.nestLevel
@@ -1393,6 +1394,7 @@ build_strpool_loop(SortableStrVec& strVec, valvec<size_t>& linkVec,
 	else {
 		assert(m_is_link.max_rank1() == 0);
 		m_label_data = label.risk_release_ownership();
+	  if (conf.debugLevel >= 1)
 		fprintf(stderr
 			, "WARN: %s: strVec is empty: curNestLevel = %zd  maxNestLevel = %d\n"
 			, BOOST_CURRENT_FUNCTION, curNestLevel, conf.nestLevel
