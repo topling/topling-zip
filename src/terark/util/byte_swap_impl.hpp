@@ -112,6 +112,11 @@ inline long byte_swap(long x) { return byte_swap((unsigned long long)x); }
 
 #endif
 
+#if defined(__GNUC__) && __GNUC__ >= 12
+inline __int128 byte_swap(__int128 x) { return __builtin_bswap128(x); }
+inline unsigned __int128 byte_swap(unsigned __int128 x) { return __builtin_bswap128(x); }
+#endif
+
 inline unsigned char byte_swap(unsigned char x) { return x; }
 inline   signed char byte_swap(  signed char x) { return x; }
 inline          char byte_swap(         char x) { return x; }
