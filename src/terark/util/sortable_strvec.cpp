@@ -1239,30 +1239,6 @@ struct uint96_t {
 	}
 };
 #pragma pack(pop)
-static inline void byte_swap_in(uint128_t& x, boost::mpl::true_) {
-#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 11001
-	x = __builtin_bswap128(x);
-#else
-	static_assert(sizeof(std::pair<uint64_t, uint64_t>) == sizeof(uint128_t));
-	auto& y = (std::pair<uint64_t, uint64_t>&)(x);
-	std::swap(y.first, y.second);
-	byte_swap_in(y.first, boost::mpl::true_());
-	byte_swap_in(y.second, boost::mpl::true_());
-#endif
-}
-inline uint128_t byte_swap(uint128_t x) {
-#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 11001
-	return __builtin_bswap128(x);
-#else
-	static_assert(sizeof(std::pair<uint64_t, uint64_t>) == sizeof(uint128_t));
-	auto& y = (std::pair<uint64_t, uint64_t>&)(x);
-	std::swap(y.first, y.second);
-	byte_swap_in(y.first, boost::mpl::true_());
-	byte_swap_in(y.second, boost::mpl::true_());
-	return x;
-#endif
-}
-
 #endif // TERARK_HAS_UINT128
 
 #if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)

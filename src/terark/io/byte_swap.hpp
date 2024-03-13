@@ -175,6 +175,22 @@ void byte_swap_in(std::pair<T1, T2>& x,
 	byte_swap_in(x.second, boost::mpl::bool_<DataIO_need_bswap_by_sizeof(DummyDataIO, T2)>());
 }
 
+inline void byte_swap_in(unsigned __int128& x, boost::mpl::true_) {
+#if defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ >= 11001
+	x = __builtin_bswap128(x);
+#else
+	static_assert(sizeof(std::pair<uint64_t, uint64_t>) == sizeof(__int128));
+	auto& y = reinterpret_cast<std::pair<uint64_t, uint64_t>&>(x);
+	std::swap(y.first, y.second);
+	byte_swap_in(y.first, boost::mpl::true_());
+	byte_swap_in(y.second, boost::mpl::true_());
+#endif
+}
+
+inline void byte_swap_in(__int128& x, boost::mpl::true_) {
+	byte_swap_in(reinterpret_cast<unsigned __int128&>(x), boost::mpl::true_());
+}
+
 template<class Bswap>
 class ByteSwapChain;
 
