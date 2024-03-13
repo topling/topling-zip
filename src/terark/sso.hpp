@@ -146,7 +146,10 @@ public:
       malloc_populate(n, populate);
     }
   }
-  minimal_sso(size_t cap, valvec_reserve) { reserve(cap); }
+  minimal_sso(size_t cap, valvec_reserve) {
+    init_to_local_empty();
+    reserve(cap);
+  }
   minimal_sso(const minimal_sso& y) : minimal_sso(y.to<fstring>()) {}
   minimal_sso& operator=(const minimal_sso& y) {
     if (this != &y) {
@@ -250,7 +253,6 @@ public:
     if (m_local.m_unused_len != 255) { // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
       oldsize = sizeof(m_local.m_space) - m_local.m_unused_len;
-      TERARK_ASSUME(oldsize <= sizeof(m_local.m_space));
       if (newsize <= oldsize) {
         if (WithEOS)
           m_local.m_space[newsize] = '\0';
