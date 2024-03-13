@@ -16,7 +16,8 @@
 	#include <unistd.h> // for usleep
 #endif
 
-#if defined(__GNUC__)
+#if defined(_MSC_VER) || defined(__clang__)
+#else
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 #endif
 

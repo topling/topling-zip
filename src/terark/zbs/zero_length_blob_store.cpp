@@ -13,7 +13,8 @@
 #include <terark/zbs/xxhash_helper.hpp>
 #include <terark/io/StreamBuffer.hpp>
 
-#if defined(__GNUC__)
+#if defined(_MSC_VER) || defined(__clang__)
+#else
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 #endif
 
