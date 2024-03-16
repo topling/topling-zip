@@ -313,6 +313,8 @@ public:
   void append(const fstring  s) { append(s.p, s.n); }
   terark_flatten
   void append(const char* s, size_t n) { append(n, UninitializedCopyN<char>{s}); }
+  terark_flatten
+  void append(size_t n, char ch) { append(n, UninitializedFillN<char>{ch}); }
   template<class DataPopulator>
   auto append(size_t addsize, DataPopulator populate) -> // SFINAE void
   decltype((populate("", size_t(1)), void(0))) {
@@ -343,7 +345,7 @@ public:
     }
   }
   terark_flatten
-  void emplace_back(char c) { append(&c, 1); }
+  void emplace_back(char c) { append(1, c); }
   void push_back(char c) { emplace_back(c); }
   void pop_back() {
     assert(!empty());
