@@ -636,7 +636,7 @@ PatriciaMemMF(void)RaceCounter::operator+=(const RaceCounter& y) {
 }
 PatriciaMemMF(void)LazyFreeListTLS::on_retry_cnt(size_t retry_cnt) {
     m_race.n_retry++;
-    if (retry_cnt >= 32) {
+    if (retry_cnt >= 8) {
         auto t00 = g_pf.now();
         if (retry_cnt >= 64) {
             /////////////// {5,11,19,37,53,97,193,389,769,1543,3079,6151,...}
