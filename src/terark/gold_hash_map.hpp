@@ -674,15 +674,21 @@ public:
 	}
 
 #ifndef TERARK_GOLD_HASH_MAP_ITERATOR_USE_FAST
-	iterator erase(iterator iter) {
+	iterator std_erase(iterator iter) {
 		TERARK_ASSERT_EQ(iter.get_owner(), this);
 		TERARK_ASSERT_LT(iter.get_index(), nElem);
 		assert(!m_nl.is_null());
 		size_t idx = iter.get_index();
-		erase_i(iter.get_index());
+		erase_i(idx);
 		size_t End = end_i();
 		while (idx < End && is_deleted(idx)) {}
 		return iterator(this, idx);
+	}
+	void erase(iterator iter) {
+		TERARK_ASSERT_EQ(iter.get_owner(), this);
+		TERARK_ASSERT_LT(iter.get_index(), nElem);
+		assert(!m_nl.is_null());
+		erase_i(iter.get_index());
 	}
 #endif
 	void erase(fast_iterator iter) {
