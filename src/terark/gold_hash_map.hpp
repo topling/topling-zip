@@ -1105,6 +1105,9 @@ public:
 	bool exists(key_param_pass_t key) const {
 		return find_i(key) != nElem;
 	}
+	bool contains(key_param_pass_t key) const { // synonym of exists
+		return find_i(key) != nElem;
+	}
 
 private:
 	// if return non-zero, all permanent id/index are invalidated

@@ -1769,6 +1769,10 @@ public:
 		TERARK_ASSERT_GE(key.n, 0);
 		return find_i(key) != nNodes;
 	}
+	bool contains(const fstring key) const { // synonym of exists
+		TERARK_ASSERT_GE(key.n, 0);
+		return find_i(key) != nNodes;
+	}
 
 private:
     void put_to_freelist(LinkTp slot) {
