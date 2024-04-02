@@ -681,7 +681,7 @@ public:
 		size_t idx = iter.get_index();
 		erase_i(idx);
 		size_t End = end_i();
-		while (idx < End && is_deleted(idx)) {}
+		while (idx < End && is_deleted(idx)) idx++;
 		return iterator(this, idx);
 	}
 	void erase(iterator iter) {
