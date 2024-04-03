@@ -134,7 +134,7 @@ public:
   minimal_sso(const char* s, size_t n) : minimal_sso(n, UninitializedCopyN<char>{s}) {}
   minimal_sso(size_t n, char ch) : minimal_sso(n, UninitializedFillN<char>{ch}) {}
   template<class DataPopulator>
-  minimal_sso(decltype(((*(DataPopulator*)(nullptr))("", 1), (size_t)1))
+  minimal_sso(decltype(((*(DataPopulator*)(nullptr))((char*)0, 1), (size_t)1))
               n, // SFINAE size_t n, populate("", 1) must be well formed
               DataPopulator populate) {
     if (terark_likely(n <= sizeof(m_local.m_space))) {
@@ -248,7 +248,7 @@ public:
   }
   template<class DataPopulator>
   auto resize(size_t newsize, DataPopulator populate) ->
-  decltype((populate("", size_t(1)), size_t(1))) {
+  decltype((populate((char*)0, size_t(1)), size_t(1))) {
     size_t oldsize;
     if (m_local.m_unused_len != 255) { // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
@@ -282,7 +282,7 @@ public:
   void assign(size_t n, char ch) { assign(n, UninitializedFillN<char>{ch}); }
   template<class DataPopulator>
   auto assign(size_t n, DataPopulator populate) -> // SFINAE void
-  decltype((populate("", size_t(1)), void(0))) {
+  decltype((populate((char*)0, size_t(1)), void(0))) {
     if (terark_likely(m_local.m_unused_len != 255)) {  // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
       new(this)minimal_sso(n, populate);
@@ -317,7 +317,7 @@ public:
   void append(size_t n, char ch) { append(n, UninitializedFillN<char>{ch}); }
   template<class DataPopulator>
   auto append(size_t addsize, DataPopulator populate) -> // SFINAE void
-  decltype((populate("", size_t(1)), void(0))) {
+  decltype((populate((char*)0, size_t(1)), void(0))) {
     if (terark_likely(m_local.m_unused_len != 255)) {  // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
       size_t oldsize = local_size();
