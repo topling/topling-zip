@@ -440,6 +440,63 @@ public:
       return Tstring(m_alloc.m_ptr, m_alloc.m_len);
     }
   }
+  template<class Tstring = minimal_sso>
+  Tstring substr(size_t pos, size_t len) const {
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(pos, local_size());
+      TERARK_ASSERT_LE(pos + len, local_size());
+      return Tstring(m_local.m_space + pos, len);
+    } else {
+      TERARK_ASSERT_LE(pos, m_alloc.m_len);
+      TERARK_ASSERT_LE(pos + len, m_alloc.m_len);
+      return Tstring(m_alloc.m_ptr + pos, len);
+    }
+  }
+  template<class Tstring = minimal_sso>
+  Tstring substr(size_t pos) const {
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(pos, local_size());
+      return Tstring(m_local.m_space + pos, local_size() - pos);
+    } else {
+      TERARK_ASSERT_LE(pos, m_alloc.m_len);
+      return Tstring(m_alloc.m_ptr + pos, m_alloc.m_len - pos);
+    }
+  }
+  template<class Tstring = minimal_sso>
+  Tstring prefix(size_t len) const { // Tstring(data(), len) with assert check
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(len, local_size());
+      return Tstring(m_local.m_space, len);
+    } else {
+      TERARK_ASSERT_LE(len, m_alloc.m_len);
+      return Tstring(m_alloc.m_ptr, len);
+    }
+  }
+  template<class Tstring = minimal_sso>
+  Tstring suffix(size_t len) const {
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(len, local_size());
+      return Tstring(m_local.m_space + local_size() - len, len);
+    } else {
+      TERARK_ASSERT_LE(len, m_alloc.m_len);
+      return Tstring(m_alloc.m_ptr + m_alloc.m_len - len, len);
+    }
+  }
+  template<class Tstring = minimal_sso>
+  Tstring notail(size_t len) const {
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(len, local_size());
+      return Tstring(m_local.m_space, local_size() - len);
+    } else {
+      TERARK_ASSERT_LE(len, m_alloc.m_len);
+      return Tstring(m_alloc.m_ptr, m_alloc.m_len - len);
+    }
+  }
   const char* c_str() const { assert('\0' == *end()); return data(); }
   std::string str() const { return to<std::string>(); }
 

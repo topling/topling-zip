@@ -120,6 +120,11 @@ int main(int argc, char* argv[]) {
     assert(sso.is_local());
     TERARK_VERIFY_EQ(sso.size(), 30);
     TERARK_VERIFY_S_EQ(sso, "012345678901234567890123456789");
+    TERARK_VERIFY_S_EQ(sso.substr(5), "5678901234567890123456789");
+    TERARK_VERIFY_S_EQ(sso.substr(5, 5), "56789");
+    TERARK_VERIFY_S_EQ(sso.prefix<fstring>(5), "01234");
+    TERARK_VERIFY_S_EQ(sso.suffix<fstring>(5), "56789");
+    TERARK_VERIFY_S_EQ(sso.notail<fstring>(5), "0123456789012345678901234");
 
     sso.assign(argv[0], strlen(argv[0])-1);
     sso.destroy();
@@ -142,6 +147,11 @@ int main(int argc, char* argv[]) {
 
     sso.assign("0123456789012345678901234567890123456789");
     assert(!sso.is_local());
+    TERARK_VERIFY_S_EQ(sso.substr(5), "56789012345678901234567890123456789");
+    TERARK_VERIFY_S_EQ(sso.substr(5, 5), "56789");
+    TERARK_VERIFY_S_EQ(sso.prefix<fstring>(5), "01234");
+    TERARK_VERIFY_S_EQ(sso.suffix<fstring>(5), "56789");
+    TERARK_VERIFY_S_EQ(sso.notail<fstring>(5), "01234567890123456789012345678901234");
     sso.destroy();
     assert(sso.is_local());
     assert(sso.empty());
