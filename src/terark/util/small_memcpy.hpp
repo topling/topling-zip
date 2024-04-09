@@ -34,6 +34,12 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
         bsrc += 16;
         bdst += 16;
     }
+   #if defined(__AVX512VL__) && defined(__AVX512VBMI2__)
+    auto mask = uint16_t(~(-1 << len));
+    auto tail = _mm_maskz_expandloadu_epi8(mask, bsrc);
+    _mm_mask_compressstoreu_epi8(bdst, mask, tail);
+    return bdst + len;
+   #else
     bsrc += len;
     bdst += len;
     switch (len) {
@@ -62,6 +68,7 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
               break;
     }
     return bdst;
+   #endif
 }
 
 static inline //HSM_FORCE_INLINE
@@ -159,4 +166,4 @@ byte_t* tiny_memset_align_4(void* dst, uint32_t val, size_t len) {
     return (byte_t*)Dst;
 }
 
-} // namespace terark 
+} // namespace terark
