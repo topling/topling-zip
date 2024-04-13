@@ -122,7 +122,9 @@ inline unsigned __int128 byte_swap(unsigned __int128 x) {
 	LoHi64  z = {byte_swap(y.lo), byte_swap(y.lo)};
 	return (unsigned __int128&)(z);
 }
-inline __int128 byte_swap(__int128 x) { return byte_swap((__int128)(x)); }
+inline __int128 byte_swap(__int128 x) {
+	return byte_swap((unsigned __int128)(x));
+}
 #endif
 
 inline unsigned char byte_swap(unsigned char x) { return x; }
