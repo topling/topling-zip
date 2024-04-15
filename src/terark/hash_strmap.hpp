@@ -111,7 +111,7 @@ template<class Value> class hash_strmap_ValuesPtr<Value, ValueInline> {
 protected:
 	static constexpr Value* values = nullptr;
 	void set_values_ptr(Value*) {}
-	void swap(hash_strmap_ValuesPtr& y) {}
+	void swap(hash_strmap_ValuesPtr&) {}
 };
 template<class Value> class hash_strmap_ValuesPtr<Value, ValueOut> {
 protected:
@@ -3168,7 +3168,7 @@ public:
 	static inline bool IsValueEqual(const ValueTpl& x, const ValueTpl& y) {
 		return x == y;
 	}
-	static inline bool IsValueEqual(const ValueOut& x, const ValueOut& y) {
+	static inline bool IsValueEqual(const ValueOut&, const ValueOut&) {
 		return true;
 	}
 	friend bool operator==(const hash_strmap& x, const hash_strmap& y) {

@@ -136,8 +136,17 @@ inline          char byte_swap(         char x) { return x; }
   #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif
 
+#if defined (__clang__)
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
+#endif
+
 inline float  byte_swap(float  x) { return byte_swap(*reinterpret_cast<unsigned int*>(&x)); }
 inline double byte_swap(double x) { return byte_swap(*reinterpret_cast<unsigned long long*>(&x)); }
+
+#if defined (__clang__)
+  #pragma clang diagnostic pop
+#endif
 
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 5000
   #pragma GCC diagnostic pop
