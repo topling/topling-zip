@@ -110,9 +110,9 @@ public:
 		{ my_type temp = --(*this); return temp; }
 
 		my_type& operator+=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->next_n(p - base()); return *this; }
+		{ p = base() + queue->next_n(p - base(), distance); return *this; }
 		my_type& operator-=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->prev_n(p - base()); return *this; }
+		{ p = base() + queue->prev_n(p - base(), distance); return *this; }
 
 		my_type operator+(ptrdiff_t distance) noexcept
 		{ my_type temp = *this; temp += distance; return temp; }
@@ -170,9 +170,9 @@ public:
 		{ my_type temp = --(*this); return temp; }
 
 		my_type& operator+=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->next_n(p - base()); return *this; }
+		{ p = base() + queue->next_n(p - base(), distance); return *this; }
 		my_type& operator-=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->prev_n(p - base()); return *this; }
+		{ p = base() + queue->prev_n(p - base(), distance); return *this; }
 
 		my_type operator+(ptrdiff_t distance) noexcept
 		{ my_type temp = *this; temp += distance; return temp; }
@@ -227,7 +227,7 @@ public:
 		m_head = m_tail = 0;
 	}
 
-	void init(ptrdiff_t cap) {
+	void init(ptrdiff_t /*cap*/) {
 		TERARK_VERIFY_EQ(m_head, m_tail); // must be empty
 		// do nothing
 	}
