@@ -159,6 +159,7 @@ public:
     return *this;
   }
   minimal_sso(minimal_sso&& y) {
+   #if defined(TERARK_VALGRIND)
     if (y.m_local.m_unused_len != 255) { // local
       new(this)minimal_sso(y.to<fstring>());
     } else {
@@ -167,6 +168,9 @@ public:
       m_alloc.m_cap  = y.m_alloc.m_cap;
       m_alloc.m_flag = 255;
     }
+   #else
+    memcpy(this, &y, sizeof(minimal_sso));
+   #endif
     y.init_to_local_empty();
   }
   minimal_sso& operator=(minimal_sso&& y) {
