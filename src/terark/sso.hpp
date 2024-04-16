@@ -180,6 +180,19 @@ public:
     }
     return *this;
   }
+  void swap(minimal_sso& y) { // this impl should be fastest
+   #if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+   #endif
+    char tmp[sizeof(minimal_sso)];
+    memcpy(tmp, this, sizeof(minimal_sso));
+    memcpy(this,  &y, sizeof(minimal_sso));
+    memcpy(&y,   tmp, sizeof(minimal_sso));
+   #if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC diagnostic pop
+   #endif
+  }
 
   void shrink_to_fit() {
     if (m_local.m_unused_len != 255) {
@@ -557,3 +570,11 @@ public:
 };
 
 } // namespace terark
+
+namespace std {
+
+template <size_t SizeSSO, bool WithEOS>
+void swap(terark::minimal_sso<SizeSSO, WithEOS>& x,
+          terark::minimal_sso<SizeSSO, WithEOS>& y) { x.swap(y); }
+
+} // namespace std
