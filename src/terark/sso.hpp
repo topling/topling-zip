@@ -152,7 +152,7 @@ public:
   }
   minimal_sso(const minimal_sso& y) : minimal_sso(y.to<fstring>()) {}
   minimal_sso& operator=(const minimal_sso& y) {
-    if (this != &y) {
+    if (terark_likely(this != &y)) {
       this->~minimal_sso();
       new(this)minimal_sso(y);
     }
@@ -174,7 +174,7 @@ public:
     y.init_to_local_empty();
   }
   minimal_sso& operator=(minimal_sso&& y) {
-    if (this != &y) {
+    if (terark_likely(this != &y)) {
       this->~minimal_sso();
       new(this)minimal_sso(std::move(y));
     }
