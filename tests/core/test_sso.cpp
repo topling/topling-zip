@@ -158,5 +158,19 @@ int main(int argc, char* argv[]) {
     TERARK_VERIFY_EQ(sso.size(), 0);
     TERARK_VERIFY_S_EQ(sso, "");
 
+    auto sso1 = decltype(sso)("0123456789012345678901234567890123456789");
+    assert(!sso1.is_local());
+    TERARK_VERIFY_S_EQ(sso1, "0123456789012345678901234567890123456789");
+
+    auto sso2 = decltype(sso)("0123456789012345678901234567890");
+    assert(sso2.is_local());
+    TERARK_VERIFY_S_EQ(sso2, "0123456789012345678901234567890");
+
+    std::swap(sso1, sso2);
+    assert(sso1.is_local());
+    TERARK_VERIFY_S_EQ(sso1, "0123456789012345678901234567890");
+    assert(!sso2.is_local());
+    TERARK_VERIFY_S_EQ(sso2, "0123456789012345678901234567890123456789");
+
     return 0;
 }
