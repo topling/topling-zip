@@ -323,6 +323,17 @@ private:
   }
 
 public:
+  template<class DataPopulator>
+  void risk_assign_local(size_t n, DataPopulator populate) {
+    TERARK_ASSERT_NE(m_local.m_unused_len, 255);
+    TERARK_ASSERT_LE(n, sizeof(m_local.m_space));
+    m_local.m_unused_len = sizeof(m_local.m_space) - n;
+    populate(m_local.m_space, n);
+    if (WithEOS)
+      m_local.m_space[n] = '\0';
+  }
+
+public:
   template <class Tstring>
   auto append(const Tstring& s) -> std::enable_if_t
   <std::is_same_v<decltype(s.data()), const char*>, void>
