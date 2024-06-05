@@ -115,9 +115,10 @@ inline long byte_swap(long x) { return byte_swap((unsigned long long)x); }
 #if defined(__GNUC__) && __GNUC__ >= 12
 inline __int128 byte_swap(__int128 x) { return __builtin_bswap128(x); }
 inline unsigned __int128 byte_swap(unsigned __int128 x) { return __builtin_bswap128(x); }
+#elif defined(_MSC_VER)
 #else
 inline unsigned __int128 byte_swap(unsigned __int128 x) {
-	struct LoHi64 { uint64_t lo, hi; };
+	struct LoHi64 { unsigned long long lo, hi; };
 	LoHi64& y = reinterpret_cast<LoHi64&>(x);
 	LoHi64  z = {byte_swap(y.lo), byte_swap(y.lo)};
 	return (unsigned __int128&)(z);
