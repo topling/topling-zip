@@ -644,6 +644,13 @@ public:
 		return std::pair<iterator, bool>(get_iter(ib.first), ib.second);
 	}
 
+	template<class... _Valty>
+	std::pair<iterator, bool> emplace_hint(iterator, _Valty&&... _Val) {
+		std::pair<size_t, bool> ib =
+			insert_i(value_type(std::forward<_Valty>(_Val)...));
+		return std::pair<iterator, bool>(get_iter(ib.first), ib.second);
+	}
+
 	      iterator find(key_param_pass_t key)       { return get_iter(find_i(key)); }
 	const_iterator find(key_param_pass_t key) const { return get_iter(find_i(key)); }
 
@@ -1494,6 +1501,42 @@ public:
 		  #endif
 		}, pre_insert); // copy-paste except this line
 	}
+
+	template<class M>
+	std::pair<typename super::iterator, bool>
+	insert_or_assign(const Key& key, M&& obj) {
+		auto ib = this->lazy_insert_elem_i(key, [&](std::pair<Key, Value>* kv_mem) {
+			new(&kv_mem->first) Key(key);
+			new(&kv_mem->second) M(std::forward<M>(obj)); // if fail, key will be leaked
+		});
+		if (!ib.second) {
+			this->elem_at(ib.first).second = std::forward<M>(obj);
+		}
+		return {typename super::iterator(this, ib.first), ib.second};
+	}
+	template<class M>
+	std::pair<typename super::iterator, bool>
+	insert_or_assign(typename super::iterator, const Key& k, M&& obj) {
+		return insert_or_assign(std::forward<Key>(k), std::forward<M>(obj)); // ignore hint
+	}
+	template<class M>
+	std::pair<typename super::iterator, bool>
+	insert_or_assign(Key&& key, M&& obj) {
+		auto ib = this->lazy_insert_elem_i(key, [&](std::pair<Key, Value>* kv_mem) {
+			new(&kv_mem->first) Key(std::move(key));
+			new(&kv_mem->second) M(std::forward<M>(obj)); // if fail, key will be leaked
+		});
+		if (!ib.second) {
+			this->elem_at(ib.first).second = std::forward<M>(obj);
+		}
+		return {typename super::iterator(this, ib.first), ib.second};
+	}
+	template<class M>
+	std::pair<typename super::iterator, bool>
+	insert_or_assign(typename super::iterator, Key&& k, M&& obj) {
+		return insert_or_assign(std::forward<Key>(k), std::forward<M>(obj)); // ignore hint
+	}
+
 	Value& operator[](key_param_pass_t key) {
 		std::pair<size_t, bool> ib = this->insert_i(key);
 		return this->m_nl.data(ib.first).second;
