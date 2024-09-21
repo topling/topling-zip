@@ -16,15 +16,19 @@
   #include <sys/mman.h>
 #endif
 
+#if !defined(_MSC_VER)
 #include "fiber_yield.hpp"
+#endif
 #include <terark/stdtypes.hpp>
 #include <terark/fstring.hpp>
 #include <terark/util/atomic.hpp>
 #include <terark/util/enum.hpp>
 #include <terark/util/vm_util.hpp>
 #include <terark/valvec.hpp>
+#if !defined(_MSC_VER)
 #include <boost/fiber/all.hpp>
 #include <boost/lockfree/queue.hpp>
+#endif
 
 #if defined(__linux__)
   #include <linux/version.h>
