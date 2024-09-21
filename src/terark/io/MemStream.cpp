@@ -319,7 +319,7 @@ AutoGrownMemIO_FILE_write(void *cookie, const char *buf, size_t size)
 }
 
 #if defined(__CYGWIN__)
-int AutoGrownMemIO_FILE_seek(void* cookie, _off64_t* offset, int whence)
+int AutoGrownMemIO_FILE_seek(void* cookie, off_t* offset, int whence)
 #else
 int AutoGrownMemIO_FILE_seek(void* cookie, off64_t* offset, int whence)
 #endif
