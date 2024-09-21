@@ -22,8 +22,17 @@
 #include <stdio.h>
 #include <iostream>
 
+#if !defined(_MSC_VER)
+#define TOPLING_PIPELINE_WITH_FIBER
+#endif
+
+#if defined(TOPLING_PIPELINE_WITH_FIBER)
 #include <boost/fiber/all.hpp>
 #include "fiber_yield.hpp"
+#else
+struct FakeFiberYield {};
+using FiberYield = FakeFiberYield;
+#endif
 
 // http://predef.sourceforge.net/
 
@@ -91,6 +100,7 @@ public:
     size_t peekSize() const final { return q.peekSize(); }
 };
 
+#if defined(TOPLING_PIPELINE_WITH_FIBER)
 class FiberQueue : public PipelineStage::queue_t {
     circular_queue<PipelineQueueItem> q;
 public:
@@ -168,6 +178,12 @@ NewQueue(PipelineProcessor::EUType euType, size_t size) {
 	case PipelineProcessor::EUType::mixed : return new MixedQueue(size);
 	}
 }
+#else
+static
+PipelineStage::queue_t* NewQueue(PipelineProcessor::EUType, size_t size) {
+	return new BlockQueue(size);
+}
+#endif
 
 class PipelineStage::ExecUnit {
 public:
@@ -186,6 +202,7 @@ public:
     bool joinable() const final { return thr.joinable(); }
     FiberYield* get_fiber_yield() override { return NULL; }
 };
+#if defined(TOPLING_PIPELINE_WITH_FIBER)
 class FiberExecUnit : public PipelineStage::ExecUnit {
     boost::fibers::fiber fib;
     FiberYield fy;
@@ -225,6 +242,12 @@ PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, Function&& func) {
     else
         return new ThreadExecUnit(std::move(func));
 }
+#else
+template<class Function>
+PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, Function&& func) {
+	return new ThreadExecUnit(std::move(func));
+}
+#endif
 
 PipelineStage::ThreadData::ThreadData() {
 	m_thread = NULL;
@@ -376,6 +399,7 @@ void PipelineStage::start(int queue_size)
 		// second: start the thread
 		//
 		assert(m_threads[threadno].m_thread == nullptr);
+#if defined(TOPLING_PIPELINE_WITH_FIBER)
 		if (euType == PipelineProcessor::EUType::mixed) {
 			auto mkfn = [this,threadno]() {
 				return bind(&PipelineStage::run_wrapper, this, threadno);
@@ -383,6 +407,9 @@ void PipelineStage::start(int queue_size)
 			m_threads[threadno].m_thread =
 				new MixedExecUnit(m_fibers_per_thread, mkfn);
 		}
+#else
+		if (false) {}
+#endif
 		else {
 			m_threads[threadno].m_thread = NewExecUnit(fiberMode,
 				bind(&PipelineStage::run_wrapper, this, threadno));
