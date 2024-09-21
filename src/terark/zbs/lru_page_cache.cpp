@@ -19,9 +19,11 @@
 #include <terark/num_to_str.hpp>
 #include <atomic>
 #include <boost/preprocessor/cat.hpp>
+#if !defined(_MSC_VER)
 #include <boost/fiber/operations.hpp>
 #include <terark/thread/fiber_aio.hpp>
 #include <terark/thread/fiber_local.hpp>
+#endif
 
 #if defined(TERARK_WITH_TBB)
   #include <tbb/tbb.h>
@@ -788,11 +790,13 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		if (0) {
 	OnHitOthersLoad:
 			while (!nodes[p].is_loaded) {
+			#if !defined(_MSC_VER)
                 if (m_use_aio) {
                     boost::this_fiber::yield();
                     if (nodes[p].is_loaded)
                         break;
                 }
+			#endif
 				// waiting for other threads to load the page
 				std::this_thread::yield();
 			}
@@ -822,8 +826,12 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		size_t first_page =  offset >> PAGE_BITS;
 		size_t plast_page = (offset + len + PAGE_SIZE - 1) >> PAGE_BITS;
 		assert(first_page + 2 <= plast_page);
+#if defined(_MSC_VER)
+		valvec<MyPageEntry> pgvec_obj;
+#else
 		static thread_local recycle_pool<valvec<MyPageEntry> > tss;
 		valvec<MyPageEntry> pgvec_obj = tss.get();
+#endif
 		pgvec_obj.resize_no_init(plast_page - first_page);
 		auto pgvec = pgvec_obj.data();
 		for (size_t pg = first_page; pg < plast_page; ++pg) {
@@ -880,11 +888,13 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 					nodes[p].is_loaded = true;
 				} else {
 					while (!nodes[p].is_loaded) {
+					#if !defined(_MSC_VER)
 					    if (m_use_aio) {
                             boost::this_fiber::yield();
                             if (nodes[p].is_loaded)
                                 break;
                         }
+					#endif
 						std::this_thread::yield();
 					}
 					ScopeLock lock(m_mutex);
@@ -920,7 +930,9 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
             }
 		}
         b->index = 0;
+#if !defined(_MSC_VER)
 		tss.put(std::move(pgvec_obj));
+#endif
 		return unibuf->data();
 	}
 }
