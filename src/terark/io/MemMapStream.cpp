@@ -418,6 +418,9 @@ bool MemMapStream::remap_impl(stream_position_t fpos, size_t map_size)
         set_fsize(fpos + map_size);
     }
 //	int flags = m_mode & O_RDWR ? MAP_SHARED : MAP_PRIVATE;
+#if !defined(MAP_POPULATE)
+    int MAP_POPULATE = 0; // do not support
+#endif
     int flags = MAP_SHARED | MAP_POPULATE;
     m_beg = (unsigned char*)::mmap(NULL, map_size,
                          m_mode & O_RDWR ? (PROT_READ | PROT_WRITE) : PROT_READ,
