@@ -119,8 +119,7 @@ protected:
 	LinkTp  maxload;  // cached guard for calling rehash
 	LinkTp  freelist_head;
 	LinkTp  freelist_size;
-    LinkTp  freelist_freq;
-	float   load_factor;
+	uint8_t load_factor;
 	bool    is_sorted;
 	bool    m_enable_auto_gc; // will not keep stable index(on elem erased)
 
@@ -142,9 +141,8 @@ private:
 		nBucket = 1;
 		freelist_head = tail; // empty freelist
 		freelist_size = 0;
-        freelist_freq = 0;
 
-		load_factor = 0.8f;
+		load_factor = uint8_t(256 * 0.7);
 		is_sorted = true;
 		m_enable_auto_gc = false;
 	}
@@ -309,7 +307,6 @@ public:
 	  #endif
 		freelist_head = y.freelist_head;
 		freelist_size = y.freelist_size;
-        freelist_freq = y.freelist_freq;
 
 		load_factor = y.load_factor;
 		is_sorted = y.is_sorted;
@@ -378,7 +375,6 @@ public:
 
 		freelist_head =  y.freelist_head;
 		freelist_size =  y.freelist_size;
-		freelist_freq =  y.freelist_freq;
 
 		load_factor =  y.load_factor;
 		is_sorted   =  y.is_sorted;
@@ -409,7 +405,6 @@ public:
 
 		std::swap(freelist_head, y.freelist_head);
 		std::swap(freelist_size, y.freelist_size);
-		std::swap(freelist_freq, y.freelist_freq);
 
 		std::swap(load_factor, y.load_factor);
 		std::swap(is_sorted  , y.is_sorted);
@@ -496,7 +491,7 @@ public:
 							sizeof(LinkTp) * newBucketSize);
 			nBucket = newBucketSize;
 			relink();
-			maxload = LinkTp(newBucketSize * load_factor);
+			maxload = LinkTp(newBucketSize * load_factor / 256);
 		}
 		return newBucketSize;
 	}
@@ -504,7 +499,7 @@ public:
 
 	void reserve(size_t cap) {
 		reserve_nodes(cap);
-		rehash(size_t(cap / load_factor + 1));
+		rehash(size_t(cap * 256 / load_factor + 1));
 	}
 
 	void reserve_nodes(size_t cap) {
@@ -532,10 +527,11 @@ public:
 		if (fact >= 0.999) {
 			throw std::logic_error("load factor must <= 0.999");
 		}
-		load_factor = fact;
-		maxload = &tail == bucket ? 0 : LinkTp(nBucket * fact);
+		using namespace std;
+		load_factor = uint8_t(max(min(int(256 * fact), 255), 10));
+		maxload = &tail == bucket ? 0 : LinkTp(nBucket * load_factor / 256);
 	}
-	double get_load_factor() const { return load_factor; }
+	double get_load_factor() const { return load_factor / 256.0; }
 
 	inline HashTp hash_i(size_t i) const {
 		TERARK_ASSERT_LT(i, nElem);
@@ -675,7 +671,6 @@ public:
 			TERARK_VERIFY_LT(freelist_head, nElem);
 			freelist_head = tail;
 			freelist_size = 0;
-			freelist_freq = 0;
 		}
 		nElem = 0;
 	}
@@ -1163,7 +1158,6 @@ private:
 		m_nl.data(slot).~Elem();
 		reinterpret_cast<LinkTp&>(m_nl.data(slot)) = freelist_head;
 		freelist_size++;
-        freelist_freq++; // never decrease
 		freelist_head = LinkTp(slot);
 		if (terark_unlikely(m_enable_auto_gc && freelist_size > nElem/2)) {
 			revoke_deleted();
