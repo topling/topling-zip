@@ -1160,6 +1160,11 @@ public:
 		std::pair<size_t, bool> ib = insert_i(k);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
+	template<class InputIter>
+	void insert(InputIter first, InputIter last) {
+		for (; first != last; ++first)
+			insert_i(first->first, first->second);
+	}
 
 	std::pair<iterator, bool>
 	emplace(fstring key, const Value& val) {
