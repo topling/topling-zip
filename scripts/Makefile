@@ -14,7 +14,13 @@ RLS_FLAGS ?= -O3 -DNDEBUG -g3 ${RLS_ASAN}
 # 'AFR' means Assert For Release
 AFR_FLAGS ?= -O1 -g3 ${AFR_ASAN}
 
+MARCH ?= $(shell uname -m)
+ifeq "${MARCH}" "x86_64"
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
+else
+# not available
+WITH_BMI2 ?= na
+endif
 CMAKE_INSTALL_PREFIX ?= /usr
 
 BOOST_INC ?= -Iboost-include
@@ -95,7 +101,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   ifeq "$(shell echo ${COMPILER} | awk -F- '{if ($$2 >= 9.0) print 1;}')" "1"
     COMMON_C_FLAGS += -Wno-alloc-size-larger-than
   endif
-  COMMON_C_FLAGS += -mcx16
+  ifeq "${MARCH}" "x86_64"
+    COMMON_C_FLAGS += -mcx16
+  endif
 endif
 
 # icc or icpc
@@ -103,7 +111,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:2})" "ic"
   override CXXFLAGS += -xHost -fasm-blocks
   CPU ?= -xHost
 else
-  CPU ?= -march=haswell
+  ifeq "${MARCH}" "x86_64"
+    CPU ?= -march=haswell
+  endif
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
     COMMON_C_FLAGS  += -fstrict-aliasing
@@ -114,7 +124,7 @@ endif
 
 ifeq (${WITH_BMI2},1)
   CPU += -mbmi -mbmi2
-else
+elifeq (${WITH_BMI2},0)
   CPU += -mno-bmi -mno-bmi2
 endif
 
