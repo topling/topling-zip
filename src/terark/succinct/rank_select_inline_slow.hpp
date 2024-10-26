@@ -16,6 +16,7 @@ namespace terark {
 inline unsigned UintSelect1(uint64_t x, unsigned r) {
     assert(0 != x);
 #if defined(NDEBUG)
+/*
     if (terark_unlikely(r >= (unsigned)fast_popcount(x))) {
         fprintf(stderr
             , "%s:%d: assert(r < popcnt(x)) fail: r=%u, popcnt(x)=%d"
@@ -23,6 +24,7 @@ inline unsigned UintSelect1(uint64_t x, unsigned r) {
             , r, (int)fast_popcount(x));
         abort();
     }
+*/
 #else
     unsigned nPopCnt = (unsigned)fast_popcount(x);
     assert(r < nPopCnt);
