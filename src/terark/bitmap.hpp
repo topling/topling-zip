@@ -4,7 +4,9 @@
 #include "stdtypes.hpp"
 #include "valvec.hpp"
 #include <boost/mpl/bool.hpp>
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
 #include <xmmintrin.h>
+#endif
 
 namespace terark {
 

@@ -1,11 +1,15 @@
 #pragma once
 #include <terark/config.hpp>
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
 #include <xmmintrin.h>
+#endif
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 4005
+  #if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
 	#include <x86intrin.h>
+  #endif
 #endif
 #if defined(_MSC_VER) && _MSC_VER >= 1500 || defined(__CYGWIN__)
 	#include <intrin.h>
@@ -21,6 +25,7 @@ namespace terark {
 
 static inline //HSM_FORCE_INLINE
 byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
 	typedef uint64_t   By8 TERARK_GNU_UNALIGNED;
 	typedef uint32_t   By4 TERARK_GNU_UNALIGNED;
 	typedef uint16_t   By2 TERARK_GNU_UNALIGNED;
@@ -69,6 +74,9 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
     }
     return bdst;
    #endif
+#else
+    return (byte_t*)mempcpy(dst, src, len);
+#endif // _M_X64
 }
 
 static inline //HSM_FORCE_INLINE
@@ -87,6 +95,7 @@ byte_t* small_memcpy_align_4(void* dst, const void* src, size_t len) {
     assert(len % 4 == 0);
     assert((size_t(dst) & 3) == 0);
     assert((size_t(src) & 3) == 0);
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
 	typedef uint64_t  By8 TERARK_GNU_UNALIGNED;
 	typedef uint32_t  By4 TERARK_GNU_UNALIGNED;
 	typedef uint8_t   By1;
@@ -107,6 +116,9 @@ byte_t* small_memcpy_align_4(void* dst, const void* src, size_t len) {
             ((By4*)dst)[2] = ((const By4*)src)[2];
     }
     return (By1*)dst + len;
+#else
+    return (byte_t*)mempcpy(dst, src, len);
+#endif
 }
 
 static inline //HSM_FORCE_INLINE

@@ -1,6 +1,8 @@
 #pragma once
 
+#ifdef _M_X64
 #include <immintrin.h>
+#endif
 #include <terark/succinct/rank_select_basic.hpp>
 
 namespace terark {

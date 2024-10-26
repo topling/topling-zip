@@ -178,4 +178,14 @@
         using super_class::super_class; \
     }
 
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
+#else
+namespace terark {
+    static constexpr int _MM_HINT_T0 = 0;
+    inline void _mm_prefetch(const void* p, int) {
+        __builtin_prefetch(p);
+    }
+}
+#endif
+
 extern bool g_Terark_hasValgrind;

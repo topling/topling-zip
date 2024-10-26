@@ -13,6 +13,7 @@
 #include <boost/predef/other/endian.h>
 #include <boost/current_function.hpp>
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h> // for memcpy
 

@@ -112,6 +112,11 @@ inline long byte_swap(long x) { return byte_swap((unsigned long long)x); }
 
 #endif
 
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 5000
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#endif
+
 #if defined(__GNUC__) && __GNUC__ >= 12
 inline __int128 byte_swap(__int128 x) { return __builtin_bswap128(x); }
 inline unsigned __int128 byte_swap(unsigned __int128 x) { return __builtin_bswap128(x); }
@@ -131,11 +136,6 @@ inline __int128 byte_swap(__int128 x) {
 inline unsigned char byte_swap(unsigned char x) { return x; }
 inline   signed char byte_swap(  signed char x) { return x; }
 inline          char byte_swap(         char x) { return x; }
-
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 5000
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#endif
 
 #if defined (__clang__)
   #pragma clang diagnostic push

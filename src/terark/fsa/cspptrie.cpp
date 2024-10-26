@@ -98,6 +98,11 @@ static constexpr size_t MAX_DYNA_NUM = 64;
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 
+#if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
+#else
+   #define _mm_pause()
+#endif
+
 inline void cas_unlock(bool& lock) {
     as_atomic(lock).store(false, std::memory_order_release);
 }
@@ -108,7 +113,7 @@ template<> struct CSPP_size_to_uint<8> { typedef unsigned long long type; };
 
 terark_pure_func
 inline static size_t ThisThreadID() {
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || !(defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64))
     auto id = std::this_thread::get_id();
     return (size_t)(CSPP_size_to_uint<sizeof(id)>::type&)(id);
 #else

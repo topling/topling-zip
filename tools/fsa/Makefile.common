@@ -2,7 +2,13 @@ export SHELL=bash
 CHECK_TERARK_FSA_LIB_UPDATE ?= 1
 TERARK_HOME ?= ../..
 BOOST_INC ?= -I../../boost-include
+MARCH ?= $(shell uname -m)
+ifeq "${MARCH}" "x86_64"
 WITH_BMI2 ?= $(shell ${TERARK_HOME}/cpu_has_bmi2.sh)
+else
+# not available
+WITH_BMI2 ?= na
+endif
 CURRENT_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
 ifeq "$(origin CXX)" "default"
@@ -61,7 +67,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
     override CXXFLAGS += -Wa,-q
   endif
   override CXXFLAGS += -time
-  override CXXFLAGS += -mcx16
+  ifeq "${MARCH}" "x86_64"
+    COMMON_C_FLAGS += -mcx16
+  endif
 #  override CXXFLAGS += -fmax-errors=5
   #override CXXFLAGS += -fmax-errors=2
 endif
@@ -71,7 +79,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:2})" "ic"
   override CXXFLAGS += -xHost -fasm-blocks
   CPU ?= -xHost
 else
-  CPU ?= -march=haswell
+  ifeq "${MARCH}" "x86_64"
+    CPU ?= -march=haswell
+  endif
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
     COMMON_C_FLAGS  += -Wno-deprecated-builtins
@@ -84,7 +94,7 @@ endif
 
 ifeq (${WITH_BMI2},1)
   CPU += -mbmi -mbmi2
-else
+else ifeq (${WITH_BMI2},0)
   CPU += -mno-bmi -mno-bmi2
 endif
 
