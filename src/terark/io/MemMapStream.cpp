@@ -232,6 +232,18 @@ void MemMapStream::open(stream_position_t new_file_size, const std::string& fpat
 
     return;
 }
+void MemMapStream::dopen(intptr_t fd, stream_position_t new_file_size,
+                         const std::string& fpath, int mode) {
+    TERARK_VERIFY_GE(fd, 0);
+#if defined(O_LARGEFILE)
+    mode |= O_LARGEFILE;
+#endif
+    init(new_file_size, fpath, mode);
+    m_hFile = (HANDLE)fd;
+    m_is_owner = false;
+    set_fsize(new_file_size);
+    m_file_size = get_fsize();
+}
 
 stream_position_t MemMapStream::get_fsize()
 {

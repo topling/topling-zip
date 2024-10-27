@@ -7,12 +7,15 @@
 	MyType& load(unsigned char* s, size_t n) { this->ensureRead(s, n); return *this; }
 	MyType& load(  signed char* s, size_t n) { this->ensureRead(s, n); return *this; }
 
+#ifdef TERARK_DATA_IO_SLOW_VAR_INT
+    MyType& operator>>(std::string& x) { return load_s1(x); }
+#else
 	MyType& operator>>(std::string& x)
    	{
 	   	this->getStream()->read_string(x);
 		return *this;
    	}
-//	MyType& operator>>(std:: string& x) { return load_s1(x); }
+#endif
 	MyType& operator>>(std::wstring& x) { return load_s1(x); }
 
 private:

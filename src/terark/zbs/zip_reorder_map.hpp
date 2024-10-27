@@ -12,7 +12,7 @@ class TERARK_DLL_EXPORT ZReorderMap {
 private:
     terark::MmapWholeFile file_;
     const byte_t *pos_ = nullptr;
-    size_t current_value_ = -1;
+    size_t current_value_ = SIZE_MAX;
     size_t seq_length_ = 0;
     size_t size_ = 0;
     size_t i_ = 0;
@@ -94,7 +94,7 @@ public:
         Builder(size_t size, int sign, args_t&& ...args)
             : file_(std::forward<args_t>(args)...)
             , writer_(&file_)
-            , base_value_(-1)
+            , base_value_(SIZE_MAX)
             , seq_length_(0)
             , sign_(sign)
             , size_(size) {

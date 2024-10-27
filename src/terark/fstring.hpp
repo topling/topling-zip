@@ -181,7 +181,7 @@ struct TERARK_DLL_EXPORT basic_fstring {
 
 	template<class CharVec>
 	basic_fstring(const CharVec& chvec
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && _MSC_VER < 1500
 		, typename CharVec::value_type* = nullptr
 		, typename CharVec::iterator* = nullptr
 		, typename CharVec::const_iterator* = nullptr

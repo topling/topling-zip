@@ -12,6 +12,7 @@ namespace terark {
 constexpr size_t VM_PAGE_SIZE = 4096;
 
 #if defined(_MSC_VER)
+constexpr bool g_has_madv_populate = true;
 constexpr size_t g_min_prefault_pages = 1;
 #else
 TERARK_DLL_EXPORT extern const int g_linux_kernel_version;

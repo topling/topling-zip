@@ -212,9 +212,11 @@ static const bool falseConcurrent = getEnvBool("csppMultiWriteFalse", false);
 #endif
 static long csppDebugLevel = getEnvLong("csppDebugLevel", 0);
 
+TERARK_DLL_EXPORT
 void CSPP_SetDebugLevel(long level) {
     csppDebugLevel = level;
 }
+TERARK_DLL_EXPORT
 long CSPP_GetDebugLevel() { return csppDebugLevel; }
 
 #undef SMART_FUNC

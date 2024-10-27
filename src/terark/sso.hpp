@@ -564,6 +564,12 @@ public:
     return this->template to<fstring>().compare(y.template to<fstring>());
   }
 
+ #if defined(_MSC_VER)
+  #define TERARK_MINIMAL_SSO_CMP_OPERATOR(op) \
+    friend bool operator op (const minimal_sso& x, const minimal_sso& y) \
+    { return x.to<fstring>() op y.to<fstring>(); }
+    //~~~~~~~~~~~~~~~~~~~~
+ #else
   #define TERARK_MINIMAL_SSO_CMP_OPERATOR(op) \
     friend bool operator op (const minimal_sso& x, const minimal_sso& y) \
     { return x.to<fstring>() op y.to<fstring>(); } \
@@ -571,6 +577,8 @@ public:
     { return x.to<fstring>() op y; } \
     friend bool operator op (const fstring& x, const minimal_sso& y) \
     { return x op y.to<fstring>(); } \
+    //~~~~~~~~~~~~~~~~~~~~
+ #endif
 
   TERARK_MINIMAL_SSO_CMP_OPERATOR(==)
   TERARK_MINIMAL_SSO_CMP_OPERATOR(!=)

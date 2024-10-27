@@ -33,7 +33,7 @@ public:
 
 	MyType& operator<<(const std::string& x)
 	{
-	#if 0
+	#if defined(TERARK_DATA_IO_SLOW_VAR_INT)
 		var_size_t length(x.size());
 		*this << (length);
 		this->save(x.data(), length.t);

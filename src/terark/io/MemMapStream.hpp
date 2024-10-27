@@ -18,7 +18,9 @@
 #	include <sys/stat.h>
 #	include <fcntl.h>
 #   define WIN32_LEAN_AND_MEAN
+# ifndef NOMINMAX
 #   define NOMINMAX
+# endif
 #   include <windows.h>
 #else
 #	include <sys/types.h>
@@ -28,6 +30,8 @@
 #	include <fcntl.h>
 #	include <errno.h>
 #endif
+
+#include <string>
 
 namespace terark {
 

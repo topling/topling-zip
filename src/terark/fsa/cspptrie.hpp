@@ -122,7 +122,7 @@ public:
         ReaderToken();
     };
     using ReaderTokenPtr = std::unique_ptr<ReaderToken, DisposeAsDelete>;
-    class SingleReaderToken : public TokenBase {
+    class TERARK_DLL_EXPORT SingleReaderToken : public TokenBase {
     public:
         explicit SingleReaderToken(Patricia* trie);
         ~SingleReaderToken() override;
@@ -283,5 +283,8 @@ terark_forceinline
 bool Patricia::WriterToken::insert(fstring key, void* value) {
     return m_trie->insert(key, value, this);
 }
+
+TERARK_DLL_EXPORT void CSPP_SetDebugLevel(long level);
+TERARK_DLL_EXPORT long CSPP_GetDebugLevel();
 
 } // namespace terark
