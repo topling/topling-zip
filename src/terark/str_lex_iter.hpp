@@ -6,10 +6,13 @@
 namespace terark {
 
 template<class CharT>
-class TERARK_DLL_EXPORT StringLexIteratorT : public CacheAlignedNewDelete, boost::noncopyable {
+class TERARK_DLL_EXPORT StringLexIteratorT : public CacheAlignedNewDelete {
+	StringLexIteratorT(const StringLexIteratorT&) = delete;
+	StringLexIteratorT& operator=(const StringLexIteratorT&) = delete;
 protected:
     typedef typename terark_get_uchar_type<CharT>::type uch_t;
 	valvec<uch_t>  m_word;
+	StringLexIteratorT() = default;
 	virtual ~StringLexIteratorT();
 public:
 	typedef basic_fstring<CharT> fstr;
