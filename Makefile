@@ -549,7 +549,7 @@ ${rdir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 	cd $(dir $@) \
-	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
@@ -560,7 +560,7 @@ ${rdir}/boost-shared/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 	cd $(dir $@) \
-	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
@@ -571,7 +571,7 @@ ${ddir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 	cd $(dir $@) \
-	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
@@ -582,7 +582,7 @@ ${ddir}/boost-shared/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 	cd $(dir $@) \
-	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
