@@ -570,6 +570,9 @@ public:
 				std::uninitialized_fill_n(fastlist, fastleng+1, FreeList());
 			}
 		}
+		else {
+			fastleng = freelist_disabled;
+		}
 
 		if (0 == nNodes) { // empty
 			nBucket = 1;
