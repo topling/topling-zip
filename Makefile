@@ -83,6 +83,8 @@ else
   CYG_DLL_FILE = $@
 endif
 
+RPATH_FLAGS := -Wl,-rpath,'$$ORIGIN'
+
 ifeq (Linux,${UNAME_System})
   # Allow users set -Iincdir (for liburing) in CXXFLAGS
   # Allow users set -Llibdir (for liburing) in LDFLAGS
@@ -604,7 +606,7 @@ else
 endif
 	@rm -f $@
 	@echo ASAN_LDFLAGS = ${ASAN_LDFLAGS}
-	${LD} -shared ${THIS_LIB_OBJS} ${ASAN_LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS} ${LDFLAGS}
+	${LD} -shared ${THIS_LIB_OBJS} ${ASAN_LDFLAGS} ${LIBS} ${RPATH_FLAGS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS} ${LDFLAGS}
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
