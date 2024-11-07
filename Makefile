@@ -148,7 +148,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:2})" "ic"
   CPU ?= -xHost
 else
   ifeq "${MARCH}" "x86_64"
-    CPU ?= -march=haswell
+    ifeq (${WITH_BMI2},1)
+      CPU ?= -march=haswell
+    endif
   endif
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
