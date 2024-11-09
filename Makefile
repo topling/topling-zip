@@ -93,21 +93,21 @@ ifeq (Linux,${UNAME_System})
                     2> /dev/null && echo 1)
   ifeq (${TOPLING_IO_WITH_URING},1)
     LINK_LIBURING := -luring
-    CXXFLAGS += -D TOPLING_IO_WITH_URING=1
+    CXXFLAGS += -DTOPLING_IO_WITH_URING=1
     ifneq (${HAS_LIBURING},1)
       $(warning force TOPLING_IO_WITH_URING=1 but liburing is not detected)
     endif
   else ifeq (${TOPLING_IO_WITH_URING},0)
-    CXXFLAGS += -D TOPLING_IO_WITH_URING=0
+    CXXFLAGS += -DTOPLING_IO_WITH_URING=0
     ifeq (${HAS_LIBURING},1)
       $(warning force TOPLING_IO_WITH_URING=0 but liburing is detected)
     endif
   else
     ifeq (${HAS_LIBURING},1)
       LINK_LIBURING := -luring
-      CXXFLAGS += -D TOPLING_IO_WITH_URING=1
+      CXXFLAGS += -DTOPLING_IO_WITH_URING=1
     else
-      CXXFLAGS += -D TOPLING_IO_WITH_URING=0
+      CXXFLAGS += -DTOPLING_IO_WITH_URING=0
       $(warning liburing is not detected)
     endif
   endif
@@ -512,10 +512,13 @@ ${1}/git-version-%.cpp: Makefile
 		  'git_version_hash_info_'$$(patsubst git-version-%.cpp,%,$$(notdir $$@))\
 		  '() { return R"StrLiteral(git_version_hash_info_is:' > $$@.tmp
 	@env LC_ALL=C git log -n1 $${GIT_PATH_ARG} >> $$@.tmp
+	@echo GIT_PATH_ARG = $${GIT_PATH_ARG}  >> $$@.tmp
 	@env LC_ALL=C git diff $${GIT_PATH_ARG} >> $$@.tmp
-	@env LC_ALL=C $(CXX) --version >> $$@.tmp
-	@echo INCS = ${INCS}           >> $$@.tmp
-	@echo CXXFLAGS  = ${CXXFLAGS}  >> $$@.tmp
+	@env LC_ALL=C $$(CXX) --version >> $$@.tmp
+	@echo INCS = $${INCS}           >> $$@.tmp
+	@echo DEFS = $$(filter -D%,$${CXXFLAGS})  >> $$@.tmp
+	@echo CXXFLAGS = $$(filter-out -W% -D%,$${CXXFLAGS})  >> $$@.tmp
+	@echo WARNINGS = $$(filter -W%,$${CXXFLAGS})  >> $$@.tmp
 	@echo ${2} >> $$@.tmp # DBG_FLAGS | RLS_FLAGS | AFR_FLAGS
 	@echo WITH_BMI2 = ${WITH_BMI2} >> $$@.tmp
 	@#echo WITH_TBB  = ${WITH_TBB}  >> $$@.tmp
@@ -523,6 +526,7 @@ ${1}/git-version-%.cpp: Makefile
 	@#echo machine_cpu_flag: Begin  >> $$@.tmp
 	@#bash ./cpu_features.sh        >> $$@.tmp
 	@#echo machine_cpu_flag: End    >> $$@.tmp
+	@echo LDFLAGS = $${LDFLAGS}    >> $$@.tmp
 	@echo ')''StrLiteral";}' >> $$@.tmp
 	@#      ^^----- To prevent diff causing git-version compile fail
 	@if test -f "$$@" && cmp "$$@" $$@.tmp; then \
