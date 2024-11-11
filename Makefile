@@ -499,9 +499,9 @@ THIS_LIB_OBJS = $(sort $(filter %.o,$^) \
        -not -path "${BOOST_BUILD_DIR}/bin.v2/libs/config/*"; fi))
 
 define GenGitVersionSRC
-${1}/git-version-core.cpp: GIT_PATH_ARG := ':!'{samples,src/terark,test,tools}/fsa ':!'{src/terark,tests,tools}/zbs
-${1}/git-version-fsa.cpp:  GIT_PATH_ARG :=     {samples,src/terark,test,tools}/fsa
-${1}/git-version-zbs.cpp:  GIT_PATH_ARG :=                                             {src/terark,tests,tools}/zbs
+${1}/git-version-core.cpp: GIT_PATH_ARG := ':!'{src/terark,tools}/fsa ':!'{src/terark,tools}/zbs
+${1}/git-version-fsa.cpp:  GIT_PATH_ARG :=     {src/terark,tools}/fsa
+${1}/git-version-zbs.cpp:  GIT_PATH_ARG :=                                {src/terark,tools}/zbs
 ${1}/git-version-core.cpp: ${core_src}
 ${1}/git-version-fsa.cpp: ${fsa_src} ${core_src}
 ${1}/git-version-zbs.cpp: ${zbs_src} ${fsa_src} ${core_src}
