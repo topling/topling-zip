@@ -147,6 +147,19 @@ protected:
 	static constexpr FreeList* fastlist = nullptr;
 };
 
+// default arg{1,2,3,4}
+#define HashStrMapDefaultArg1234(Value) \
+		Value \
+        , terark::fstring_func::IF_SP_ALIGN(hash_align, hash) \
+        , terark::fstring_func::IF_SP_ALIGN(equal_align, equal) \
+        , typename boost::mpl::if_c< \
+					!boost::is_empty<Value>::value && \
+					sizeof(Value) % sizeof(intptr_t) == 0 && \
+                    sizeof(Value) <= 32 \
+				, terark::ValueInline \
+				, terark::ValueOut \
+			>::type
+
 //
 // hash_strmap<> hset; // just a set, can be used as a string pool
 //
@@ -217,7 +230,15 @@ protected:
 		en_unsorted,
 		en_sort_by_key,
 		en_sort_by_val
-	} sort_flag;
+	};
+	union {
+		struct {
+			sort_type sort_flag : 2;
+			unsigned char m_auto_compact : 1;
+			//unsigned char m_padding_bits : 5;
+		};
+		unsigned char m_flag_byte;
+	};
 
     template<class T>
     T* t_malloc(size_t count) {
@@ -253,6 +274,8 @@ protected:
 		}
 
 		load_factor = byte_t(256.0 * 0.3);
+		m_flag_byte = 0;
+		m_auto_compact = !WithFreeList;
 		sort_flag = en_unsorted;
 	}
 
@@ -521,8 +544,10 @@ public:
 		init();
 		reserve(cap);
 	}
+	template<class SFINAE = ValueOut>
 	hash_strmap(std::initializer_list<fstring> list,
-				HashFunc hashfn = HashFunc(), KeyEqual equalfn = KeyEqual())
+				HashFunc hashfn = HashFunc(), KeyEqual equalfn = KeyEqual(),
+				std::common_type_t<Value, ValueOut, SFINAE>* = nullptr)
 	  : HashFunc(hashfn), KeyEqual(equalfn) {
 		init();
 		reserve(list.size());
@@ -555,7 +580,7 @@ public:
 		freepool = y.freepool;
 
 		load_factor = y.load_factor;
-		sort_flag = y.sort_flag;
+		m_flag_byte = y.m_flag_byte;
 		this->set_values_ptr(NULL);
 
 		if constexpr (WithFreeList) {
@@ -760,7 +785,7 @@ public:
 		}
 
 		load_factor =  y.load_factor;
-		sort_flag =  y.sort_flag;
+		m_flag_byte =  y.m_flag_byte;
 
 		y.init(); // reset y as empty
 	}
@@ -799,7 +824,7 @@ public:
 		}
 
 		std::swap(load_factor, y.load_factor);
-		std::swap(sort_flag, y.sort_flag);
+		std::swap(m_flag_byte, y.m_flag_byte);
 		std::swap(static_cast<HashFunc&>(*this), static_cast<HashFunc&>(y));
 		std::swap(static_cast<KeyEqual&>(*this), static_cast<KeyEqual&>(y));
 	}
@@ -970,9 +995,10 @@ public:
 	}
 
 	// without rehash
+	// respect m_auto_compact!
 	void reserve_nodes(size_t cap) {
 		TERARK_VERIFY_GE(cap, nNodes);
-		if (freelist_disabled == fastleng)
+		if (freelist_disabled == fastleng && m_auto_compact)
 			revoke_deleted();
 		if (cap > maxlink)
 			cap = maxlink;
@@ -1089,6 +1115,10 @@ public:
 	}
 #if 1
 	const Value& operator[](const fstring key) const {
+		return at(key);
+	}
+#endif
+	const Value& at(const fstring key) const {
 		const size_t i = find_i(key);
 		if (i == nNodes) {
 			std::string msg;
@@ -1099,7 +1129,6 @@ public:
 		}
 		return nth_value(i, ValuePlace());
 	}
-#endif
 	const Value& val(size_t idx) const {
 		TERARK_ASSERT_GE(nNodes, 1);
 		TERARK_ASSERT_LT(idx, nNodes);
@@ -1143,23 +1172,30 @@ public:
 	      iterator  iter_of(size_t idx)       { return       iterator(this, idx); }
 	const_iterator  iter_of(size_t idx) const { return const_iterator(this, idx); }
 
+#if 0
 	std::pair<iterator, bool>
 		insert(const std::pair<std::string, Value>& kv) {
 		std::pair<size_t, bool> ib = insert_i(kv);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
+#endif
 	std::pair<iterator, bool>
 	insert(const std::pair<const fstring, Value>& kv) {
 		std::pair<size_t, bool> ib = insert_i(kv);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
+#if 0
 	std::pair<iterator, bool>
 	insert(const std::pair<const char*, Value>& kv) {
 		std::pair<size_t, bool> ib = insert_i(kv);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
+#endif
+	template<class KeyType>
+	std::enable_if_t<std::is_same_v<Value, ValueOut> && std::is_convertible_v<KeyType, fstring>,
 	std::pair<iterator, bool>
-	insert(const fstring& k) {
+	>
+	insert(const KeyType& k) {
 		std::pair<size_t, bool> ib = insert_i(k);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
@@ -1177,6 +1213,16 @@ public:
 	std::pair<iterator, bool>
 	emplace(fstring key, Value&& val) {
 		std::pair<size_t, bool> ib = insert_i(key, std::move(val));
+		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
+	}
+
+	template<class KeyType>
+	std::enable_if_t<std::is_same_v<Value, ValueOut> &&
+					 std::is_convertible_v<KeyType, fstring>,
+	std::pair<iterator, bool>
+	>
+	emplace(const KeyType& key) {
+		std::pair<size_t, bool> ib = insert_i(key);
 		return std::pair<iterator, bool>(iterator(this, ib.first), ib.second);
 	}
 
@@ -1634,7 +1680,9 @@ public:
 			pHash[slot] = h;
 		}
 	  #endif
+	  #if !defined(NDEBUG)
 		sort_flag = en_unsorted;
+	  #endif
 		return std::make_pair(slot, true);
 	}
 	template<class ConsValue, class PreInsert>
@@ -1688,7 +1736,9 @@ public:
 			pHash[slot] = h;
 		}
 	  #endif
+	  #if !defined(NDEBUG)
 		sort_flag = en_unsorted;
+	  #endif
 		return std::make_pair(slot, true);
 	}
 
@@ -1742,7 +1792,9 @@ public:
 			pHash[slot] = h;
 		}
 	  #endif
+	  #if !defined(NDEBUG)
 		sort_flag = en_unsorted;
+	  #endif
 		return std::make_pair(slot, true);
 	}
 
@@ -1821,7 +1873,10 @@ private:
 			reserve_nodes(0 == nNodes ? 1 : (nNodes + 1) * 103 / 64);
 		}
 		if (terark_unlikely(SAVE_OFFSET(real_len) > maxpool - lenpool)) {
+		  if (m_auto_compact)
 			gc_on_strpool_is_full(real_len);
+		  else
+			reserve_strpool(LOAD_OFFSET(lenpool) + real_len);
 		}
         lenpool += SAVE_OFFSET(real_len);
 		pNodes[nNodes+1].offset = lenpool;
@@ -1873,6 +1928,7 @@ private:
 		return tail;
 	}
 
+	// This function does not respect m_alloc_auto_compact
 	void gc_on_strpool_is_full(size_t real_len) {
 		using namespace std; // for std::max
 		TERARK_VERIFY_LE(LOAD_OFFSET(lenpool - freepool) + real_len, maxoffset);
@@ -1922,6 +1978,7 @@ public:
 		size_t mybeg = LOAD_OFFSET(pNodes[idx+0].offset);
 		size_t myend = LOAD_OFFSET(pNodes[idx+1].offset);
 		size_t mylen = myend - mybeg;
+	  #if 0 // this is very unlikely and makes erase on loop more complex
 		if (terark_unlikely(nNodes-1 == idx)) {
 			nNodes--;
 			pNodes[idx].link = tail; // guard for next_i
@@ -1929,20 +1986,25 @@ public:
 			lenpool = SAVE_OFFSET(mybeg);
 			return;
 		}
+	  #endif
 		freepool += SAVE_OFFSET(mylen);
 		++nDeleted;
 	  if constexpr (WithFreeList) {
         if (freelist_disabled == fastleng) {
+		  if (m_auto_compact) {
             if (terark_unlikely(nDeleted >= nNodes/2))
     			revoke_deleted();
+		  }
     	//	relaxed: allow for key sorted and POD value sorted
         //	if (!boost::has_trivial_destructor<Value>::value && en_sort_by_val == sort_flag)
         //    	sort_flag = en_unsorted;
         } else
             put_to_freelist(LinkTp(idx));
 	  } else {
-		if (terark_unlikely(nDeleted >= nNodes/2))
-			revoke_deleted();
+		  if (m_auto_compact) {
+			if (terark_unlikely(nDeleted >= nNodes/2))
+				revoke_deleted();
+		  }
 	  }
 	}
 
@@ -2065,6 +2127,13 @@ public:
 		}
         fastleng = freelist_disabled;
     }
+
+	void enable_auto_compact(bool enable = true) {
+		m_auto_compact = enable;
+	}
+	// equivalent to enable_auto_compact(false)
+	void disable_auto_compact() { m_auto_compact = false;	}
+	bool is_auto_compact() const { return m_auto_compact != false; }
 
 	bool is_deleted(size_t idx) const {
 		TERARK_ASSERT_GE(nNodes, 1);
