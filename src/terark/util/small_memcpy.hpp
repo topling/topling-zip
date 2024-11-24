@@ -39,7 +39,7 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
         bsrc += 16;
         bdst += 16;
     }
-   #if defined(__AVX512VL__) && defined(__AVX512VBMI2__)
+   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     auto mask = uint16_t(~(-1 << len));
     auto tail = _mm_maskz_loadu_epi8(mask, bsrc);
     _mm_mask_storeu_epi8(bdst, mask, tail);
