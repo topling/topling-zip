@@ -3357,7 +3357,8 @@ void Patricia::TokenBase::add_to_back(Patricia* trie1) {
 }
 
 void Patricia::TokenBase::maybe_rotate(Patricia* trie1, TokenState target) {
-    if (m_flags.is_head) {
+    auto trie = static_cast<MainPatricia*>(trie1);
+    if (m_flags.is_head && m_next != &trie->m_dummy) { // not read trie
         rotate(trie1, target);
     } else {
         this->m_flags.state = target;
