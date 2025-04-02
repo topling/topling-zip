@@ -374,6 +374,39 @@ std::string escape(fstring str, char quote) {
 	return res;
 }
 
+#if defined(__GLIBCXX__)
+void do_string_resize_no_touch_memory(std::string* bank, size_t sz);
+template <typename Money_t, Money_t std::string::* p>
+struct string_thief {
+	friend
+	void do_string_resize_no_touch_memory(std::string* bank, size_t sz) {
+		// gcc bug: these lines of code can not be here:
+		//   ERROR: use of local variable with automatic storage from
+		//          containing function
+		// if (terark_unlikely(sz > bank->capacity())) {
+		// 	size_t old_size = bank->size();
+		// 	size_t cap = std::max(sz, old_size * 103/64); // 103/64 <~ 1.618
+		// 	bank->reserve(cap);
+		// }
+		(bank->*p)(sz);
+	}
+};
+template struct string_thief<void(std::string::size_type),
+							 &std::string::_M_length>;
+void string_resize_no_touch_memory(std::string* bank, size_t sz) {
+	if (terark_unlikely(sz > bank->capacity())) {
+		size_t old_size = bank->size();
+		size_t cap = std::max(sz, old_size * 103/64); // 103/64 <~ 1.618
+		bank->reserve(cap);
+	}
+	do_string_resize_no_touch_memory(bank, sz);
+}
+#else
+void string_resize_no_touch_memory(std::string* bank, size_t sz) {
+	bank->resize(sz); // touch memory
+}
+#endif
+
 } // namespace terark
 
 bool g_Terark_hasValgrind = terark::getEnvBool("Terark_hasValgrind", false);
