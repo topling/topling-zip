@@ -861,6 +861,9 @@ public:
 			TERARK_VERIFY_NE(const_cast<LinkTp*>(&tail), bucket);
 			std::fill_n(bucket, nBucket, (LinkTp)tail);
 		}
+		if (pNodes) {
+			pNodes[0].link = tail; // guard for next_i
+		}
 		nDeleted = 0;
 		nNodes = 0;
 		lenpool = 0;
