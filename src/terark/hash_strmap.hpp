@@ -832,6 +832,7 @@ public:
 	fstring whole_strpool() const { return fstring(strpool, LOAD_OFFSET(lenpool)); }
 
 	size_t capacity() const { return maxNodes; }
+	size_t strpool_capacity() const { return LOAD_OFFSET(maxpool); }
 
 	void clear() {
 		destroy();
