@@ -1647,8 +1647,16 @@ public:
 	std::pair<size_t, bool>
 	lazy_insert_i(const fstring key, ConsValue cons_value) {
 		TERARK_ASSERT_GE(key.n, 0);
-		size_t n = nNodes; // compiler is easier to track local var
 		HashTp h = hash(key);
+		return lazy_insert_with_hash_i<ConsValue>
+									  (key, h, std::move(cons_value));
+	}
+	template<class ConsValue>
+	std::pair<size_t, bool>
+	lazy_insert_with_hash_i(fstring key, size_t h, ConsValue cons_value) {
+		TERARK_ASSERT_GE(key.n, 0);
+		TERARK_ASSERT_EQ(hash(key), h);
+		size_t n = nNodes; // compiler is easier to track local var
 		size_t i = size_t(h % nBucket);
 		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
 			TERARK_ASSERT_LT(p, n);
@@ -1697,6 +1705,18 @@ public:
 	{
 		TERARK_ASSERT_GE(key.n, 0);
 		const HashTp h = hash(key);
+		return lazy_insert_with_hash_i<ConsValue, PreInsert>
+									  (key, h, cons_value, pre_insert);
+	}
+	template<class ConsValue, class PreInsert>
+	auto lazy_insert_with_hash_i(fstring key, size_t h, ConsValue cons_value,
+								 PreInsert pre_insert)
+	-> typename // pre_insert is not void and it is convertable to bool
+	std::enable_if<!std::is_same<decltype(pre_insert(this)), void>::value,
+					std::pair<size_t, bool> >::type
+	{
+		TERARK_ASSERT_GE(key.n, 0);
+		TERARK_ASSERT_EQ(hash(key), h);
 		const size_t old_nBucket = nBucket;
 		size_t i = size_t(h % old_nBucket);
 		// this func is a copy-paste except old_nBucket and pre_insert
@@ -1755,6 +1775,18 @@ public:
 	{
 		TERARK_ASSERT_GE(key.n, 0);
 		const HashTp h = hash(key);
+		return lazy_insert_with_hash_i<ConsValue, ConsValue>
+									  (key, h, cons_value, pre_insert);
+	}
+	template<class ConsValue, class PreInsert>
+	auto lazy_insert_with_hash_i(fstring key, size_t h, ConsValue cons_value,
+								 PreInsert pre_insert)
+	-> typename
+	std::enable_if<std::is_same<decltype(pre_insert(this)), void>::value,
+				   std::pair<size_t, bool> >::type
+	{
+		TERARK_ASSERT_GE(key.n, 0);
+		TERARK_ASSERT_EQ(hash(key), h);
 		const size_t old_nBucket = nBucket;
 		size_t i = size_t(h % old_nBucket);
 		// this func is a copy-paste except old_nBucket and pre_insert
@@ -1805,8 +1837,14 @@ public:
 	size_t find_i(const char* key, size_t len) const { return find_i(fstring(key, len)); }
 	size_t find_i(const fstring key) const {
 		TERARK_ASSERT_GE(key.n, 0);
-		size_t n = nNodes; // compiler is easier to track local var
 		HashTp h = hash(key);
+		return find_with_hash_i(key, h);
+	}
+
+	size_t find_with_hash_i(fstring key, HashTp h) const {
+		TERARK_ASSERT_GE(key.n, 0);
+		TERARK_ASSERT_EQ(hash(key), h);
+		size_t n = nNodes; // compiler is easier to track local var
 		size_t i = size_t(h % nBucket);
 		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
 			TERARK_ASSERT_LT(p, n);
@@ -2033,6 +2071,15 @@ public:
 		TERARK_ASSERT_LT(idx, nNodes);
 		TERARK_ASSERT_NE(pNodes[idx].link, delmark); // must has not deleted
 		risk_unlink(idx);
+		risk_slot_free(idx);
+	}
+
+	void erase_with_hash_i(size_t idx, HashTp hval) {
+		TERARK_ASSERT_GE(nNodes, 1);
+		TERARK_ASSERT_LT(idx, nNodes);
+		TERARK_ASSERT_NE(pNodes[idx].link, delmark); // must has not deleted
+		TERARK_ASSERT_EQ(hash(key(idx)), hval);
+		ulink_impl(LinkTp(idx), hval);
 		risk_slot_free(idx);
 	}
 
