@@ -526,7 +526,8 @@ public:
 	typedef Value mapped_type;
 	typedef LinkTp link_t;
 
-	static const bool is_value_empty = boost::is_empty<Value>::value;
+	static constexpr bool with_free_list = WithFreeList;
+	static constexpr bool is_value_empty = boost::is_empty<Value>::value;
 	typedef boost::mpl::bool_< // CPU cache line is often 64
 		(ValuePlace::is_value_out && !is_value_empty) || (sizeof(Node) > 64)
 	> sort_by_index;
