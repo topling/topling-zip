@@ -185,6 +185,8 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		, typename CharVec::value_type* = nullptr
 		, typename CharVec::iterator* = nullptr
 		, typename CharVec::const_iterator* = nullptr
+#elif defined(_MSC_VER)
+		, decltype(((const CharVec*)(nullptr))->data()) = nullptr
 #else
 		, decltype(chvec.data()) = nullptr
 #endif
