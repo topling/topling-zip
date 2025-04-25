@@ -258,7 +258,7 @@ public:
 
     static const size_t mem_alloc_fail = size_t(-1) / AlignSize;
 
-    size_t new_root(size_t valsize);
+    size_t new_root();
     size_t mem_alloc(size_t size);
     size_t mem_alloc3(size_t oldpos, size_t oldsize, size_t newsize);
     void mem_free(size_t loc, size_t size);
@@ -670,15 +670,15 @@ public:
         return a->bytes + x;
     }
 
-    bool lookup(fstring key, TokenBase* token) const override final;
+    bool lookup(fstring key, TokenBase* token, size_t root = initial_state) const override final;
 
     void set_insert_func(ConcurrentLevel conLevel);
 
     size_t state_move_impl(const PatriciaNode* a, size_t curr,
                            auchar_t ch, size_t* child_slot) const;
     template<ConcurrentLevel>
-    bool insert_one_writer(fstring key, void* value, WriterToken* token);
-    bool insert_multi_writer(fstring key, void* value, WriterToken* token);
+    bool insert_one_writer(fstring key, void* value, WriterToken* token, size_t root);
+    bool insert_multi_writer(fstring key, void* value, WriterToken* token, size_t root);
 
     struct NodeInfo;
 
@@ -734,8 +734,8 @@ public:
 
    #define  TERARK_PATRICIA_USE_CHEAP_ITERATOR
 #if defined(TERARK_PATRICIA_USE_CHEAP_ITERATOR)
-    ADFA_LexIterator* adfa_make_iter(size_t = 0) const override final;
-    ADFA_LexIterator16* adfa_make_iter16(size_t = 0) const override final;
+    ADFA_LexIterator* adfa_make_iter(size_t root = initial_state) const override final;
+    ADFA_LexIterator16* adfa_make_iter16(size_t root = initial_state) const override final;
 #else
 #include "ppi/adfa_iter.hpp"
 #endif

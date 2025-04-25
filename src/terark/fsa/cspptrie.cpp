@@ -197,7 +197,7 @@ const uint32_t MainPatricia::s_skip_slots[16] = {
     UINT32_MAX, UINT32_MAX, // 11, 12,
     UINT32_MAX, UINT32_MAX, // 13, 14,
     2,                      // 15, never has zpath, now just for fast nodes,
-                            // NOTE: initial_state must be fast node!
+                            // NOTE: root must be fast node!
 };
 //const size_t MainPatricia::max_state;
 //const size_t MainPatricia::nil_state;
@@ -854,7 +854,7 @@ PatriciaMem<Align>::PatriciaMem()
     init(SingleThreadStrict);
     new(&m_mempool_lock_none)MemPool_LockNone<AlignSize>(MAX_STATE_SIZE);
     m_valsize = 0;
-    new_root(0); // m_valsize == 0
+    new_root();
 }
 
 template<size_t Align>
@@ -967,7 +967,7 @@ try
             mmap.base = nullptr; // release ownership
             m_mmap_fpath = fpath.str();
         }
-        size_t root = new_root(valsize);
+        size_t root = new_root();
         TERARK_VERIFY_F(0 == root, "real root = %zd", root);
     }
 }
@@ -1043,10 +1043,8 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem, HugePageEnum use_h
 }
 
 template<size_t Align>
-size_t PatriciaMem<Align>::new_root(size_t valsize) {
-    TERARK_VERIFY_AL(valsize, AlignSize);
-    check_valsize(valsize);
-    size_t root_size = AlignSize * (2 + 256) + valsize;
+size_t PatriciaMem<Align>::new_root() {
+    size_t root_size = AlignSize * (2 + 256) + m_valsize;
     size_t root = mem_alloc(root_size);
     if (mem_alloc_fail == root) {
         TERARK_VERIFY_GE(m_writing_concurrent_level, OneWriteMultiRead);
@@ -1062,7 +1060,7 @@ size_t PatriciaMem<Align>::new_root(size_t valsize) {
     };
     init_fast_meta(a + root, 0);
     std::fill_n(&a[root + 2].child, 256, uint32_t(nil_state));
-    tiny_memset_align_4(a + root + 2 + 256, 0xABAB, valsize);
+    tiny_memset_align_4(a + root + 2 + 256, 0xABAB, m_valsize);
     return root;
 }
 
@@ -1404,7 +1402,7 @@ void MainPatricia::revoke_list(PatriciaNode* a, size_t head, size_t valsize,
     size_t curr = head;
     while (nil_state != curr) {
         TERARK_ASSERT_LT(curr, total_states());
-        TERARK_ASSERT_GE(curr, 2 + 256); // not in initial_state's area
+        TERARK_ASSERT_GE(curr, 2 + 256); // not in root's area
         if (!a[curr].meta.b_is_final) {
             size_t next = a[curr + 1].child;
             TERARK_ASSERT_EQ(a[curr].meta.n_cnt_type, 1);
@@ -1592,7 +1590,7 @@ inline static size_t SuffixZpathStates(size_t chainLen, size_t pos, size_t keyle
     }
 }
 
-bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
+bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*, size_t root) {
     assert(NoWriteReadOnly == m_writing_concurrent_level);
     THROW_STD(logic_error, "invalid operation: insert to readonly trie");
 }
@@ -1614,14 +1612,15 @@ static void CheckLazyFreeListSize(List& lst, const char* func) {
 
 template<MainPatricia::ConcurrentLevel ConLevel>
 bool
-MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
+MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token, size_t root) {
     TERARK_ASSERT_EQ(AcquireDone, token->m_flags.state);
     TERARK_ASSERT_LE(token->m_verseq, m_dummy.m_verseq);
     TERARK_ASSERT_EQ(m_writing_concurrent_level, ConLevel);
+    TERARK_ASSERT_LT(root, m_mempool.size());
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     size_t const valsize = m_valsize;
     size_t curr_slot = size_t(-1);
-    size_t curr = initial_state;
+    size_t curr = root;
     size_t pos = 0;
     NodeInfo ni;
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
@@ -1995,7 +1994,7 @@ MarkFinalStateOmitSetNodeInfo:
 }
 
 bool
-MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) {
+MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token, size_t root) {
     constexpr auto ConLevel = MultiWriteMultiRead;
     TERARK_ASSERT_EQ(MultiWriteMultiRead, m_writing_concurrent_level);
     TERARK_ASSERT_EQ(ThisThreadID(), token->m_thread_id);
@@ -2003,6 +2002,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     TERARK_ASSERT_LT(token->m_min_verseq, m_dummy.m_verseq);
     TERARK_ASSERT_LT(token->m_verseq, m_dummy.m_verseq);
     TERARK_ASSERT_GE(token->m_verseq, m_dummy.m_min_verseq);
+    TERARK_ASSERT_LT(root, m_mempool.size());
     auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     TERARK_ASSERT_NE(nullptr, lzf);
     TERARK_ASSERT_EQ(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.get_tls()), lzf);
@@ -2040,7 +2040,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     }
     size_t parent = size_t(-1);
     size_t curr_slot = size_t(-1);
-    size_t curr = initial_state;
+    size_t curr = root;
     size_t pos = 0;
     NodeInfo ni;
     uint32_t backup[256];
@@ -2855,7 +2855,7 @@ size_t PatriciaMem<Align>::revoke_expired_nodes(LazyList& lzf, TokenBase* token)
     return revoke_size;
 }
 
-bool MainPatricia::lookup(fstring key, TokenBase* token) const {
+bool MainPatricia::lookup(fstring key, TokenBase* token, size_t root) const {
   #if !defined(NDEBUG)
     if (m_writing_concurrent_level >= SingleThreadShared) {
         TERARK_ASSERT_F(NULL == mmap_base || -1 != m_fd, "%p %zd", mmap_base, m_fd);
@@ -2867,7 +2867,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
   #endif
 
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-    size_t curr = initial_state;
+    size_t curr = root;
     size_t pos = 0;
 
   // #define PatriciaTrie_lookup_readable
@@ -3753,11 +3753,12 @@ public:
     };
     valvec<Entry> m_iter;
     size_t        m_flag;
+    size_t        m_root;
 
-    explicit IterImpl(const Patricia*);
+    explicit IterImpl(const Patricia*, size_t root);
     ~IterImpl();
     void token_detach_iter() final;
-    void reset(const BaseDFA*, size_t root = 0) override final;
+    void reset(const BaseDFA*, size_t root) override final;
     bool seek_begin() override final;
     bool seek_end() override final;
     bool seek_lower_bound(fstring key) override final;
@@ -3870,10 +3871,11 @@ public:
 //static const size_t IterFlag_lower_bound_fast  = 1;
 //static const size_t IterFlag_omit_token_update = 2;
 
-MainPatricia::IterImpl::IterImpl(const Patricia* trie1)
+MainPatricia::IterImpl::IterImpl(const Patricia* trie1, size_t root)
   : Iterator(const_cast<Patricia*>(trie1))
 {
     m_dfa = trie1;
+    m_root = root;
     reset1();
 }
 
@@ -3921,7 +3923,7 @@ void MainPatricia::IterImpl::token_detach_iter() {
 }
 
 void MainPatricia::IterImpl::reset(const BaseDFA* dfa, size_t root) {
-    // root is ignored
+    m_root = root;
     m_dfa = dfa;
     if (NULL == dfa) {
         if (NULL != m_trie) {
@@ -3965,7 +3967,7 @@ bool MainPatricia::IterImpl::seek_end() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     reset1();
-    append_lex_max_suffix(initial_state, a);
+    append_lex_max_suffix(m_root, a);
     return a[m_curr].meta.b_is_final;
 }
 
@@ -4000,7 +4002,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
 {
     reset1();
     size_t pos = 0;
-    size_t curr = initial_state;
+    size_t curr = m_root;
     for (;; pos++) {
         const auto p = a + curr;
         const size_t  cnt_type = p->meta.n_cnt_type;
@@ -4043,7 +4045,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     }
                     else {
                         TERARK_ASSERT_EQ(m_iter.size(), 1);
-                        TERARK_ASSERT_EQ(curr, initial_state);
+                        TERARK_ASSERT_EQ(curr, m_root);
                         reset1();
                         return false;
                     }
@@ -4074,7 +4076,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     }
                     else {
                         TERARK_ASSERT_EQ(m_iter.size(), 1);
-                        TERARK_ASSERT_EQ(curr, initial_state);
+                        TERARK_ASSERT_EQ(curr, m_root);
                         reset1();
                         return false;
                     }
@@ -4188,7 +4190,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
             goto rewind_stack_for_next;
         case 15:
           {
-            assert(curr == initial_state || !m_word.empty());
+            assert(curr == m_root || !m_word.empty());
             TERARK_ASSERT_EQ(p[0].big.n_children, 256);
             TERARK_ASSERT_LE(p[1].big.n_children, 256);
             TERARK_ASSERT_EZ(zlen);
@@ -4213,7 +4215,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     }
                 }
                 if (m_word.empty()) {
-                    TERARK_ASSERT_EQ(p-a, initial_state);
+                    TERARK_ASSERT_EQ(p-a, ptrdiff_t(m_root));
                     reset1();
                     return false;
                 }
@@ -4246,7 +4248,7 @@ seek_lower_bound_fast:
     auto wp = m_word.data();
     auto ip = m_iter.data();
     size_t pos = 0;
-    size_t curr = initial_state;
+    size_t curr = m_root;
     for (;; pos++) {
         const auto p = a + curr;
         const size_t  cnt_type = p->meta.n_cnt_type;
@@ -4288,7 +4290,7 @@ seek_lower_bound_fast:
                     }
                     else {
                         TERARK_ASSERT_EQ(m_iter.size(), 1);
-                        TERARK_ASSERT_EQ(curr, initial_state);
+                        TERARK_ASSERT_EQ(curr, m_root);
                         reset1();
                         return false;
                     }
@@ -4320,7 +4322,7 @@ seek_lower_bound_fast:
                     }
                     else {
                         TERARK_ASSERT_EQ(m_iter.size(), 1);
-                        TERARK_ASSERT_EQ(curr, initial_state);
+                        TERARK_ASSERT_EQ(curr, m_root);
                         reset1();
                         return false;
                     }
@@ -4458,7 +4460,7 @@ seek_lower_bound_fast:
             goto RewindStackForNext;
         case 15:
           {
-          //assert(curr == initial_state); // now it need not be initial_state
+          //assert(curr == m_root); // now it need not be root
             TERARK_ASSERT_EQ(p[0].big.n_children, 256);
             TERARK_ASSERT_LE(p[1].big.n_children, 256);
             TERARK_ASSERT_EZ(zlen);
@@ -4579,7 +4581,7 @@ rewind_stack_for_next:
                 TERARK_ASSERT_EQ(p[0].big.n_children, 256);
                 TERARK_ASSERT_LE(p[1].big.n_children, 256);
                 TERARK_ASSERT_EQ(256, top.n_children);
-            //  assert(curr == initial_state);
+            //  assert(curr == m_root);
             //  assert(nth < p[1].big.n_children);
             //  assert(*pch < nth); // nth is ignored in this case
                 for (size_t ich = *pch + 1; ich < 256; ich++) {
@@ -4604,7 +4606,7 @@ rewind_stack_for_next:
           #endif
         }
         if (terark_unlikely(m_iter.size() == 1)) {
-            TERARK_ASSERT_EQ(top.state, initial_state);
+            TERARK_ASSERT_EQ(top.state, m_root);
             reset1();
             return false;
         }
@@ -4702,7 +4704,7 @@ bool MainPatricia::IterImpl::incr() {
             TERARK_ASSERT_EQ(p[0].big.n_children, 256);
             TERARK_ASSERT_LE(p[1].big.n_children, 256);
             TERARK_ASSERT_EZ(p->meta.n_zpath_len);
-        //  assert(curr == initial_state);
+        //  assert(curr == m_root);
             ch = m_word.data()[len] + 1;
             for (; ch < 256; ch++) {
                 if (nil_state != p[2+ch].child) {
@@ -4713,7 +4715,7 @@ bool MainPatricia::IterImpl::incr() {
             }
             if (0 == top) {
                 TERARK_ASSERT_EZ(len);
-                TERARK_ASSERT_EQ(initial_state, curr);
+                TERARK_ASSERT_EQ(m_root, curr);
                 reset1();
                 return false;
             }
@@ -4822,7 +4824,7 @@ bool MainPatricia::IterImpl::decr() {
         TERARK_ASSERT_EQ(256, m_iter[top].n_children);
         TERARK_ASSERT_EQ(p[0].big.n_children, 256);
         TERARK_ASSERT_LE(p[1].big.n_children, 256);
-    //  assert(curr == initial_state);
+    //  assert(curr == m_root);
         ch = m_word.data()[len];
         while (ch) {
             ch--;
@@ -4840,7 +4842,7 @@ bool MainPatricia::IterImpl::decr() {
             return true;
         }
         if (0 == top) {
-            TERARK_ASSERT_EQ(curr, initial_state);
+            TERARK_ASSERT_EQ(curr, m_root);
             reset1();
             return false;
         }
@@ -4861,7 +4863,7 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     size_t last_stack_top = 0;
     size_t last_match_len = 0;
-    size_t curr = initial_state;
+    size_t curr = m_root;
     size_t pos = 0;
     for (;; ++pos) {
         const auto p = a + curr;
@@ -4965,9 +4967,9 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
 }
 
 #if defined(TERARK_PATRICIA_USE_CHEAP_ITERATOR)
-ADFA_LexIterator* MainPatricia::adfa_make_iter(size_t) const {
+ADFA_LexIterator* MainPatricia::adfa_make_iter(size_t root) const {
     as_atomic(m_live_iter_num).fetch_add(1, std::memory_order_relaxed);
-    return new IterImpl(this);
+    return new IterImpl(this, root);
 }
 ADFA_LexIterator16* MainPatricia::adfa_make_iter16(size_t) const {
     return NULL;

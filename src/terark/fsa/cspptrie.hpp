@@ -82,7 +82,7 @@ public:
         virtual ~TokenBase();
     public:
         virtual void idle();
-        bool lookup(fstring);
+        bool lookup(fstring, size_t root = initial_state);
         void acquire(Patricia*);
         void release();
         void dispose(); ///< delete lazy
@@ -136,7 +136,7 @@ public:
         virtual ~WriterToken();
     public:
         WriterToken();
-        bool insert(fstring key, void* value);
+        bool insert(fstring key, void* value, size_t root = initial_state);
     };
     using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
     class TERARK_DLL_EXPORT SingleWriterToken : public WriterToken {
@@ -179,16 +179,16 @@ public:
     ///  false: key has existed
     ///
     terark_forceinline
-    bool insert(fstring key, void* value, WriterToken* token) {
+    bool insert(fstring key, void* value, WriterToken* token, size_t root = initial_state) {
       #if defined(_MSC_VER) || defined(__clang__)
-        return (this->*m_insert)(key, value, token);
+        return (this->*m_insert)(key, value, token, root);
       #else
-        return m_insert(this, key, value, token);
+        return m_insert(this, key, value, token, root);
       #endif
     }
 
     ConcurrentLevel concurrent_level() const { return m_writing_concurrent_level; }
-    virtual bool lookup(fstring key, TokenBase* token) const = 0;
+    virtual bool lookup(fstring key, TokenBase* token, size_t root = initial_state) const = 0;
     virtual void set_readonly() = 0;
     virtual bool  is_readonly() const = 0;
     virtual WriterTokenPtr& tls_writer_token() noexcept = 0;
@@ -260,12 +260,12 @@ public:
     ~Patricia();
 protected:
     Patricia();
-    bool insert_readonly_throw(fstring key, void* value, WriterToken*);
-    typedef bool (Patricia::*insert_pmf_t)(fstring, void*, WriterToken*);
+    bool insert_readonly_throw(fstring key, void* value, WriterToken*, size_t root);
+    typedef bool (Patricia::*insert_pmf_t)(fstring, void*, WriterToken*, size_t root);
 #if defined(_MSC_VER) || defined(__clang__)
-    typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*);
+    typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*, size_t root);
 #else
-    typedef bool (*insert_func_t)(Patricia*, fstring, void*, WriterToken*);
+    typedef bool (*insert_func_t)(Patricia*, fstring, void*, WriterToken*, size_t root);
 #endif
     insert_func_t    m_insert;
     ConcurrentLevel  m_writing_concurrent_level;
@@ -275,13 +275,13 @@ protected:
 };
 
 terark_forceinline
-bool Patricia::TokenBase::lookup(fstring key) {
-    return m_trie->lookup(key, this);
+bool Patricia::TokenBase::lookup(fstring key, size_t root) {
+    return m_trie->lookup(key, this, root);
 }
 
 terark_forceinline
-bool Patricia::WriterToken::insert(fstring key, void* value) {
-    return m_trie->insert(key, value, this);
+bool Patricia::WriterToken::insert(fstring key, void* value, size_t root) {
+    return m_trie->insert(key, value, this, root);
 }
 
 TERARK_DLL_EXPORT void CSPP_SetDebugLevel(long level);

@@ -141,7 +141,7 @@ public:
 	typedef basic_fstring<CharT> fstr;
 	ADFA_LexIteratorT(const BaseDFA* dfa);
 	ADFA_LexIteratorT(valvec_no_init);
-	virtual void reset(const BaseDFA* dfa, size_t root = 0) = 0;
+	virtual void reset(const BaseDFA* dfa, size_t root = initial_state) = 0;
 
 	virtual size_t seek_max_prefix(fstr) = 0;
 
