@@ -122,6 +122,7 @@ protected:
 	uint8_t load_factor;
 	bool    is_sorted;
 	bool    m_enable_auto_gc; // will not keep stable index(on elem erased)
+	bool    m_enable_freelist_reuse;
 
 private:
 	void init() {
@@ -145,6 +146,7 @@ private:
 		load_factor = uint8_t(256 * 0.7);
 		is_sorted = true;
 		m_enable_auto_gc = false;
+		m_enable_freelist_reuse = true;
 	}
 
 	void relink_impl(bool bFillHash) {
@@ -313,6 +315,7 @@ public:
 		load_factor = y.load_factor;
 		is_sorted = y.is_sorted;
 		m_enable_auto_gc = y.m_enable_auto_gc;
+		m_enable_freelist_reuse = y.m_enable_freelist_reuse;
 
 		if (0 == nElem) { // empty
 			nBucket = 1;
@@ -381,6 +384,7 @@ public:
 		load_factor =  y.load_factor;
 		is_sorted   =  y.is_sorted;
 		m_enable_auto_gc = y.m_enable_auto_gc;
+		m_enable_freelist_reuse = y.m_enable_freelist_reuse;
 
 		y.init(); // reset y as empty
 	}
@@ -411,6 +415,7 @@ public:
 		std::swap(load_factor, y.load_factor);
 		std::swap(is_sorted  , y.is_sorted);
 		std::swap(m_enable_auto_gc, y.m_enable_auto_gc);
+		std::swap(m_enable_freelist_reuse, y.m_enable_freelist_reuse);
 		std::swap(static_cast<HashEqual&>(*this), static_cast<HashEqual&>(y));
 		std::swap(static_cast<KeyExtractor&>(*this) , static_cast<KeyExtractor&>(y));
 	}
@@ -788,6 +793,7 @@ private:
 		return n - i; // erased elements count
 	}
 
+public:
 	// when auto gc is enabled, elem index is not stable!
 	// since we have deleted configurable freelist, newer elem inserted on
 	// hole slot will have smaller index.
@@ -799,6 +805,12 @@ private:
 	void disable_auto_compact() { enable_auto_compact(false); }
 	bool is_auto_compact() const { return m_enable_auto_gc; }
 
+	// freelist is always enabled!
+	// semantic of enable_freelist() is enabled and reuse!
+	void enable_freelist(bool e = true) { m_enable_freelist_reuse = e; }
+	void disable_freelist() { enable_freelist(false); }
+	bool is_freelist_enabled() const { return m_enable_freelist_reuse; }
+
 public:
 	//@{
 	//@brief erase_if
@@ -806,6 +818,9 @@ public:
 	/// if id needs to be keeped, call keepid_erase_if
 	template<class Predictor>
 	size_t erase_if(Predictor pred) {
+		if (!m_enable_freelist_reuse) {
+			return keepid_erase_if(pred);
+		}
 		size_t nErased = erase_if_impl(pred, CopyStrategy());
 		if (nElem * 2 <= maxElem)
 			shrink_to_fit();
@@ -974,11 +989,14 @@ public:
 		LinkTp slot;
 		if (0 == freelist_size) {
 			TERARK_ASSERT_EQ(freelist_head, tail);
+		  AllocNoReuse:
 			slot = nElem;
 			if (terark_unlikely(nElem == maxElem))
 				reserve_nodes(0 == nElem ? 1 : 2*nElem);
 			TERARK_ASSERT_LT(nElem, maxElem);
 			nElem++;
+		} else if (!m_enable_freelist_reuse) {
+			goto AllocNoReuse;
 		} else {
 			TERARK_ASSERT_LT(freelist_head, nElem);
 			TERARK_ASSERT_EQ(m_nl.link(freelist_head), delmark);
@@ -1166,6 +1184,9 @@ private:
 		reinterpret_cast<LinkTp&>(m_nl.data(slot)) = freelist_head;
 		freelist_size++;
 		freelist_head = LinkTp(slot);
+		if (!m_enable_freelist_reuse) {
+			return;
+		}
 		if (terark_unlikely(m_enable_auto_gc && freelist_size > nElem/2)) {
 			revoke_deleted();
 		}
