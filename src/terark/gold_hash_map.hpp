@@ -889,6 +889,12 @@ public:
 	std::pair<size_t, bool>
 	lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem) {
 		const HashTp h = HashTp(HashEqual::hash(key));
+		return lazy_insert_elem_with_hash_i<ConsElem>(key, h, cons_elem);
+	}
+	template<class ConsElem>
+	std::pair<size_t, bool>
+	lazy_insert_elem_with_hash_i(key_param_pass_t key, HashTp h, ConsElem cons_elem) {
+		TERARK_ASSERT_EQ(HashEqual::hash(key), h);
 		size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
@@ -917,6 +923,16 @@ public:
 					std::pair<size_t, bool> >::type
 	{
 		const HashTp h = HashTp(HashEqual::hash(key));
+		return lazy_insert_elem_with_hash_i<ConsElem, PreInsert>
+								(key, h, cons_elem, pre_insert);
+	}
+	template<class ConsElem, class PreInsert>
+	auto lazy_insert_elem_with_hash_i(key_param_pass_t key, HashTp h,
+									  ConsElem cons_elem,
+									  PreInsert pre_insert) -> typename
+	std::enable_if<!std::is_same<decltype(pre_insert(this)), void>::value,
+					std::pair<size_t, bool> >::type
+	{
 		const size_t old_nBucket = nBucket;
 		size_t i = size_t(h % old_nBucket);
 		// this func is a copy-paste except old_nBucket and pre_insert
@@ -954,6 +970,16 @@ public:
 				   std::pair<size_t, bool> >::type
 	{
 		const HashTp h = HashTp(HashEqual::hash(key));
+		return lazy_insert_elem_with_hash_i<ConsElem, PreInsert>
+								(key, h, cons_elem, pre_insert);
+	}
+	template<class ConsElem, class PreInsert>
+	auto lazy_insert_elem_with_hash_i(key_param_pass_t key, HashTp h,
+									  ConsElem cons_elem,
+									  PreInsert pre_insert) -> typename
+	std::enable_if<std::is_same<decltype(pre_insert(this)), void>::value,
+				   std::pair<size_t, bool> >::type
+	{
 		const size_t old_nBucket = nBucket;
 		size_t i = size_t(h % old_nBucket);
 		// this func is a copy-paste except old_nBucket and pre_insert
@@ -1071,6 +1097,10 @@ public:
 
 	size_t find_i(key_param_pass_t key) const {
 		const HashTp h = HashTp(HashEqual::hash(key));
+		return find_with_hash_i(key, h);
+	}
+	size_t find_with_hash_i(key_param_pass_t key, HashTp h) const {
+		TERARK_ASSERT_EQ(HashEqual::hash(key), h);
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
@@ -1083,6 +1113,10 @@ public:
 	template<class CompatibleKey>
 	size_t find_i(const CompatibleKey& key) const {
 		const HashTp h = HashTp(HashEqual::hash(key));
+		return find_with_hash_i(key, h);
+	}
+	template<class CompatibleKey>
+	size_t find_with_hash_i(const CompatibleKey& key, HashTp h) const {
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
@@ -1197,6 +1231,9 @@ public:
 	// and delmark is not set, users should call risk_slot_free(slot) later.
 	void risk_unlink(size_t idx) {
 		const HashTp h = hash_i(idx);
+		risk_unlink_with_hash_i(idx, h);
+	}
+	void risk_unlink_with_hash_i(size_t idx, HashTp h) {
 		const size_t bucket_idx = h % nBucket;
 		TERARK_ASSERT_GE(nElem, 1);
 		TERARK_ASSERT_LT(idx, nElem);
@@ -1211,11 +1248,20 @@ public:
 		*curp = m_nl.link(idx); // delete the idx'th node from collision list
 	}
 
+public:
 	void erase_i(const size_t idx) {
 		TERARK_ASSERT_GE(nElem, 1);
 		TERARK_ASSERT_LT(idx, nElem);
 		TERARK_ASSERT_NE(delmark, m_nl.link(idx));
 		risk_unlink(idx);
+		fast_slot_free(idx);
+	}
+	void erase_with_hash_i(const size_t idx, HashTp h) {
+		TERARK_ASSERT_GE(nElem, 1);
+		TERARK_ASSERT_LT(idx, nElem);
+		TERARK_ASSERT_NE(delmark, m_nl.link(idx));
+		TERARK_ASSERT_EQ(hash_i(idx), h);
+		risk_unlink_with_hash_i(idx, h);
 		fast_slot_free(idx);
 	}
 
@@ -1507,11 +1553,45 @@ public:
 		  #endif
 		});
 	}
+	template<class ConsValue>
+	std::pair<size_t, bool>
+	lazy_insert_with_hash_i(key_param_pass_t key, HashTp h,
+							const ConsValue& cons) {
+		return this->template lazy_insert_elem_with_hash_i(key, h,
+		[&](std::pair<Key, Value>* kv_mem) {
+		  #if 0
+			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
+		  #else
+			new(&kv_mem->first) Key(key);
+			cons(&kv_mem->second); // if cons fail, key will be leaked
+			// but lazy_insert_elem_i have no basic guarantee on cons fail,
+			// use ConsHelper have no help to exception safe, so we do not
+			// use ConsHelper for simplicity.
+		  #endif
+		});
+	}
 	template<class ConsValue, class PreInsert>
 	std::pair<size_t, bool>
 	lazy_insert_i(key_param_pass_t key, const ConsValue& cons,
 				  PreInsert pre_insert) {
 		return this->lazy_insert_elem_i(key, [&](std::pair<Key, Value>* kv_mem) {
+		  #if 0
+			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
+		  #else
+			new(&kv_mem->first) Key(key);
+			cons(&kv_mem->second); // if cons fail, key will be leaked
+			// but lazy_insert_elem_i have no basic guarantee on cons fail,
+			// use ConsHelper have no help to exception safe, so we do not
+			// use ConsHelper for simplicity.
+		  #endif
+		}, pre_insert); // copy-paste except this line
+	}
+	template<class ConsValue, class PreInsert>
+	std::pair<size_t, bool>
+	lazy_insert_with_hash_i(key_param_pass_t key, HashTp h,
+							const ConsValue& cons, PreInsert pre_insert) {
+		return this->lazy_insert_elem_with_hash_i(key, h,
+		[&](std::pair<Key, Value>* kv_mem) {
 		  #if 0
 			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
 		  #else
