@@ -792,6 +792,11 @@ private:
 	void enable_auto_gc(bool enable = true) { m_enable_auto_gc = enable; }
 	bool is_auto_gc_enabled() const { return m_enable_auto_gc; }
 
+	// behave like hash_strmap
+	void enable_auto_compact(bool enable = true) { enable_auto_gc(enable); }
+	void disable_auto_compact() { enable_auto_compact(false); }
+	bool is_auto_compact() const { return m_enable_auto_gc; }
+
 public:
 	//@{
 	//@brief erase_if
