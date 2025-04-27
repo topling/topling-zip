@@ -273,7 +273,7 @@ protected:
 			fastlist = NULL;
 		}
 
-		load_factor = byte_t(256.0 * 0.3);
+		load_factor = byte_t(256.0 * 0.618);
 		m_flag_byte = 0;
 		m_auto_compact = !WithFreeList;
 		sort_flag = en_unsorted;
