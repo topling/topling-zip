@@ -160,13 +160,15 @@ private:
 			assert(&tail == pb);
 			return;
 		}
+	  #if !defined(NDEBUG)
 		{ // set delmark
 			LinkTp i = freelist_head;
 			while (i < delmark) {
-				nl.link(i) = delmark;
+				TERARK_ASSERT_EQ(nl.link(i), delmark);
 				i = reinterpret_cast<LinkTp&>(nl.data(i));
 			}
 		}
+	  #endif
 	  #if defined(HSM_ENABLE_HASH_CACHE)
 		// nothing
 	  #else
