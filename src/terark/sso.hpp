@@ -26,9 +26,14 @@ struct UninitializedFillN {
   const T src;
 };
 
-template <size_t SizeSSO, bool WithEOS = true>
-class minimal_sso {
-  static_assert(SizeSSO >= 32 && SizeSSO % 8 == 0 && SizeSSO <= 248);
+// 1. priority of alignas is higer than #pragma pack
+// 2. alignas without #pragma pack does not effect sizeof
+// 3. with both the two, alignas(4) will reduce object size, thus:
+//    sizeof(minimal_sso<36, 0|1, 4>) == 36
+#pragma pack(push, 1)
+template <size_t SizeSSO, bool WithEOS = true, size_t Align = sizeof(size_t)>
+class alignas(Align) minimal_sso {
+  static_assert(SizeSSO >= 32 && SizeSSO % Align == 0 && SizeSSO <= 256 - Align);
   struct Local {
     char   m_space[SizeSSO - 1];
     byte_t m_unused_len;
@@ -587,6 +592,7 @@ public:
   TERARK_MINIMAL_SSO_CMP_OPERATOR(>)
   TERARK_MINIMAL_SSO_CMP_OPERATOR(>=)
 };
+#pragma pack(pop)
 
 } // namespace terark
 
