@@ -168,6 +168,12 @@ else ifeq (${WITH_BMI2},0)
   CPU += -mno-bmi -mno-bmi2
 endif
 
+ifeq ($(shell ${CXX} -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
+  # -ljemalloc should be the first
+  LIBS := -ljemalloc ${LIBS}
+else
+  DEFS += -DTOPLING_DISABLE_JEMALLOC
+endif
 ifneq (${WITH_TBB},)
   COMMON_C_FLAGS += -DTERARK_WITH_TBB=${WITH_TBB}
   LIBS += -ltbb

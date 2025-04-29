@@ -40,12 +40,14 @@ namespace terark {
 ///  2. std::vector, ... are memmove-able, they could be the T, I'm not 100% sure,
 ///     since the g++-5.3's std::string has trapped me once
 template<class T>
-class valvec {
+class valvec : PreferAlignAlloc<T> {
 protected:
+    using PreferAlignAlloc<T>::pa_malloc;
+    using PreferAlignAlloc<T>::pa_realloc;
     struct AutoMemory { // for exception-safe
         T* p;
         explicit AutoMemory(size_t n) {
-            p = (T*)malloc(sizeof(T) * n);
+            p = (T*)valvec::pa_malloc(sizeof(T) * n);
             if (NULL == p) TERARK_DIE("malloc(%zd)", sizeof(T) * n);
         }
         ~AutoMemory() { if (p) free(p); }
@@ -165,7 +167,7 @@ public:
         p = NULL;
         n = c = 0;
         if (sz) {
-            p = (T*)malloc(sizeof(T) * sz);
+            p = (T*)pa_malloc(sizeof(T) * sz);
             if (NULL == p) {
                 TERARK_DIE("malloc(%zd)", sizeof(T) * sz);
             }
@@ -178,9 +180,9 @@ public:
         p = NULL;
         n = c = 0;
         if (sz) {
-            p = (T*)malloc(sizeof(T) * sz);
+            p = (T*)pa_malloc(sizeof(T) * sz);
             if (NULL == p) {
-                TERARK_DIE("realloc(%zd)", sizeof(T) * sz);
+                TERARK_DIE("malloc(%zd)", sizeof(T) * sz);
             }
             c = sz;
         }
@@ -361,7 +363,7 @@ private:
     void reserve_slow(size_t newcap) {
         assert(newcap > c);
         TERARK_VERIFY_LE(n, c);
-        T* q = (T*)realloc(p, sizeof(T) * newcap);
+        T* q = (T*)pa_realloc(p, sizeof(T) * newcap);
         if (NULL == q) TERARK_DIE("realloc(%zd)", sizeof(T) * newcap);
         p = q;
         c = newcap;
@@ -412,7 +414,7 @@ private:
             }
         }
 #endif
-        T* q = (T*)realloc(p, sizeof(T) * new_cap);
+        T* q = (T*)pa_realloc(p, sizeof(T) * new_cap);
         if (NULL == q) TERARK_DIE("realloc(%zd)", sizeof(T) * new_cap);
         p = q;
         c = new_cap;
@@ -437,7 +439,7 @@ private:
         }
         size_t cur_cap = max_cap;
         for (;;) {
-            T* q = (T*)realloc(p, sizeof(T) * cur_cap);
+            T* q = (T*)pa_realloc(p, sizeof(T) * cur_cap);
             if (q) {
                 p = q;
                 c = cur_cap;
@@ -486,7 +488,7 @@ public:
         if (n == c)
             return;
         if (n) {
-            if (T* q = (T*)realloc(p, sizeof(T) * n)) {
+            if (T* q = (T*)pa_realloc(p, sizeof(T) * n)) {
                 p = q;
                 c = n;
             }
@@ -525,7 +527,7 @@ public:
         // malloc new and free old even if n==c
         // because this may trigger the memory compaction
         // of the malloc implementation and reduce memory fragment
-        if (T* q = (T*)malloc(sizeof(T) * n)) {
+        if (T* q = (T*)pa_malloc(sizeof(T) * n)) {
             memcpy(q, p, sizeof(T) * n);
             free(p);
             c = n;

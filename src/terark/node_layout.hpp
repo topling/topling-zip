@@ -23,6 +23,8 @@
 #include <boost/swap.hpp>
 #include <initializer_list>
 
+#include <terark/util/function.hpp>
+
 #if defined(__GNUC__) || defined(__INTEL_COMPILER) || defined(__clang__)
 	#define HSM_FORCE_INLINE __attribute__((always_inline))
 #elif defined(_MSC_VER)
@@ -339,7 +341,8 @@ struct node_layout<Data, Link, FastCopy, ValueInline>
 		typedef ValueInline::Node<Data, Link> Node;
 		assert(old_size < new_capacity);
 		TERARK_UNUSED_VAR(old_size);
-		Node* pn = (Node*)realloc(this->aNode, sizeof(Node)*new_capacity);
+		using M = PreferAlignAlloc<Node>;
+		Node* pn = (Node*)M::pa_realloc(this->aNode, sizeof(Node)*new_capacity);
 		if (NULL == pn) throw std::bad_alloc();
 		this->aNode = pn;
 	}
@@ -358,7 +361,8 @@ struct node_layout<Data, Link, FastCopy, ValueOut>
 	void reserve(size_t old_size, size_t new_capacity) {
 		assert(old_size < new_capacity);
 		TERARK_UNUSED_VAR(old_size);
-		Data* d = (Data*)realloc(this->aData, sizeof(Data)*new_capacity);
+		using M = PreferAlignAlloc<Data>;
+		Data* d = (Data*)M::pa_realloc(this->aData, sizeof(Data)*new_capacity);
 		if (NULL == d) throw std::bad_alloc();
 		this->aData = d;
 		Link* l = (Link*)realloc(this->aLink, sizeof(Link)*new_capacity);
@@ -382,7 +386,8 @@ struct node_layout<Data, Link, SafeCopy, ValueInline>
 {
 	void reserve(size_t old_size, size_t new_capacity) {
 		assert(old_size < new_capacity);
-		Node* pn = (Node*)malloc(sizeof(Node)*new_capacity);
+		using M = PreferAlignAlloc<Node>;
+		Node* pn = (Node*)M::pa_malloc(sizeof(Node)*new_capacity);
 		if (NULL == pn) throw std::bad_alloc();
 		Node* p0 = this->aNode;
 		for (size_t i = 0; i < old_size; ++i) { // nothrow
@@ -395,7 +400,8 @@ struct node_layout<Data, Link, SafeCopy, ValueInline>
 	template<class IsNotFree>
 	void reserve(size_t old_size, size_t new_capacity, IsNotFree is_not_free) {
 		assert(old_size < new_capacity);
-		Node* pn = (Node*)malloc(sizeof(Node)*new_capacity);
+		using M = PreferAlignAlloc<Node>;
+		Node* pn = (Node*)M::pa_malloc(sizeof(Node)*new_capacity);
 		if (NULL == pn) throw std::bad_alloc();
 		Node* p0 = this->aNode;
 		size_t const salt_size = std::min(sizeof(Data), sizeof(Link));
@@ -423,7 +429,8 @@ struct node_layout<Data, Link, SafeCopy, ValueOut>
 		Link* l = (Link*)realloc(this->aLink, sizeof(Link)*new_capacity);
 		if (NULL == l) throw std::bad_alloc();
 		this->aLink = l;
-		Data* d = (Data*)malloc(sizeof(Data)*new_capacity);
+		using M = PreferAlignAlloc<Data>;
+		Data* d = (Data*)M::pa_malloc(sizeof(Data)*new_capacity);
 		if (NULL == d) throw std::bad_alloc();
 		Data* d0 = this->aData;
 		for (size_t i = 0; i < old_size; ++i) { // nothrow
@@ -439,7 +446,8 @@ struct node_layout<Data, Link, SafeCopy, ValueOut>
 		Link* l = (Link*)realloc(this->aLink, sizeof(Link)*new_capacity);
 		if (NULL == l) throw std::bad_alloc();
 		this->aLink = l;
-		Data* d = (Data*)malloc(sizeof(Data)*new_capacity);
+		using M = PreferAlignAlloc<Data>;
+		Data* d = (Data*)M::pa_malloc(sizeof(Data)*new_capacity);
 		if (NULL == d) throw std::bad_alloc();
 		Data* d0 = this->aData;
 		size_t const salt_size = std::min(sizeof(Data), sizeof(Link));

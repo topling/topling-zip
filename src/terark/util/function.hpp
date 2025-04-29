@@ -17,6 +17,17 @@
 #include <boost/type_traits.hpp>
 #include <boost/utility.hpp>
 
+#if defined(TOPLING_DISABLE_JEMALLOC)
+    #define TOPLING_USE_JEMALLOC 0
+#else
+    #if __has_include(<jemalloc/jemalloc.h>)
+            #include <jemalloc/jemalloc.h>
+            #define TOPLING_USE_JEMALLOC 1
+    #else
+            #define TOPLING_USE_JEMALLOC 0
+    #endif
+#endif
+
 #if defined(TERARK_HAS_WEAK_SYMBOL) && 0
   #define TERARK_VALVEC_HAS_WEAK_SYMBOL 1
 #endif
@@ -50,6 +61,52 @@ namespace terark {
 	using std::reference_wrapper;
 	using std::remove_reference;
 #endif
+
+    template<size_t N, int shift> struct StaticAlignSizeHelper {
+        static_assert(N != 0);
+        static const int next_shift = N & (size_t(1) << shift) ? -1 : shift + 1;
+        static constexpr size_t
+        value = N & (size_t(1) << shift)
+              ?     (size_t(1) << shift)
+              : StaticAlignSizeHelper<N, next_shift>::value;
+    };
+    template<size_t N> struct StaticAlignSizeHelper<N, -1> {
+        static constexpr size_t value = 0;
+    };
+    template<size_t N> struct StaticAlignSize {
+        static constexpr size_t value = StaticAlignSizeHelper<N, 0>::value;
+        static_assert(value >= 1);
+        static_assert(value <= N);
+        static_assert((value & (value - 1)) == 0);
+    };
+    template<> struct StaticAlignSize<0> {};
+
+    template<class T>
+    struct PreferAlignAlloc {
+        static constexpr size_t NatureAlign = StaticAlignSize<sizeof(T)>::value;
+        static void* pa_malloc(size_t bytes) {
+           #if TOPLING_USE_JEMALLOC
+            if (NatureAlign > 16) {
+                return mallocx(bytes, MALLOCX_ALIGN(NatureAlign));
+            }
+           #endif
+            return malloc(bytes);
+        }
+        static void* pa_realloc(void* ptr, size_t bytes) {
+           #if TOPLING_USE_JEMALLOC
+            if (NatureAlign > 16) {
+                if (bytes) // jemalloc doc says bytes==0 is ub
+                    if (ptr) // ptr can not be null but the doc did not say
+                        return rallocx(ptr, bytes, MALLOCX_ALIGN(NatureAlign));
+                    else
+                        return mallocx(bytes, MALLOCX_ALIGN(NatureAlign));
+                else
+                    return nullptr;
+            }
+           #endif
+            return ::realloc(ptr, bytes);
+        }
+    };
 
     class TERARK_DLL_EXPORT CacheAlignedNewDelete {
     public:

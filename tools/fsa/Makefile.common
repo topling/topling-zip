@@ -37,6 +37,12 @@ override CXXFLAGS += -Wno-unused-parameter
 override CXXFLAGS += -D_GNU_SOURCE
 #override CXXFLAGS += -Wno-unused-variable
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
+ifeq ($(shell ${CXX} -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
+  # -ljemalloc should be the first
+  override LIBS := -ljemalloc ${LIBS}
+else
+  override CXXFLAGS += -DTOPLING_DISABLE_JEMALLOC
+endif
 
 #override CXXFLAGS += -Wfatal-errors
 #DBG_ASAN ?= -fsanitize=address
