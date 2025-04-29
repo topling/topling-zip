@@ -108,6 +108,10 @@ public:
 		*m_os << x;
 		return std::move(*this);
 	}
+	// usage:
+	//   EmptyClass ends;
+	//   auto str = string_appender<>() ^ "value = %d" ^ value ^ ends;
+	std::string operator^(EmptyClass) && { return std::move(m_os->str()); }
 };
 
 template<class String = std::string>
