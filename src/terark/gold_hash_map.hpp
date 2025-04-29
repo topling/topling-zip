@@ -1117,6 +1117,7 @@ public:
 	}
 	template<class CompatibleKey>
 	size_t find_with_hash_i(const CompatibleKey& key, HashTp h) const {
+		TERARK_ASSERT_EQ(HashEqual::hash(key), h);
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
