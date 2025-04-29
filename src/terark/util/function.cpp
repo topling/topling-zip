@@ -44,6 +44,9 @@ static_assert((CACHE_LINE_SIZE & (CACHE_LINE_SIZE - 1)) == 0,
 void* CacheAlignedNewDelete::operator new(size_t size) {
 #if defined(_MSC_VER)
   return _aligned_malloc(size, CACHE_LINE_SIZE);
+#elif TOPLING_USE_JEMALLOC
+  // a bit faster than posix_memalign
+  return mallocx(size, MALLOCX_ALIGN(CACHE_LINE_SIZE));
 #else
   void* p = nullptr;
   if (posix_memalign(&p, CACHE_LINE_SIZE, size)) {
