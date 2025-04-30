@@ -1698,6 +1698,54 @@ public:
 	  #endif
 		return std::make_pair(slot, true);
 	}
+	template<class ConsValue>
+	size_t	hint_insert_with_hash_i(fstring key, HashTp h, size_t hint,
+									ConsValue cons_value) {
+		TERARK_ASSERT_GE(key.n, 0);
+		TERARK_ASSERT_EQ(hash(key), h);
+		TERARK_ASSERT_EQ(h % nBucket, hint); // hint is bucket pos
+		size_t n = nNodes; // compiler is easier to track local var
+		size_t i = hint; // hint is bucket pos
+	  #if !defined(NDEBUG)
+		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
+			TERARK_ASSERT_LT(p, n);
+			const Node* y = &pNodes[p];
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
+		// doesn't need to compare cached hash value, it almost always true
+			size_t ybeg = LOAD_OFFSET(y[0].offset);
+			size_t yend = LOAD_OFFSET(y[1].offset);
+			size_t ylen = yend - ybeg - extralen(yend);
+			assert(!equal(key, fstring(strpool + ybeg, ylen)));
+		}
+	  #endif
+		if (terark_unlikely(n >= maxload)) {
+			i = h % rehash(nBucket + 1);
+		}
+		TERARK_ASSERT_LE(n, maxNodes);
+		size_t real_len = fstring_func::align_to(key.n+1);
+		size_t slot = alloc_slot(real_len);
+		size_t xbeg = LOAD_OFFSET(pNodes[slot+0].offset);
+		size_t xend = LOAD_OFFSET(pNodes[slot+1].offset);
+		TERARK_ASSERT_EQ(xend - xbeg, real_len);
+		TERARK_ASSERT_LT(slot, nNodes);
+		((align_type*)(strpool + xend))[-1] = 0; // pad 0
+		strpool[xend-1] = (char)(real_len - key.n - 1); // extra-1
+		memcpy(strpool + xbeg, key.p, key.n);
+		cons_value(&nth_value(slot)); // must success
+		pNodes[slot].link = bucket[i]; // newer at head
+		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
+		if (intptr_t(pHash) != hash_cache_disabled) {
+			TERARK_ASSERT_NE(NULL, pHash);
+			pHash[slot] = h;
+		}
+	  #endif
+	  #if !defined(NDEBUG)
+		sort_flag = en_unsorted;
+	  #endif
+		return slot;
+	}
 	template<class ConsValue, class PreInsert>
 	auto lazy_insert_i(fstring key, ConsValue cons_value, PreInsert pre_insert)
 	-> typename // pre_insert is not void and it is convertable to bool
@@ -1860,6 +1908,27 @@ public:
 				return p;
 		}
 		return n; // not found
+	}
+
+	std::pair<size_t, size_t> // {index, bucket_pos}
+	find_hint_with_hash_i(fstring key, HashTp h) const {
+		TERARK_ASSERT_GE(key.n, 0);
+		TERARK_ASSERT_EQ(hash(key), h);
+		size_t n = nNodes; // compiler is easier to track local var
+		size_t i = size_t(h % nBucket);
+		for (LinkTp p = bucket[i]; tail != p; p = pNodes[p].link) {
+			TERARK_ASSERT_LT(p, n);
+			const Node* y = &pNodes[p];
+			TERARK_ASSERT_LT(y[0].offset, y[1].offset);
+			TERARK_ASSERT_LE(y[1].offset, maxpool);
+		// doesn't need to compare cached hash value, it almost always true
+			size_t ybeg = LOAD_OFFSET(y[0].offset);
+			size_t yend = LOAD_OFFSET(y[1].offset);
+			size_t ylen = yend - ybeg - extralen(yend);
+			if (equal(key, fstring(strpool + ybeg, ylen)))
+				return {size_t(p), i};
+		}
+		return {n, i}; // not found
 	}
 
 	size_t count(const fstring key) const {

@@ -916,6 +916,33 @@ public:
 		is_sorted = false;
 		return std::make_pair(slot, true);
 	}
+	template<class ConsElem>
+	size_t hint_insert_elem_with_hash_i(key_param_pass_t key, HashTp h,
+										size_t hint, ConsElem cons_elem) {
+		TERARK_ASSERT_EQ(HashEqual::hash(key), h);
+		TERARK_ASSERT_EQ(h % nBucket, hint); // hint is bucket pos
+		size_t i = hint;
+	  #if !defined(NDEBUG)
+		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
+			TERARK_ASSERT_LT(p, nElem);
+			assert(!HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))));
+		}
+	  #endif
+		if (terark_unlikely(nElem - freelist_size >= maxload)) {
+			// rehash will auto find next prime bucket size
+			i = h % rehash(nBucket + 1);
+		}
+		size_t slot = risk_slot_alloc(); // here, no risk
+		cons_elem(&m_nl.data(slot)); // must success
+		m_nl.link(slot) = bucket[i]; // newer at head
+		bucket[i] = LinkTp(slot); // new head of i'th bucket
+	  #if defined(HSM_ENABLE_HASH_CACHE)
+		if (intptr_t(pHash) != hash_cache_disabled)
+			pHash[slot] = h;
+	  #endif
+		is_sorted = false;
+		return slot;
+	}
 	template<class ConsElem, class PreInsert>
 	auto lazy_insert_elem_i(key_param_pass_t key, ConsElem cons_elem,
 					        PreInsert pre_insert) -> typename
@@ -1109,6 +1136,17 @@ public:
 		}
 		return nElem; // not found
 	}
+	std::pair<size_t, size_t> // {index, bucket_pos}
+	find_hint_with_hash_i(key_param_pass_t key, HashTp h) const {
+		TERARK_ASSERT_EQ(HashEqual::hash(key), h);
+		const size_t i = h % nBucket;
+		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
+				return {size_t(p), i};
+		}
+		return {size_t(nElem), i}; // not found
+	}
 
 	template<class CompatibleKey>
 	size_t find_i(const CompatibleKey& key) const {
@@ -1125,6 +1163,18 @@ public:
 				return p;
 		}
 		return nElem; // not found
+	}
+	template<class CompatibleKey>
+	std::pair<size_t, size_t> // {index, bucket_pos}
+	find_hint_with_hash_i(const CompatibleKey& key, HashTp h) const {
+		TERARK_ASSERT_EQ(HashEqual::hash(key), h);
+		const size_t i = h % nBucket;
+		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
+			TERARK_ASSERT_LT(p, nElem);
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
+				return {size_t(p), i};
+		}
+		return {size_t(nElem), i}; // not found
 	}
 
 	// return erased element count
@@ -1543,6 +1593,22 @@ public:
 	std::pair<size_t, bool>
 	lazy_insert_i(key_param_pass_t key, const ConsValue& cons) {
 		return this->lazy_insert_elem_i(key, [&](std::pair<Key, Value>* kv_mem) {
+		  #if 0
+			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
+		  #else
+			new(&kv_mem->first) Key(key);
+			cons(&kv_mem->second); // if cons fail, key will be leaked
+			// but lazy_insert_elem_i have no basic guarantee on cons fail,
+			// use ConsHelper have no help to exception safe, so we do not
+			// use ConsHelper for simplicity.
+		  #endif
+		});
+	}
+	template<class ConsValue>
+	size_t	hint_insert_with_hash_i(key_param_pass_t key, HashTp h,
+									size_t hint, const ConsValue& cons) {
+		return this->template hint_insert_elem_with_hash_i(key, h, hint,
+		[&](std::pair<Key, Value>* kv_mem) {
 		  #if 0
 			new(kv_mem) ConsHelper<ConsValue>(key, cons_value);
 		  #else
