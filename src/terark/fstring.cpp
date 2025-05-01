@@ -403,7 +403,16 @@ void string_resize_no_touch_memory(std::string* bank, size_t sz) {
 }
 #else
 void string_resize_no_touch_memory(std::string* bank, size_t sz) {
+  #if defined(_MSC_VER) && _MSC_VER >= 1938
+    #if !_HAS_CXX23
+	  #define resize_and_overwrite _Resize_and_overwrite
+    #endif
+	bank->resize_and_overwrite(sz, [](const char*, size_t n) { return n; });
+  #elif defined(__cpp_lib_string_resize_and_overwrite)
+	bank->resize_and_overwrite(sz, [](const char*, size_t n) { return n; });
+  #else
 	bank->resize(sz); // touch memory
+  #endif
 }
 #endif
 
