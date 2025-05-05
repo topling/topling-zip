@@ -7,6 +7,7 @@
 	#include <functional>
 #endif
 #include <type_traits>
+#include <memory>
 
 #include <terark/preproc.hpp>
 #include <terark/stdtypes.hpp>
@@ -115,6 +116,81 @@ namespace terark {
         void operator delete(void* p, size_t);
         void operator delete(void*, void*) { abort(); } // suppress warn
     };
+
+#if defined(__GLIBCXX__)
+    template<class T>
+    class narrow_shared_ptr {
+      T* m_ptr;
+    public:
+      narrow_shared_ptr() : m_ptr(nullptr) {}
+      narrow_shared_ptr(std::nullptr_t) : m_ptr(nullptr) {}
+      explicit narrow_shared_ptr(T* p) {
+        // must enable_shared_from_this
+        static_assert(sizeof(m_ptr->shared_from_this()) == 2 * sizeof(void*));
+        if (p) {
+          auto* rc = reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(p) + 1)[0];
+          rc->_M_add_ref_lock();
+        }
+        m_ptr = p;
+      }
+      ~narrow_shared_ptr() {
+        if (m_ptr) {
+          auto* rc = reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(m_ptr) + 1)[0];
+          rc->_M_release();
+        }
+      }
+      narrow_shared_ptr(const std::shared_ptr<T>& y) : narrow_shared_ptr(y.get()) {
+        // must enable_shared_from_this
+        static_assert(sizeof(m_ptr->shared_from_this()) == 2 * sizeof(void*));
+      }
+      narrow_shared_ptr(std::shared_ptr<T>&& y) {
+        m_ptr = y.get(); // take ownership without touch ref count
+        new(&y)std::shared_ptr<T>(); // re-init y to null
+      }
+      narrow_shared_ptr(const narrow_shared_ptr& y) : narrow_shared_ptr(y.m_ptr) {}
+      narrow_shared_ptr(narrow_shared_ptr&& y) : m_ptr(y.m_ptr) { y.m_ptr = nullptr; }
+      narrow_shared_ptr& operator=(std::nullptr_t) {
+        this->~narrow_shared_ptr();
+        m_ptr = nullptr;
+        return *this;
+      }
+      narrow_shared_ptr& operator=(const std::shared_ptr<T>& y) {
+        narrow_shared_ptr(y.get()).swap(*this);
+        return *this;
+      }
+      narrow_shared_ptr& operator=(std::shared_ptr<T>&& y) {
+        this->~narrow_shared_ptr();
+        m_ptr = y.get(); // take ownership without touch ref count
+        new(&y)std::shared_ptr<T>(); // re-init y to null
+        return *this;
+      }
+      narrow_shared_ptr& operator=(const narrow_shared_ptr& y) {
+        narrow_shared_ptr(y.m_ptr).swap(*this);
+        return *this;
+      }
+      narrow_shared_ptr& operator=(narrow_shared_ptr&& y) {
+        if (this != &y) {
+          this->~narrow_shared_ptr();
+          m_ptr = y.m_ptr;
+          y.m_ptr = nullptr;
+        }
+        return *this;
+      }
+      void reset(T* p) { narrow_shared_ptr(p).swap(*this); }
+      void swap(narrow_shared_ptr& y) { std::swap(m_ptr, y.m_ptr); }
+      bool operator==(const narrow_shared_ptr& y) const { return m_ptr == y.m_ptr; }
+      bool operator!=(const narrow_shared_ptr& y) const { return m_ptr != y.m_ptr; }
+      bool operator!() const { return !m_ptr; }
+      explicit operator bool() const { return m_ptr != nullptr; }
+      T* get() const { return m_ptr; }
+      T* operator->() const { return m_ptr; }
+      T& operator*() const { return *m_ptr; }
+      operator std::shared_ptr<T>() const { return m_ptr->shared_from_this(); }
+    };
+#else
+    template<class T>
+    using narrow_shared_ptr = std::shared_ptr<T>;
+#endif
 
     enum class MemType : unsigned char {
         Malloc,
