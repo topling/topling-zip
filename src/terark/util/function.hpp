@@ -192,11 +192,7 @@ namespace terark {
         return *this;
       }
       narrow_shared_ptr& operator=(narrow_shared_ptr&& y) {
-        if (this != &y) {
-          this->~narrow_shared_ptr();
-          m_ptr = y.m_ptr;
-          y.m_ptr = nullptr;
-        }
+        narrow_shared_ptr(std::move(y)).swap(*this);
         return *this;
       }
       void reset(T* p) { narrow_shared_ptr(p).swap(*this); }
