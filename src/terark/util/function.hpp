@@ -117,6 +117,11 @@ namespace terark {
         void operator delete(void*, void*) { abort(); } // suppress warn
     };
 
+    template<class T>
+    inline
+    std::enable_shared_from_this<T>* // for multi inheritance
+    base_enable_shared_from_this(std::enable_shared_from_this<T>* p) { return p; }
+
 #if defined(__GLIBCXX__) || defined(_MSC_VER)
     template<class T>
     class narrow_shared_ptr {
@@ -128,11 +133,12 @@ namespace terark {
         // must enable_shared_from_this
         static_assert(sizeof(m_ptr->shared_from_this()) == 2 * sizeof(void*));
         if (p) {
+          auto base = base_enable_shared_from_this(p); // for multi inheritance
          #if defined(__GLIBCXX__)
-          auto* rc = reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(p) + 1)[0];
+          auto rc = *reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(base) + 1);
           rc->_M_add_ref_lock();
          #elif defined(_MSC_VER)
-          auto* rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(p) + 1);
+          auto rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(base) + 1);
           if (!rc->_Incref_nz()) {
             std::_Throw_bad_weak_ptr();
           }
@@ -144,11 +150,12 @@ namespace terark {
       }
       ~narrow_shared_ptr() {
         if (m_ptr) {
+          auto base = base_enable_shared_from_this(m_ptr); // for multi inheritance
          #if defined(__GLIBCXX__)
-          auto* rc = reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(m_ptr) + 1)[0];
+          auto rc = *reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(base) + 1);
           rc->_M_release();
          #elif defined(_MSC_VER)
-          auto* rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(m_ptr) + 1);
+          auto rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(base) + 1);
           rc->_Decref();
          #else
           #error "TODO"
