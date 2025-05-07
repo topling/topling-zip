@@ -1,6 +1,7 @@
 ﻿/* vim: set tabstop=4 : */
 #pragma once
 
+#include <atomic>
 #ifdef TERARK_FUNCTION_USE_BOOST
 	#include <boost/function.hpp>
 #else
@@ -11,6 +12,7 @@
 
 #include <terark/preproc.hpp>
 #include <terark/stdtypes.hpp>
+#include <boost/intrusive_ptr.hpp>
 #include <boost/mpl/bool.hpp>
 #include <boost/mpl/if.hpp>
 #include <boost/noncopyable.hpp>
@@ -210,6 +212,56 @@ namespace terark {
     template<class T>
     using narrow_shared_ptr = std::shared_ptr<T>;
 #endif
+
+    template<class FunctionProtoType> class shared_function_base;
+    template<class Ret, class...Args> class shared_function_base<Ret(Args...)> {
+        std::atomic<intptr_t> ref_count{0};
+        friend void intrusive_ptr_add_ref(shared_function_base* p) {
+            assert(p != nullptr); TERARK_ASSERT_GE(p->ref_count, 0);
+            p->ref_count.fetch_add(1, std::memory_order_relaxed);
+        }
+        friend void intrusive_ptr_release(shared_function_base* p) {
+            assert(p != nullptr); TERARK_ASSERT_GT(p->ref_count, 0);
+            if (p->ref_count.fetch_sub(1, std::memory_order_relaxed) == 1)
+                p->del(p);
+        }
+    public:
+        void (*del)(shared_function_base*);
+        Ret (*invoke)(shared_function_base*, Args... args);
+    };
+    template<class FunctionProtoType> class shared_function;
+    // only occupy 1 ptr, but always alloc on heap if not null
+    template<class Ret, class... Args>  // for null function is normal case,
+    class shared_function<Ret(Args...)> // otherwise should use std::function
+          :   public   boost::intrusive_ptr<shared_function_base<Ret(Args...)> > {
+        using base_t = boost::intrusive_ptr<shared_function_base<Ret(Args...)> >;
+        template<class Lambda>
+        class Impl : public shared_function_base<Ret(Args...)> {
+            Lambda fn;
+            static Ret do_invoke(shared_function_base<Ret(Args...)>* p, Args... args)
+              { return static_cast<Impl*>(p)->fn(std::forward<Args>(args)...); }
+            static void do_delete(shared_function_base<Ret(Args...)>* p)
+              { delete static_cast<Impl*>(p); }
+        public:
+            Impl(Lambda&& f) : fn(std::move(f)) {
+                this->del    = &do_delete;
+                this->invoke = &do_invoke;
+            }
+        };
+    public:
+        using base_t::base_t;
+        using base_t::operator=;
+        Ret operator()(Args... args) const {
+            const auto p = this->get();
+            assert(p != nullptr);
+            return p->invoke(p, std::forward<Args>(args)...);
+        }
+        template<class Lambda> shared_function(Lambda&& f) { *this = std::move(f); }
+        template<class Lambda> shared_function& operator=(Lambda&& func) {
+            this->reset(new Impl<Lambda>(std::move(func)));
+            return *this;
+        }
+    };
 
     enum class MemType : unsigned char {
         Malloc,
