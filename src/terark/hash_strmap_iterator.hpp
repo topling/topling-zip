@@ -49,17 +49,20 @@ public:
 		return *this;
 	}
 	ClassIterator& operator--() {
-		assert(index < owner->end_i());
+		assert(index <= owner->end_i());
 		assert(index > 0);
 		index = owner->prev_i(index);
 		return *this;
 	}
 	ClassIterator operator++(int) {
+		assert(index < owner->end_i());
 		size_t oldindex = index;
 		index = owner->next_i(index);
 		return ClassIterator(owner, oldindex);
 	}
 	ClassIterator operator--(int) {
+		assert(index <= owner->end_i());
+		assert(index > 0);
 		size_t oldindex = index;
 		index = owner->prev_i(index);
 		return ClassIterator(owner, oldindex);
