@@ -263,12 +263,12 @@ public:
     size_t mem_alloc3(size_t oldpos, size_t oldsize, size_t newsize);
     void mem_free(size_t loc, size_t size);
     void* mem_get(size_t loc) {
-        assert(loc < total_states());
+        TERARK_ASSERT_LT(loc, total_states());
         auto a = reinterpret_cast<byte_t*>(m_mempool.data());
         return a + loc * AlignSize;
     }
     const void* mem_get(size_t loc) const {
-        assert(loc < total_states());
+        TERARK_ASSERT_LT(loc, total_states());
         auto a = reinterpret_cast<const byte_t*>(m_mempool.data());
         return a + loc * AlignSize;
     }
@@ -320,62 +320,62 @@ public:
 
     bool is_pzip(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         return 0 != a[s].meta.n_zpath_len;
     }
     bool is_term(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         return a[s].meta.b_is_final;
     }
     void set_term_bit(size_t s) {
         auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         a[s].meta.b_is_final = 1;
     }
     void clear_term_bit(size_t s) {
         auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         a[s].meta.b_is_final = 0;
     }
     bool v_has_children(size_t s) const override final {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         return 0 != a[s].meta.n_cnt_type;
     }
     bool has_children(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         return 0 != a[s].meta.n_cnt_type;
     }
     bool more_than_one_child(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         return a[s].meta.n_cnt_type > 1;
     }
     state_id_t get_single_child(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(1 == a[s].meta.n_cnt_type);
         return a[s+1].child;
     }
     auchar_t get_single_child_char(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(1 == a[s].meta.n_cnt_type);
         return a[s].meta.c_label[0];
     }
     size_t v_num_children(size_t s) const override;
     size_t num_children(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(PatriciaNode_IsValid(a[s]));
         if (a[s].meta.n_cnt_type <= 6)
             return a[s].meta.n_cnt_type;
@@ -384,14 +384,14 @@ public:
     }
     state_id_t single_target(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-        assert(s < total_states());
+        TERARK_ASSERT_LT(s, total_states());
         assert(1 == a[s].meta.n_cnt_type);
         return a[s+1].child;
     }
     void compact();
 
     fstring get_zpath_data(size_t state, MatchContext* = NULL) const {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
         auto p = a + state;
         assert(15 != p->meta.n_cnt_type); // 15 never has zpath
@@ -425,8 +425,8 @@ public:
 
     size_t state_move_fast(size_t curr, auchar_t ch, StateMoveContext a)
     const {
-        assert(curr < total_states());
-        assert(ch <= 255);
+        TERARK_ASSERT_LT(curr, total_states());
+        TERARK_ASSERT_LE(ch, 255);
         size_t  cnt_type = a[curr].meta.n_cnt_type;
         switch (cnt_type) {
         default:
@@ -459,8 +459,8 @@ public:
         case 7: // cnt in [ 7, 16 ]
             {
                 size_t n_children = a[curr].big.n_children;
-                assert(n_children >=  7);
-                assert(n_children <= 16);
+                TERARK_ASSERT_GE(n_children,  7);
+                TERARK_ASSERT_LE(n_children, 16);
                 auto label = a[curr].meta.c_label + 2; // do not use [0,1]
 #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
@@ -477,14 +477,14 @@ public:
             }
             break;
         case 8: // cnt >= 17
-            assert(popcount_rs_256(a[curr+1].bytes) == a[curr].big.n_children);
+            TERARK_ASSERT_EQ(popcount_rs_256(a[curr+1].bytes), a[curr].big.n_children);
             if (terark_bit_test(&a[curr+1+1].child, ch)) {
                 size_t idx = fast_search_byte_rs_idx(a[curr+1].bytes, byte_t(ch));
                 return a[curr + 10 + idx].child;
             }
             break;
         case 15:
-            assert(256 == a[curr].big.n_children);
+            TERARK_ASSERT_EQ(256, a[curr].big.n_children);
             return a[curr + 2 + ch].child;
         }
         return nil_state;
@@ -492,7 +492,7 @@ public:
 
     template<class OP>
     void for_each_move(size_t state, OP op) const {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
 #if !defined(NDEBUG)
     #define op(x, c) \
@@ -571,7 +571,7 @@ public:
 
     template<class OP>
     void for_each_dest(size_t state, OP op) const {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
 #define for_each_dest_impl(skip, num) \
         { \
@@ -599,7 +599,7 @@ public:
             for_each_dest_impl(s_skip_slots[cnt_type], a[state].big.n_children);
             break;
         case 15:
-            assert(256 == a[state].big.n_children);
+            TERARK_ASSERT_EQ(256, a[state].big.n_children);
             for (size_t ch = 0; ch < 256; ++ch) {
                 uint32_t child = a[state + 2 + ch].child;
                 if (nil_state != child)
@@ -612,7 +612,7 @@ public:
 
     template<class OP>
     void for_each_dest_rev(size_t state, OP op) const {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
 #define for_each_dest_rev_impl(skip, num) \
         { \
@@ -658,13 +658,13 @@ public:
     //
     /// when using iterator, use this method to get value from state id
     const void* get_valptr(size_t state) const {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
         auto x = get_valpos(a, state);
         return a->bytes + x;
     }
     void* get_valptr(size_t state) {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
         auto x = get_valpos(a, state);
         return a->bytes + x;
@@ -698,7 +698,7 @@ public:
     size_t add_state_move(size_t curr, byte_t ch, size_t suffix_node, size_t valsize, LazyFreeListTLS*);
 
     size_t get_valpos(const PatriciaNode* a, size_t state) const {
-        assert(state < total_states());
+        TERARK_ASSERT_LT(state, total_states());
         size_t cnt_type = a[state].meta.n_cnt_type;
         size_t n_children = cnt_type <= 6 ? cnt_type : a[state].big.n_children;
         size_t skip = s_skip_slots[cnt_type];
