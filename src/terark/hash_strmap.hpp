@@ -1746,6 +1746,13 @@ public:
 	  #endif
 		return slot;
 	}
+	template<class... MoveConsArgs>
+	size_t	hint_emplace_with_hash_i(fstring key, HashTp h,
+									 size_t hint, MoveConsArgs&&... args) {
+		return hint_insert_with_hash_i(key, h, hint, [&](Value* pv) {
+			new(pv) Value(std::forward<MoveConsArgs>(args)...);
+		});
+	}
 	template<class ConsValue, class PreInsert>
 	auto lazy_insert_i(fstring key, ConsValue cons_value, PreInsert pre_insert)
 	-> typename // pre_insert is not void and it is convertable to bool

@@ -1620,6 +1620,15 @@ public:
 		  #endif
 		});
 	}
+	template<class... MoveConsArgs>
+	size_t	hint_emplace_with_hash_i(key_param_pass_t key, HashTp h,
+									 size_t hint, MoveConsArgs&&... args) {
+		return this->template hint_insert_elem_with_hash_i(key, h, hint,
+		[&](std::pair<Key, Value>* kv_mem) {
+			new(&kv_mem->first) Key(key);
+			new(&kv_mem->second) Value(std::forward<MoveConsArgs>(args)...);
+		});
+	}
 	template<class ConsValue>
 	std::pair<size_t, bool>
 	lazy_insert_with_hash_i(key_param_pass_t key, HashTp h,
