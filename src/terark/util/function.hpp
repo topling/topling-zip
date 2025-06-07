@@ -126,43 +126,51 @@ namespace terark {
 
 #if defined(__GLIBCXX__) || defined(_MSC_VER)
     template<class T>
+    void narrow_shared_ptr_add_ref(T* p) {
+        // must enable_shared_from_this
+        static_assert(sizeof(p->shared_from_this()) == 2 * sizeof(void*));
+        assert(p != nullptr);
+        auto base = base_enable_shared_from_this(p); // for multi inheritance
+       #if defined(__GLIBCXX__)
+        auto rc = *reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(base) + 1);
+        rc->_M_add_ref_lock();
+       #elif defined(_MSC_VER)
+        auto rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(base) + 1);
+        if (!rc->_Incref_nz()) {
+          std::_Throw_bad_weak_ptr();
+        }
+       #else
+        #error "TODO"
+       #endif
+    }
+    template<class T>
+    void narrow_shared_ptr_release(T* p) {
+        auto base = base_enable_shared_from_this(p); // for multi inheritance
+       #if defined(__GLIBCXX__)
+        auto rc = *reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(base) + 1);
+        rc->_M_release();
+       #elif defined(_MSC_VER)
+        auto rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(base) + 1);
+        rc->_Decref();
+       #else
+        #error "TODO"
+       #endif
+    }
+
+    template<class T>
     class narrow_shared_ptr {
       T* m_ptr;
     public:
       narrow_shared_ptr() : m_ptr(nullptr) {}
       narrow_shared_ptr(std::nullptr_t) : m_ptr(nullptr) {}
       explicit narrow_shared_ptr(T* p) {
-        // must enable_shared_from_this
-        static_assert(sizeof(m_ptr->shared_from_this()) == 2 * sizeof(void*));
-        if (p) {
-          auto base = base_enable_shared_from_this(p); // for multi inheritance
-         #if defined(__GLIBCXX__)
-          auto rc = *reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(base) + 1);
-          rc->_M_add_ref_lock();
-         #elif defined(_MSC_VER)
-          auto rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(base) + 1);
-          if (!rc->_Incref_nz()) {
-            std::_Throw_bad_weak_ptr();
-          }
-         #else
-          #error "TODO"
-         #endif
-        }
         m_ptr = p;
+        if (p)
+            narrow_shared_ptr_add_ref(p);
       }
       ~narrow_shared_ptr() {
-        if (m_ptr) {
-          auto base = base_enable_shared_from_this(m_ptr); // for multi inheritance
-         #if defined(__GLIBCXX__)
-          auto rc = *reinterpret_cast<std::_Sp_counted_base<std::__default_lock_policy>**>((void**)(base) + 1);
-          rc->_M_release();
-         #elif defined(_MSC_VER)
-          auto rc = *reinterpret_cast<std::_Ref_count_base**>((void**)(base) + 1);
-          rc->_Decref();
-         #else
-          #error "TODO"
-         #endif
-        }
+        if (m_ptr)
+            narrow_shared_ptr_release(m_ptr);
       }
       narrow_shared_ptr(const std::shared_ptr<T>& y) : narrow_shared_ptr(y.get()) {
         // must enable_shared_from_this
