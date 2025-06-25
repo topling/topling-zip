@@ -189,3 +189,11 @@ namespace terark {
 #endif
 
 extern bool g_Terark_hasValgrind;
+
+#ifdef __GNUC__
+#define TOPLING_GCC_PRAGMA(X) _Pragma(#X)
+#define TOPLING_GCC_NOLINT(warn) TOPLING_GCC_PRAGMA(GCC diagnostic ignored #warn)
+#else
+#define TOPLING_GCC_PRAGMA(X)
+#define TOPLING_GCC_NOLINT(warn)
+#endif
