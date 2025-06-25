@@ -231,7 +231,7 @@ ifeq ($(filter install, ${MAKECMDGOALS}),install)
   else
     INSTALL_DIR :=  ${prefix}/lib
   endif
-  ifeq ($(wildcard  ${prefix}/lib64),)
+  ifeq ($(wildcard  ${INSTALL_DIR}),)
     $(error not exists: INSTALL_DIR = ${INSTALL_DIR})
   endif
 endif
