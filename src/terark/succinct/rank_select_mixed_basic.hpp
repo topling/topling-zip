@@ -1,4 +1,6 @@
 #pragma once
+#include <terark/config.hpp>
+#include <stddef.h>
 namespace terark {
 
 template<class base_rank_select_mixed, size_t dimensions>
