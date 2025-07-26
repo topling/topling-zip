@@ -746,6 +746,7 @@ TERARK_DLL_EXPORT void escape_append(fstring, std::string*, char quote = '\0');
 TERARK_DLL_EXPORT std::string escape(fstring, char quote = '\0');
 
 TERARK_DLL_EXPORT void string_resize_no_touch_memory(std::string*, size_t);
+TERARK_DLL_EXPORT void string_set_size_no_touch_memory(std::string*, size_t);
 
 } // namespace terark
 

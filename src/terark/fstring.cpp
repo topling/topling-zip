@@ -401,6 +401,9 @@ void string_resize_no_touch_memory(std::string* bank, size_t sz) {
 	}
 	do_string_resize_no_touch_memory(bank, sz);
 }
+void string_set_size_no_touch_memory(std::string* bank, size_t sz) {
+	do_string_resize_no_touch_memory(bank, sz);
+}
 #else
 void string_resize_no_touch_memory(std::string* bank, size_t sz) {
   #if defined(_MSC_VER) && _MSC_VER >= 1938
@@ -413,6 +416,9 @@ void string_resize_no_touch_memory(std::string* bank, size_t sz) {
   #else
 	bank->resize(sz); // touch memory
   #endif
+}
+void string_set_size_no_touch_memory(std::string* bank, size_t sz) {
+	string_resize_no_touch_memory(bank, sz);
 }
 #endif
 
