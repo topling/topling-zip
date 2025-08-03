@@ -47,7 +47,7 @@ inline size_t UintSelect1(unsigned int x, size_t r) {
 inline size_t UintSelect1(unsigned long long x, size_t r) {
     assert(x != 0);
   #if TERARK_WORD_BITS >= 64
-    assert(r < (size_t)_mm_popcnt_u64(x));
+    TERARK_ASSERT_LT(r, (size_t)_mm_popcnt_u64(x));
    #if 0
     return terark_bsr_u64(_pdep_u64(_bzhi_u64(uint64_t(-1), r+1), x));
    #else
