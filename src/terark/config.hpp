@@ -164,7 +164,8 @@
     #define TERARK_WEAK_SYMBOL
 #endif
 
-#if defined(__GNUC__)
+// default is static tls, fast but need LD_PRELOAD if not directly linked
+#if defined(__GNUC__) && !defined(TOPLING_USE_DYNAMIC_TLS)
 #define TERARK_STATIC_TLS __attribute__((tls_model("initial-exec")))
 #else
 #define TERARK_STATIC_TLS

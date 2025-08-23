@@ -9,7 +9,7 @@
 #include <terark/valvec.hpp>
 #include <terark/util/atomic.hpp>
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(TOPLING_USE_DYNAMIC_TLS)
   #define TERARK_RAW_TLS __thread
 #elif defined(_MSC_VER)
   #define TERARK_RAW_TLS __declspec(thread)
