@@ -828,6 +828,28 @@ test_rls: ${TERARK_BIN_DEP_LIB}
 	+$(MAKE) -C tests/tries       test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/succinct    test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
 
+${ddir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${ddir}/boost-shared
+${adir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${rdir}/boost-shared
+${rdir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${rdir}/boost-shared
+
+${ddir}/shared_lib_obj_list.mk: $(call objs,zbs,d) $(call objs,fsa,d) ${core_d_o} ${ddir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
+	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
+	@echo endef >> $@
+	@echo "Generated $@"
+
+${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o} ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
+	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
+	@echo endef >> $@
+	@echo "Generated $@"
+
+${rdir}/shared_lib_obj_list.mk: $(call objs,zbs,r) $(call objs,fsa,r) ${core_r_o} ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
+	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
+	@echo endef >> $@
+	@echo "Generated $@"
+
 ifneq ($(MAKECMDGOALS),cleanall)
 ifneq ($(MAKECMDGOALS),clean)
 -include ${alldep}
