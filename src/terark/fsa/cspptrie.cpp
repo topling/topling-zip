@@ -93,7 +93,7 @@ static const char* StrNodeFlags(uint08_t flags) {
 }
 static auto StrFlags(PatriciaNode x) { return StrNodeFlags(x.flags); }
 
-static constexpr size_t MAX_DYNA_NUM = 64;
+static const size_t MAX_DYNA_NUM = getEnvLong("CSPP_MAX_DYNA_NUM", 64);
 
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
