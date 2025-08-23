@@ -169,6 +169,11 @@ else ifeq (${WITH_BMI2},0)
 endif
 
 ifeq ($(shell ${CXX} -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
+  DISABLE_JEMALLOC ?= 0
+else
+  DISABLE_JEMALLOC ?= 1
+endif
+ifeq (${DISABLE_JEMALLOC},0)
   # -ljemalloc should be the first
   LIBS := -ljemalloc ${LIBS}
 else
