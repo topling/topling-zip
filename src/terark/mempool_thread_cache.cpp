@@ -1,3 +1,6 @@
+// #pragma GCC optimize("O0")
+// #pragma GCC optimize("no-inline")
+// #pragma GCC optimize("no-omit-frame-pointer")
 #include "mempool_thread_cache.hpp"
 #include <terark/util/atomic.hpp>
 #include <stdexcept>

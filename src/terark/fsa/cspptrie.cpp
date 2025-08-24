@@ -9,6 +9,9 @@
     #pragma GCC diagnostic ignored "-Wstrict-aliasing"
     #pragma GCC diagnostic ignored "-Warray-bounds"
     #pragma GCC diagnostic ignored "-Wstringop-overflow"
+    // #pragma GCC optimize("O0")
+    // #pragma GCC optimize("no-omit-frame-pointer")
+    // #pragma GCC optimize("no-inline")
 #endif
 
 #include "cspptrie.inl"
