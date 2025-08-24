@@ -96,7 +96,11 @@ static auto StrFlags(PatriciaNode x) { return StrNodeFlags(x.flags); }
 static const size_t MAX_DYNA_NUM = getEnvLong("CSPP_MAX_DYNA_NUM", 64);
 
 #undef prefetch
+#if defined(_MSC_VER)
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
+#else
+#define prefetch(ptr) __builtin_prefetch((const char*)(ptr))
+#endif
 
 #if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
 #else
