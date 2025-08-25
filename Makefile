@@ -849,17 +849,26 @@ ${ddir}/shared_lib_obj_list.mk: $(call objs,zbs,d) $(call objs,fsa,d) ${core_d_o
 	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
 	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
 	@echo endef >> $@
+	@echo define TOPLING_LIB_SRC_LIST_VAR >> $@ # without boost src
+	@for f in ${core_src} ${fsa_src} ${zbs_src}; do echo $$f >> $@; done
+	@echo endef >> $@
 	@echo "Generated $@"
 
 ${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o} ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
 	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
 	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
 	@echo endef >> $@
+	@echo define TOPLING_LIB_SRC_LIST_VAR >> $@ # without boost src
+	@for f in ${core_src} ${fsa_src} ${zbs_src}; do echo $$f >> $@; done
+	@echo endef >> $@
 	@echo "Generated $@"
 
 ${rdir}/shared_lib_obj_list.mk: $(call objs,zbs,r) $(call objs,fsa,r) ${core_r_o} ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
 	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
 	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
+	@echo endef >> $@
+	@echo define TOPLING_LIB_SRC_LIST_VAR >> $@ # without boost src
+	@for f in ${core_src} ${fsa_src} ${zbs_src}; do echo $$f >> $@; done
 	@echo endef >> $@
 	@echo "Generated $@"
 
