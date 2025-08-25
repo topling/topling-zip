@@ -581,9 +581,11 @@ noexcept {
 #else
 	assert(!aio || offset % 4096 == 0);
 	ssize_t rdlen;
+#if !defined(__ANDROID__)
 	if (aio)
 	    rdlen = fiber_aio_read(fd, buf, maxlen, offset);
 	else
+#endif
 	    rdlen = pread(fd, buf, maxlen, offset);
 
 	if (rdlen < ssize_t(minlen)) {
