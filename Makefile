@@ -285,6 +285,17 @@ core_src := \
    $(wildcard src/terark/succinct/*.cpp) \
    ${obsoleted_src}
 
+ifeq (CYGWIN, ${UNAME_System})
+  core_src := $(filter-out src/terark/lru_map.cpp \
+                           src/terark/util/process.cpp \
+                , ${core_src})
+endif
+
+ifeq (${TOPLING_DISABLE_FIBER_AIO},1)
+  core_src := $(filter-out src/terark/thread/fiber_%, ${core_src})
+  CXXFLAGS += -DTOPLING_PIPELINE_WITH_FIBER=0
+endif
+
 core_src := $(filter-out ${trbxx_src} ${zip_src}, ${core_src})
 
 fsa_src := $(wildcard src/terark/fsa/*.cpp)
@@ -580,6 +591,7 @@ endif
 ${rdir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
+ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
@@ -587,10 +599,12 @@ ${rdir}/boost-static/build.done:
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 ${DBG_DWARF} -g3 ${ARG_TLS_MODEL} -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC ${DBG_DWARF} -g3" threading=multi link=static variant=release
+endif
 	touch $@
 ${rdir}/boost-shared/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
+ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
@@ -598,10 +612,12 @@ ${rdir}/boost-shared/build.done:
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 ${ARG_TLS_MODEL} -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=release
+endif
 	touch $@
 ${ddir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
+ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
@@ -609,10 +625,12 @@ ${ddir}/boost-static/build.done:
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC" threading=multi link=static variant=debug
+endif
 	touch $@
 ${ddir}/boost-shared/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
+ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
@@ -620,6 +638,7 @@ ${ddir}/boost-shared/build.done:
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++17 -Wno-deprecated-builtins" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=debug
+endif
 	touch $@
 
 %${DLL_SUFFIX}:
