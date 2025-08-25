@@ -174,11 +174,13 @@ else
   ARG_TLS_MODEL := -ftls-model=initial-exec
 endif
 
+ifndef DISABLE_JEMALLOC
 ifeq ($(shell ${CXX} -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
   DISABLE_JEMALLOC ?= 0
 else
   DISABLE_JEMALLOC ?= 1
 endif
+endif # DISABLE_JEMALLOC
 ifeq (${DISABLE_JEMALLOC},0)
   # -ljemalloc should be the first
   LIBS := -ljemalloc ${LIBS}
