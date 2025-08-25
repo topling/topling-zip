@@ -22,11 +22,17 @@
 #include <stdio.h>
 #include <iostream>
 
+#if !defined(TOPLING_PIPELINE_WITH_FIBER)
 #if !defined(_MSC_VER)
-#define TOPLING_PIPELINE_WITH_FIBER
+#define TOPLING_PIPELINE_WITH_FIBER 0
+#elif defined(__ANDROID__)
+#define TOPLING_PIPELINE_WITH_FIBER 0
+#else
+#define TOPLING_PIPELINE_WITH_FIBER 1
+#endif
 #endif
 
-#if defined(TOPLING_PIPELINE_WITH_FIBER)
+#if TOPLING_PIPELINE_WITH_FIBER
 #include <boost/fiber/all.hpp>
 #include "fiber_yield.hpp"
 #else
@@ -100,7 +106,7 @@ public:
     size_t peekSize() const final { return q.peekSize(); }
 };
 
-#if defined(TOPLING_PIPELINE_WITH_FIBER)
+#if TOPLING_PIPELINE_WITH_FIBER
 class FiberQueue : public PipelineStage::queue_t {
     circular_queue<PipelineQueueItem> q;
 public:
@@ -202,7 +208,7 @@ public:
     bool joinable() const final { return thr.joinable(); }
     FiberYield* get_fiber_yield() override { return NULL; }
 };
-#if defined(TOPLING_PIPELINE_WITH_FIBER)
+#if TOPLING_PIPELINE_WITH_FIBER
 class FiberExecUnit : public PipelineStage::ExecUnit {
     boost::fibers::fiber fib;
     FiberYield fy;
@@ -399,7 +405,7 @@ void PipelineStage::start(int queue_size)
 		// second: start the thread
 		//
 		assert(m_threads[threadno].m_thread == nullptr);
-#if defined(TOPLING_PIPELINE_WITH_FIBER)
+#if TOPLING_PIPELINE_WITH_FIBER
 		if (euType == PipelineProcessor::EUType::mixed) {
 			auto mkfn = [this,threadno]() {
 				return bind(&PipelineStage::run_wrapper, this, threadno);
@@ -467,10 +473,12 @@ void PipelineStage::run_wrapper(int threadno)
 	tname[len1] = '-';
 	memcpy(tname + len1 + 1, szbuf, tnolen+1);
 	pthread_t tid = pthread_self();
-  #if BOOST_OS_LINUX
+  #ifdef __linux__
 	int err = pthread_setname_np(tid, tname);
   #elif BOOST_OS_MACOS
 	int err = pthread_setname_np(tname);
+  #else
+	#error "unknown OS"
   #endif
 	if (err) {
 		fprintf(stderr, "pthread_setname_np('%s') = %s\n", tname, strerror(err));
