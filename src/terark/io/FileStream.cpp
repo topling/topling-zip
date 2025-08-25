@@ -289,6 +289,23 @@ TERARK_GEN_ensureWrite(FileStream::)
 #undef m_pos
 #undef buf_remain_bytes
 
+#elif defined(__ANDROID__)
+
+// the condition buf_remain_bytes() > 0 never satisfied
+// thus m_pos will never be used, m_pos is just for pass compile
+static unsigned char* m_pos = nullptr;
+
+#define buf_remain_bytes reader_remain_bytes
+#define STREAM_READER FileStream
+#include "var_int_io.hpp"
+#undef buf_remain_bytes
+
+#define buf_remain_bytes writer_remain_bytes
+#define STREAM_WRITER FileStream
+#include "var_int_io.hpp"
+#undef m_pos
+#undef buf_remain_bytes
+
 #elif defined(_MSC_VER) && _MSC_VER <= 1800
 
 /* Always compile this module for speed, not size */

@@ -95,7 +95,6 @@ public:
 
 	void disbuf() noexcept;
 
-#if defined(__GLIBC__) || defined(_MSC_VER) && _MSC_VER <= 1800
 public:
 	#include "var_int_declare_read.hpp"
 	#include "var_int_declare_write.hpp"
@@ -103,12 +102,14 @@ private:
 #if defined(__GLIBC__)
 	size_t reader_remain_bytes() const { FILE* fp = m_fp; return fp->_IO_read_end - fp->_IO_read_ptr; }
 	size_t writer_remain_bytes() const { FILE* fp = m_fp; return fp->_IO_write_end - fp->_IO_write_ptr; }
+#else
+	size_t reader_remain_bytes() const { return 0; }
+	size_t writer_remain_bytes() const { return 0; }
 #endif
 	byte readByte_slow();
 	void writeByte_slow(byte b);
 	void ensureRead_slow(void* vbuf, size_t length);
 	void ensureWrite_slow(const void* vbuf, size_t length);
-#endif
 
 public:
 	uint64_t cat(FILE* fp);
