@@ -1310,6 +1310,18 @@ void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen, size_t valu
 	size_t keylen = fixlen - valuelen;
 #ifdef _MSC_VER
     #define QSortCtx qsort_s
+#elif defined(__ANDROID__)
+    static std::mutex mtx;
+    static size_t s_fixlen;
+    auto compar = [](const void* x, const void* y) {
+        return memcmp(x, y, s_fixlen);
+    };
+    auto QSortCtx = [&](void *base, size_t size, size_t nmemb, ...) {
+        mtx.lock();
+	    s_fixlen = fixlen; // must not assign on init
+        qsort(base, nmemb, size, compar);
+        mtx.unlock();
+    };
 #elif defined(__APPLE__)
     auto QSortCtx = [](void *base, size_t size, size_t nmemb,
     		           int (*compar)(void *, const void *, const void *),
