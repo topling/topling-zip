@@ -874,7 +874,7 @@ ${rdir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${rdir}/boost-shared
 
 ifneq ($(patsubst android%,android,${UNAME_System}),android)
 ${ddir}/shared_lib_obj_list.mk: ${ddir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
-${adir}/shared_lib_obj_list.mk: ${adir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+${adir}/shared_lib_obj_list.mk: ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
 ${rdir}/shared_lib_obj_list.mk: ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
 endif
 
