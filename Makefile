@@ -34,11 +34,13 @@ endif
 #  CC := ${CXX}
 #endif
 
+ifndef COMPILER
 # Makefile is stupid to parsing $(shell echo ')')
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe && rm -f ${tmpfile}*)
 #$(warning COMPILER=${COMPILER})
 UNAME_MachineSystem := $(shell uname -m -s | sed 's:[ /]:-:g')
+endif
 BUILD_NAME := ${UNAME_MachineSystem}-${COMPILER}-bmi2-${WITH_BMI2}
 BUILD_ROOT := build/${BUILD_NAME}
 ddir:=${BUILD_ROOT}/dbg
@@ -63,7 +65,7 @@ TERARK_INC := -Isrc -I3rdparty/zstd ${BOOST_INC}
 
 include ${BUILD_ROOT}/env.mk
 
-UNAME_System := $(shell uname | sed 's/^\([0-9a-zA-Z]*\).*/\1/')
+UNAME_System ?= $(shell uname | sed 's/^\([0-9a-zA-Z]*\).*/\1/')
 ifeq (CYGWIN, ${UNAME_System})
   FPIC =
   # lazy expansion
@@ -451,10 +453,12 @@ tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
 	g++ -o $@ $<
 
 #${core_d} ${core_r} : LIBS += -lz -lbz2 -lrt
+ifneq ($(patsubst android%,android,${UNAME_System}),android)
 ifneq (${UNAME_System},Darwin)
 ${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -lrt -lpthread
 ifneq (${UNAME_System},CYGWIN)
 ${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -laio ${LINK_LIBURING}
+endif
 endif
 endif
 
@@ -508,12 +512,14 @@ ${static_rpc_d} : $(call objs,rpc,d)
 ${static_rpc_r} : $(call objs,rpc,r)
 ${static_rpc_a} : $(call objs,rpc,a)
 
+ifneq ($(patsubst android%,android,${UNAME_System}),android)
 ${shared_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o ${ddir}/boost-shared/build.done
 ${shared_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-shared/build.done
 ${shared_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-shared/build.done
 ${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o ${ddir}/boost-static/build.done
 ${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-static/build.done
 ${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-static/build.done
+endif
 
 ${shared_core_d}: BOOST_BUILD_DIR := ${ddir}/boost-shared
 ${shared_core_r}: BOOST_BUILD_DIR := ${rdir}/boost-shared
@@ -866,7 +872,13 @@ ${ddir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${ddir}/boost-shared
 ${adir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${rdir}/boost-shared
 ${rdir}/shared_lib_obj_list.mk: BOOST_BUILD_DIR := ${rdir}/boost-shared
 
-${ddir}/shared_lib_obj_list.mk: $(call objs,zbs,d) $(call objs,fsa,d) ${core_d_o} ${ddir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+ifneq ($(patsubst android%,android,${UNAME_System}),android)
+${ddir}/shared_lib_obj_list.mk: ${ddir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+${adir}/shared_lib_obj_list.mk: ${adir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+${rdir}/shared_lib_obj_list.mk: ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+endif
+
+${ddir}/shared_lib_obj_list.mk: $(call objs,zbs,d) $(call objs,fsa,d) ${core_d_o}
 	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
 	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
 	@echo endef >> $@
@@ -875,7 +887,7 @@ ${ddir}/shared_lib_obj_list.mk: $(call objs,zbs,d) $(call objs,fsa,d) ${core_d_o
 	@echo endef >> $@
 	@echo "Generated $@"
 
-${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o} ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o}
 	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
 	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
 	@echo endef >> $@
@@ -884,7 +896,7 @@ ${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o
 	@echo endef >> $@
 	@echo "Generated $@"
 
-${rdir}/shared_lib_obj_list.mk: $(call objs,zbs,r) $(call objs,fsa,r) ${core_r_o} ${rdir}/boost-shared/build.done 3rdparty/base64/lib/libbase64.o
+${rdir}/shared_lib_obj_list.mk: $(call objs,zbs,r) $(call objs,fsa,r) ${core_r_o}
 	@echo define TOPLING_LIB_OBJ_LIST_VAR > $@
 	@for f in ${THIS_LIB_OBJS}; do echo $$f >> $@; done
 	@echo endef >> $@

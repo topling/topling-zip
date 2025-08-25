@@ -11,6 +11,11 @@ echo COMPILER=$COMPILER 1>&2
 rm -f $EnvConf
 mkdir -p `dirname $EnvConf`
 
+if [ "${IS_CYGWIN}" = 1 -o "${IS_CYGWIN}" = 0 ]; then
+  echo  IS_CYGWIN=${IS_CYGWIN} >> $EnvConf
+  exit 0
+fi
+
 if false; then # comment out BDB
 if test -z "$BDB_HOME"; then
 	hasbdb=0
