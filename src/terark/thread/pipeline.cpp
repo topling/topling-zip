@@ -942,7 +942,7 @@ std::string PipelineProcessor::queueInfo()
 		p = p->m_next;
 	}
 	oss.resize(oss.size()-2);
-	return std::move(oss);
+	return oss; // not need std::move(oss) and it produces a warning
 }
 
 int PipelineProcessor::step_ordinal(const PipelineStage* step) const
