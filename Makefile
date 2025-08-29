@@ -19,6 +19,11 @@ AM_V_CC = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${CC_VARIANT_DIR} CC ${s
 AM_V_LD = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} LD so %6.2f %5.2f  %s\n' `cat` lib_shared/$(notdir $@))
 AM_V_AR = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} AR .a %6.2f %5.2f  %s\n' `cat` lib_static/$(notdir $@))
 
+ifeq ($(USE_LTO),1)
+  COMMON_C_FLAGS += -flto
+  LDFLAGS += -flto -fuse-linker-plugin
+endif
+
 #DBG_ASAN ?= -fsanitize=address
 #AFR_ASAN ?= -fsanitize=address
 #RLS_ASAN ?=
