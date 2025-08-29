@@ -1,4 +1,24 @@
 export SHELL=bash
+
+AM_DEFAULT_VERBOSITY ?= 0
+
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN     " $@;
+am__v_GEN_1 =
+
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
+am__v_at_1 =
+
+#CC_VARIANT_DIR = $(patsubst %/$(addsuffix .o,$(basename $<)),%,$@)
+CC_VARIANT_DIR = $(BUILD_ROOT)/$(firstword $(subst /, ,$(patsubst $(BUILD_ROOT)/%,%,$@)))
+LD_VARIANT_DIR = $(BUILD_ROOT)/$(firstword $(subst /, ,$(patsubst $(BUILD_ROOT)/%,%,$(firstword $(filter $(BUILD_ROOT)/%.o,$^)))))
+AM_V_CC = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${CC_VARIANT_DIR} CC ${suffix $@} %6.2f %5.2f  %s\n' `cat` $<)
+AM_V_LD = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} LD so %6.2f %5.2f  %s\n' `cat` lib_shared/$(notdir $@))
+AM_V_AR = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} AR .a %6.2f %5.2f  %s\n' `cat` lib_static/$(notdir $@))
+
 #DBG_ASAN ?= -fsanitize=address
 #AFR_ASAN ?= -fsanitize=address
 #RLS_ASAN ?=
@@ -78,12 +98,15 @@ ifeq (CYGWIN, ${UNAME_System})
 else
   ifeq (Darwin,${UNAME_System})
     DLL_SUFFIX = .dylib
+	TIME_CMD ?= gtime
   else
     DLL_SUFFIX = .so
   endif
   FPIC = -fPIC
   CYG_DLL_FILE = $@
 endif
+
+TIME_CMD ?= /usr/bin/time
 
 RPATH_FLAGS := -Wl,-rpath,'$$ORIGIN'
 
@@ -134,7 +157,6 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   ifeq (${UNAME_System},Darwin)
     COMMON_C_FLAGS += -Wa,-q
   endif
-  CXXFLAGS += -time
   ifeq "$(shell echo ${COMPILER} | awk -F- '{if ($$2 >= 9.0) print 1;}')" "1"
     COMMON_C_FLAGS += -Wno-alloc-size-larger-than
   endif
@@ -177,7 +199,7 @@ else
 endif
 
 ifndef DISABLE_JEMALLOC
-ifeq ($(shell ${CXX} -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
+ifeq ($(shell ${CXX} -std=c89 -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
   DISABLE_JEMALLOC ?= 0
 else
   DISABLE_JEMALLOC ?= 1
@@ -422,9 +444,9 @@ ObfuseFiles := \
 NotObfuseFiles := $(filter-out ${ObfuseFiles}, ${OpenSources})
 
 allsrc = ${core_src} ${fsa_src} ${zbs_src} ${idx_src} ${rpc_src}
-alldep = $(addprefix ${rdir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
-         $(addprefix ${adir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
-         $(addprefix ${ddir}/, $(addsuffix .dep, $(basename ${allsrc})))
+alldep = $(addprefix ${rdir}/, $(addsuffix .d, $(basename ${allsrc}))) \
+         $(addprefix ${adir}/, $(addsuffix .d, $(basename ${allsrc}))) \
+         $(addprefix ${ddir}/, $(addsuffix .d, $(basename ${allsrc})))
 
 .PHONY : dbg rls afr
 dbg: ${DBG_TARGETS}
@@ -544,8 +566,8 @@ ${1}/git-version-core.cpp: ${core_src}
 ${1}/git-version-fsa.cpp: ${fsa_src} ${core_src}
 ${1}/git-version-zbs.cpp: ${zbs_src} ${fsa_src} ${core_src}
 ${1}/git-version-%.cpp: Makefile
-	@mkdir -p $$(dir $$@)
-	@rm -f $$@.tmp
+	$${AM_V_GEN} mkdir -p $$(dir $$@)
+	$${AM_V_at}rm -f $$@.tmp
 	@echo -n '__attribute__ ((visibility ("default"))) const char*' \
 		  'git_version_hash_info_'$$(patsubst git-version-%.cpp,%,$$(notdir $$@))\
 		  '() { return R"StrLiteral(git_version_hash_info_is:' > $$@.tmp
@@ -598,7 +620,7 @@ ${rdir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
-	cd $(dir $@) \
+	${AM_V_at}cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
@@ -611,7 +633,7 @@ ${rdir}/boost-shared/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
-	cd $(dir $@) \
+	${AM_V_at}cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
@@ -624,7 +646,7 @@ ${ddir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
-	cd $(dir $@) \
+	${AM_V_at}cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
@@ -637,7 +659,7 @@ ${ddir}/boost-shared/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
 ifneq (${TOPLING_DISABLE_FIBER_AIO},1)
-	cd $(dir $@) \
+	${AM_V_at}cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm -f tools bin.v2 \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
 	 && ${USER_GCC} \
@@ -648,11 +670,14 @@ endif
 	touch $@
 
 %${DLL_SUFFIX}:
+ifeq (${V},1)
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating shared library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
+	@echo ASAN_LDFLAGS = ${ASAN_LDFLAGS}
+endif
 	@mkdir -p ${BUILD_ROOT}/lib_shared
 ifeq (Darwin, ${UNAME_System})
 	@cd ${BUILD_ROOT}; ln -sfh lib_shared lib
@@ -660,23 +685,24 @@ else
 	@cd ${BUILD_ROOT}; ln -sfT lib_shared lib
 endif
 	@rm -f $@
-	@echo ASAN_LDFLAGS = ${ASAN_LDFLAGS}
-	${LD} -shared ${THIS_LIB_OBJS} ${ASAN_LDFLAGS} ${LIBS} ${RPATH_FLAGS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS} ${LDFLAGS}
-	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
+	${AM_V_LD} ${LD} -shared ${THIS_LIB_OBJS} ${ASAN_LDFLAGS} ${LIBS} ${RPATH_FLAGS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS} ${LDFLAGS}
+	${AM_V_at}cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
 endif
 
 %.a:
+ifeq (${V},1)
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating static library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
+endif
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	${AR} rcs $@ ${THIS_LIB_OBJS};
-	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
+	${AM_V_AR} ${AR} rcs $@ ${THIS_LIB_OBJS}
+	${AM_V_at}cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 
 .PHONY : install
 install : zbs fsa core
@@ -916,33 +942,28 @@ endif
 #@param ${3} debug flag      : DBG_FLAGS | RLS_FLAGS | AFR_FLAGS
 define COMPILE_CXX
 ${2}/%.o: %.${1}
-	@echo file: $$< "->" $$@
-	@echo TERARK_INC=$${TERARK_INC} BOOST_INC=$${BOOST_INC} BOOST_SUFFIX=$${BOOST_SUFFIX}
 	@mkdir -p $$(dir $$@)
-	$${CXX} $${CXX_STD} $${CPU} -c ${3} $${CXXFLAGS} $${INCS} $$< -o $$@
+	$${AM_V_CC} $${CXX} $${CXX_STD} $${CPU} -c ${3} $${CXXFLAGS} $${INCS} $$< -o $$@
 ${2}/%.s : %.${1}
 	@echo file: $$< "->" $$@
+	@mkdir -p $$(dir $$@)
 	$${CXX} -S -fverbose-asm $${CXX_STD} $${CPU} ${3} $${CXXFLAGS} $${INCS} $$< -o $$@
-${2}/%.dep : %.${1}
-	@echo file: $$< "->" $$@
-	@echo INCS = $${INCS}
-	mkdir -p $$(dir $$@)
-	-$${CXX} $${CXX_STD} ${3} -M -MT $$(basename $$@).o $${INCS} $$< > $$@
+${2}/%.d : %.${1}
+	@mkdir -p $$(dir $$@)
+	-$${AM_V_CC} $${CXX} $${CXX_STD} ${3} -M -MT $$(basename $$@).o $${INCS} $$< > $$@
 endef
 
 define COMPILE_C
 ${2}/%.o : %.${1}
-	@echo file: $$< "->" $$@
-	mkdir -p $$(dir $$@)
-	$${CC} -c $${CPU} ${3} $${CFLAGS} $${INCS} $$< -o $$@
+	@mkdir -p $$(dir $$@)
+	$${AM_V_CC} $${CC} -c $${CPU} ${3} $${CFLAGS} $${INCS} $$< -o $$@
 ${2}/%.s : %.${1}
 	@echo file: $$< "->" $$@
+	@mkdir -p $$(dir $$@)
 	$${CC} -S -fverbose-asm $${CPU} ${3} $${CFLAGS} $${INCS} $$< -o $$@
-${2}/%.dep : %.${1}
-	@echo file: $$< "->" $$@
-	@echo INCS = $${INCS}
-	mkdir -p $$(dir $$@)
-	-$${CC} ${3} -M -MT $$(basename $$@).o $${INCS} $$< > $$@
+${2}/%.d : %.${1}
+	@mkdir -p $$(dir $$@)
+	-$${AM_V_CC} $${CC} ${3} -M -MT $$(basename $$@).o $${INCS} $$< > $$@
 endef
 
 $(eval $(call COMPILE_CXX,cpp,${ddir},${DBG_FLAGS}))
