@@ -35,6 +35,7 @@ public:
 	byte_t bzMinLen;
 	static_bitmap<TERARK_WORD_BITS> flags;
 	static_bitmap<256> bestDelimBits;
+	class SuffixTrieCacheDFA;
 	mutable std::unique_ptr<class SuffixTrieCacheDFA> suffixTrie;
 	mutable uint16_t* bestZipLenArr;
 

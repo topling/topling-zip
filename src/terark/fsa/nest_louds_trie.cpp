@@ -3,10 +3,10 @@
 #if defined(USE_SUFFIX_ARRAY_TRIE)
 #include "suffix_array_trie.hpp"
 #include <divsufsort.h>
+	#define BaseSuffixTrieCacheDFA terark::SuffixTrieCacheDFA
 #else
 namespace terark {
-#define SuffixTrieCacheDFA DummySuffixTrieCacheDFA
-	class DummySuffixTrieCacheDFA {};
+	class BaseSuffixTrieCacheDFA {};
 }
 #endif
 
@@ -34,6 +34,11 @@ const size_t MaxShortStrLen = 3;
 
 /////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
+
+class NestLoudsTrieConfig::SuffixTrieCacheDFA : public BaseSuffixTrieCacheDFA
+{
+// nothing
+};
 
 NestLoudsTrieConfig::NestLoudsTrieConfig() {
 	nestLevel = 4;
