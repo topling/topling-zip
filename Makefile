@@ -289,7 +289,7 @@ endif
 #LIBS += -liconv
 
 ifneq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
-  LIBS += -lgomp
+  TOPLING_CORE_LD_LIBS_EXTRA += -lgomp
 endif
 
 c_src := \
@@ -482,11 +482,15 @@ tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
 #${core_d} ${core_r} : LIBS += -lz -lbz2 -lrt
 ifneq ($(patsubst android%,android,${UNAME_System}),android)
 ifneq (${UNAME_System},Darwin)
-${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -lrt -lpthread
+TOPLING_CORE_LD_LIBS_EXTRA += -lrt -lpthread
 ifneq (${UNAME_System},CYGWIN)
-${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -laio ${LINK_LIBURING}
+TOPLING_CORE_LD_LIBS_EXTRA += -laio ${LINK_LIBURING}
 endif
 endif
+endif
+
+ifneq (${TOPLING_CORE_LD_LIBS_EXTRA},)
+${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += ${TOPLING_CORE_LD_LIBS_EXTRA}
 endif
 
 ${shared_core_d} : LIBS := $(filter-out -lterark-core-${COMPILER}-d, ${LIBS})
@@ -916,6 +920,7 @@ ${ddir}/shared_lib_obj_list.mk: $(call objs,zbs,d) $(call objs,fsa,d) ${core_d_o
 	@echo define TOPLING_LIB_SRC_LIST_VAR >> $@ # without boost src
 	@for f in ${core_src} ${fsa_src} ${zbs_src}; do echo $$f >> $@; done
 	@echo endef >> $@
+	@echo TOPLING_CORE_LD_LIBS_EXTRA = ${TOPLING_CORE_LD_LIBS_EXTRA} >> $@
 	@echo "Generated $@"
 
 ${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o}
@@ -925,6 +930,7 @@ ${adir}/shared_lib_obj_list.mk: $(call objs,zbs,a) $(call objs,fsa,a) ${core_a_o
 	@echo define TOPLING_LIB_SRC_LIST_VAR >> $@ # without boost src
 	@for f in ${core_src} ${fsa_src} ${zbs_src}; do echo $$f >> $@; done
 	@echo endef >> $@
+	@echo TOPLING_CORE_LD_LIBS_EXTRA = ${TOPLING_CORE_LD_LIBS_EXTRA} >> $@
 	@echo "Generated $@"
 
 ${rdir}/shared_lib_obj_list.mk: $(call objs,zbs,r) $(call objs,fsa,r) ${core_r_o}
@@ -934,6 +940,7 @@ ${rdir}/shared_lib_obj_list.mk: $(call objs,zbs,r) $(call objs,fsa,r) ${core_r_o
 	@echo define TOPLING_LIB_SRC_LIST_VAR >> $@ # without boost src
 	@for f in ${core_src} ${fsa_src} ${zbs_src}; do echo $$f >> $@; done
 	@echo endef >> $@
+	@echo TOPLING_CORE_LD_LIBS_EXTRA = ${TOPLING_CORE_LD_LIBS_EXTRA} >> $@
 	@echo "Generated $@"
 
 ifneq ($(MAKECMDGOALS),cleanall)
