@@ -491,6 +491,17 @@ void DataIO_saveObject(DataIO& dio, basic_fstring<Char> s) {
 typedef basic_fstring<char> fstring;
 typedef basic_fstring<uint16_t> fstring16;
 
+template<class Char>
+struct basic_implicit_convertible_fstring : basic_fstring<Char> {
+	explicit basic_implicit_convertible_fstring(const basic_fstring<Char>& s)
+		                                            : basic_fstring<Char> (s) {}
+
+	template<class AnyStringType, class = decltype(AnyStringType((const Char*)0, (size_t)1))>
+	operator AnyStringType() const { return AnyStringType(this->p, this->n); }
+};
+typedef basic_implicit_convertible_fstring<char> implicit_convertible_fstring;
+typedef basic_implicit_convertible_fstring<uint16_t> implicit_convertible_fstring16;
+
 template<class Char> struct char_to_fstring;
 template<> struct char_to_fstring<char> { typedef fstring type; };
 template<> struct char_to_fstring<unsigned char> { typedef fstring type; };
