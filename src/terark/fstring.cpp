@@ -222,9 +222,19 @@ bool getEnvBool(const char* envName, bool Default) noexcept {
 }
 
 bool parseBooleanRelaxed(const char* str, bool Default) noexcept {
+	if (NULL == str || '\0' == *str) {
+		return Default;
+	}
 	if (isdigit(str[0])) {
 		return atoi(str) != 0;
 	}
+	size_t len = 0;
+	while (str[len] && isalpha((unsigned char)str[len])) {
+		++len;
+	}
+	auto strcasecmp = [len](const char* s1, const char* s2) {
+		return strncasecmp(s1, s2, len);
+	};
 	if (strcasecmp(str, "true") == 0)
 		return true;
 	if (strcasecmp(str, "false") == 0)
