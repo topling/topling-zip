@@ -6,7 +6,7 @@ fi
 if [ -z "$TMPDIR" ]; then
     TMPDIR=/tmp
 fi
-tmpfile=$(mktemp ${TMPDIR}/detect_bmi2-XXXXXX)
+tmpfile=$(mktemp -u ${TMPDIR}/detect_bmi2-XXXXXX)
 if [ -z "$CPU" ]; then
     # default bmi2 flags is native
     CPU=-march=native
