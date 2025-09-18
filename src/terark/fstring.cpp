@@ -225,6 +225,9 @@ bool parseBooleanRelaxed(const char* str, bool Default) noexcept {
 	if (NULL == str || '\0' == *str) {
 		return Default;
 	}
+	while (isspace((unsigned char)*str)) {
+		++str;
+	}
 	if (isdigit(str[0])) {
 		return atoi(str) != 0;
 	}
@@ -233,6 +236,8 @@ bool parseBooleanRelaxed(const char* str, bool Default) noexcept {
 		++len;
 	}
 	auto strcasecmp = [len](const char* s1, const char* s2) {
+		if (strlen(s2) != len)
+			return 1; // not equal, don't care greater or less
 		return strncasecmp(s1, s2, len);
 	};
 	if (strcasecmp(str, "true") == 0)
