@@ -204,6 +204,7 @@ bool getEnvBool(const char* envName, bool Default) noexcept {
 		}
 #if defined(_MSC_VER)
 		#define strcasecmp stricmp
+		#define strncasecmp strnicmp
 #endif
 		if (strcasecmp(env, "true") == 0)
 			return true;

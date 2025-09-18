@@ -23,7 +23,7 @@
 #include <iostream>
 
 #if !defined(TOPLING_PIPELINE_WITH_FIBER)
-#if !defined(_MSC_VER)
+#if defined(_MSC_VER)
 #define TOPLING_PIPELINE_WITH_FIBER 0
 #elif defined(__ANDROID__)
 #define TOPLING_PIPELINE_WITH_FIBER 0
