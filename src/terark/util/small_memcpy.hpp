@@ -26,9 +26,6 @@ namespace terark {
 static inline //HSM_FORCE_INLINE
 byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
 #if defined(_M_X64) || defined(_M_IX86) || defined(__x86_64__) || defined(__x86_64) || defined(__amd64__) || defined(__amd64)
-	typedef uint64_t   By8 TERARK_GNU_UNALIGNED;
-	typedef uint32_t   By4 TERARK_GNU_UNALIGNED;
-	typedef uint16_t   By2 TERARK_GNU_UNALIGNED;
 	typedef uint8_t    By1;
     auto bdst = (      By1*)dst;
     auto bsrc = (const By1*)src;
@@ -40,11 +37,14 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
         bdst += 16;
     }
    #if defined(__AVX512VL__) && defined(__AVX512BW__)
-    auto mask = uint16_t(~(-1 << len));
+    auto mask = _bzhi_u32(-1, len);
     auto tail = _mm_maskz_loadu_epi8(mask, bsrc);
     _mm_mask_storeu_epi8(bdst, mask, tail);
     return bdst + len;
    #else
+	typedef uint64_t   By8 TERARK_GNU_UNALIGNED;
+	typedef uint32_t   By4 TERARK_GNU_UNALIGNED;
+	typedef uint16_t   By2 TERARK_GNU_UNALIGNED;
     bsrc += len;
     bdst += len;
     switch (len) {
@@ -78,6 +78,15 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
     return (byte_t*)mempcpy(dst, src, len);
 #endif // _M_X64
 }
+
+#if defined(__AVX512VL__) && defined(__AVX512BW__)
+
+    #define small_memcpy_align_8 small_memcpy_align_1
+    #define small_memcpy_align_4 small_memcpy_align_1
+    #define tiny_memcpy_align_4  small_memcpy_align_1
+    #define tiny_memcpy_align_1  small_memcpy_align_1
+
+#else
 
 static inline //HSM_FORCE_INLINE
 byte_t* small_memcpy_align_8(void* dst, const void* src, size_t len) {
@@ -145,6 +154,8 @@ byte_t* tiny_memcpy_align_1(void* dst, const void* src, size_t len) {
     }
     return Dst;
 }
+
+#endif // __AVX512VL__ && __AVX512BW__
 
 static inline
 byte_t* tiny_memset_align_1(void* dst, unsigned char val, size_t len) {
