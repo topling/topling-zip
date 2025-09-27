@@ -260,14 +260,14 @@ inline int fast_popcount_trail(unsigned int x, unsigned int n) { return fast_pop
 #endif
 
 #if defined(__BMI2__) && TERARK_WORD_BITS >= 64
-inline long long fast_popcount_trail(unsigned long long x, unsigned int n) { return fast_popcount64(_bzhi_u64(x, n)); }
+inline long long fast_popcount_trail(unsigned long long x, unsigned long long n) { return fast_popcount64(_bzhi_u64(x, n)); }
 #else
 inline TERARK_IF_WORD_BITS_64(long long, int)
-fast_popcount_trail(unsigned long long x, unsigned int n) { return fast_popcount64(x & ~((unsigned long long)(-1) << n)); }
+fast_popcount_trail(unsigned long long x, unsigned long long n) { return fast_popcount64(x & ~((unsigned long long)(-1) << n)); }
 #endif
 
 #if ULONG_MAX > 0xFFFFFFFF
-inline long fast_popcount_trail(unsigned long x, unsigned int n) { return fast_popcount_trail((unsigned long long)x, n); }
+inline long fast_popcount_trail(unsigned long x, unsigned long n) { return fast_popcount_trail((unsigned long long)x, (unsigned long long)n); }
 #else
 inline long fast_popcount_trail(unsigned long x, unsigned int n) { return fast_popcount_trail((unsigned int)x, n); }
 #endif

@@ -186,8 +186,8 @@ const noexcept {
                 return child0 + i;
             }
 #else
-            unsigned i = ch / TERARK_WORD_BITS;
-            unsigned j = ch % TERARK_WORD_BITS;
+            size_t i = ch / TERARK_WORD_BITS;
+            size_t j = ch % TERARK_WORD_BITS;
             size_t w = unaligned_load<size_t>(label + 4 + i*sizeof(size_t));
             if ((w >> j) & 1)
                 return child0 + label[i] + fast_popcount_trail(w, j);
@@ -263,8 +263,8 @@ const noexcept {
                 return child0 + i;
             }
 #else
-            unsigned i = ch / TERARK_WORD_BITS;
-            unsigned j = ch % TERARK_WORD_BITS;
+            size_t i = ch / TERARK_WORD_BITS;
+            size_t j = ch % TERARK_WORD_BITS;
             size_t w = unaligned_load<size_t>(label + 4 + i*sizeof(size_t));
             if ((w >> j) & 1)
                 return child0 + label[i] + fast_popcount_trail(w, j);
