@@ -102,6 +102,85 @@ binary_search_byte(const byte_t* data, size_t len, byte_t key) {
 	#define fast_search_byte_max_16 binary_search_byte
 	#define fast_search_byte_max_35 binary_search_byte
 #endif
+
+#if defined(__AVX512VL__) && defined(__AVX512BW__)
+  #if defined(__AVX512_PREFER_256_VECTORS__)
+	inline size_t
+	avx512_search_byte_max64_256(const byte_t* data, size_t len, byte_t key) {
+		TERARK_ASSERT_LE(len, 64);
+		uint64_t  u1 = _bzhi_u64(-1, len);
+		__mmask32 k0 = __mmask32(u1);
+		__mmask32 k1 = __mmask32(u1 >> 32);
+		__m256i   d0 = _mm256_maskz_loadu_epi8(k0, data);
+		__m256i   d1 = _mm256_maskz_loadu_epi8(k1, data + 32);
+		__mmask32 m0 = _mm256_mask_cmpeq_epi8_mask(k0, d0, _mm256_set1_epi8(key));
+		__mmask32 m1 = _mm256_mask_cmpeq_epi8_mask(k1, d1, _mm256_set1_epi8(key));
+		return _tzcnt_u64((uint64_t(m1) << 32) | uint64_t(m0));
+	}
+	#define avx512_search_byte_max64 avx512_search_byte_max64_256
+  #else
+	inline size_t
+	avx512_search_byte_max64_512(const byte_t* data, size_t len, byte_t key) {
+		TERARK_ASSERT_LE(len, 64);
+		__mmask64 k = _bzhi_u64(-1, len);
+		__m512i   d = _mm512_maskz_loadu_epi8(k, data);
+		return _tzcnt_u64(_mm512_mask_cmpeq_epi8_mask(k, d, _mm512_set1_epi8(key)));
+	}
+	#define avx512_search_byte_max64 avx512_search_byte_max64_512
+  #endif
+	inline size_t
+	avx512_search_byte_max16(const byte_t* data, size_t len, byte_t key) {
+		TERARK_ASSERT_LE(len, 16);
+		// _bzhi_u16 maybe slower than _bzhi_u32
+		// _bzhi_u32 will return 32 when not found, it is ok for the caller
+		// checks if return value < len or >= len
+		__mmask16 k = __mmask16(_bzhi_u32(-1, len));
+		__m128i   d = _mm_maskz_loadu_epi8(k, data); // load minimal bytes
+		return _tzcnt_u32(_mm_mask_cmpeq_epi8_mask(k, d, _mm_set1_epi8(key)));
+	 // return _tzcnt_u32(_mm_mask_cmpeq_epi8_mask(_bzhi_u32(-1, len), *(__m128i_u*)data, _mm_set1_epi8(key)));
+	 // `*(__m128i_u*)data` may causing compiler issue a full vector load
+	}
+	inline size_t
+	avx512_search_byte_max32(const byte_t* data, size_t len, byte_t key) {
+		TERARK_ASSERT_LE(len, 32);
+		__mmask32 k = _bzhi_u32(-1, len);
+		__m256i   d = _mm256_maskz_loadu_epi8(k, data); // load minimal bytes
+		return _tzcnt_u32(_mm256_mask_cmpeq_epi8_mask(k, d, _mm256_set1_epi8(key)));
+	 // return _tzcnt_u32(_mm256_mask_cmpeq_epi8_mask(_bzhi_u32(-1, len), *(__m256i_u*)data, _mm256_set1_epi8(key)));
+	 // `*(__m256i_u*)data` may causing compiler issue a full vector load
+	}
+	inline size_t
+	avx512_fast_search_byte(const byte_t* data, size_t len, byte_t key) {
+		size_t lo = 0, hi = len;
+		while (hi - lo > 64) {
+			size_t mid = (lo + hi) / 2;
+			if (data[mid] < key)
+				lo = mid + 1;
+			else
+				hi = mid;
+		}
+		size_t sublen = hi - lo;
+		size_t pos = avx512_search_byte_max64(data + lo, sublen, key);
+		if (pos < sublen) // not needed to check data[lo+pos] == key
+			return lo + pos;
+		else
+			return len;
+	}
+	#define fast_search_byte avx512_fast_search_byte
+
+	// trick: override sse4_2_search_byte with avx512 version,
+	// because avx512 is a superset of sse4.2,
+	// avx512 version is always faster than sse4.2 version,
+	// fast_search_byte_max_16 is also overridden by sse4_2_search_byte
+	#define sse4_2_search_byte avx512_search_byte_max16
+
+	#define fast_search_byte_max_35 avx512_search_byte_max64
+
+	#if !defined(__SSE4_2__)
+		#error "AVX512VL and AVX512BW is enabled but SSE4.2 is disabled"
+	#endif
+#endif
+
 /*
 	inline size_t
 	fast_search_byte_rs_seq(const byte_t* data, size_t len, byte_t key) {

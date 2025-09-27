@@ -30,7 +30,13 @@
 #include "graph_walker.hpp"
 #include "x_fsa_util.hpp"
 
+#if defined(__AVX512VL__) && defined(__AVX512BW__)
+  #if !defined(__SSE4_2__)
+    #error "AVX512VL and AVX512BW is enabled but SSE4.2 is disabled"
+  #endif
+#else
 #define TERARK_PATRICIA_LINEAR_SEARCH_SMALL
+#endif
 
 namespace terark {
 
