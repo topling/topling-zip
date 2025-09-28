@@ -4,10 +4,7 @@
 #include <terark/io/DataIO_Basic.hpp>
 #include <terark/util/small_memcpy.hpp>
 
-#if defined(__GNUC__) && !defined(__CYGWIN__) && !defined(__clang__)
-#include <parallel/algorithm>
-#define parallel_sort __gnu_parallel::sort
-#endif
+#define parallel_sort terark_parallel_sort
 
 #include <boost/predef/other/endian.h>
 

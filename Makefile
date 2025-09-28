@@ -288,7 +288,8 @@ endif
 #    $(wildcard src/obsoleted/wordseg/*.cpp)
 #LIBS += -liconv
 
-ifneq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
+ifeq (${TOPLING_ENABLE_PARALLEL_ALGO},1)
+  CXXFLAGS += -DTOPLING_ENABLE_PARALLEL_ALGO
   TOPLING_CORE_LD_LIBS_EXTRA += -lgomp
 endif
 
