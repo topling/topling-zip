@@ -482,9 +482,17 @@ tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
 #${core_d} ${core_r} : LIBS += -lz -lbz2 -lrt
 ifneq ($(patsubst android%,android,${UNAME_System}),android)
 ifneq (${UNAME_System},Darwin)
-TOPLING_CORE_LD_LIBS_EXTRA += -lrt -lpthread
+TOPLING_CORE_LD_LIBS_EXTRA += -lpthread
+# -lrt is not needed anymore, it was needed for very old glibc
+# TOPLING_CORE_LD_LIBS_EXTRA += -lrt
 ifneq (${UNAME_System},CYGWIN)
+ifeq (${LINUX_CALL_AIO_BY_LIBAIO},1)
+CXXFLAGS += -DLINUX_CALL_AIO_BY_LIBAIO
 TOPLING_CORE_LD_LIBS_EXTRA += -laio ${LINK_LIBURING}
+else
+# calling libaio by syscall, avoid dependency to libaio.so
+TOPLING_CORE_LD_LIBS_EXTRA += ${LINK_LIBURING}
+endif
 endif
 endif
 endif

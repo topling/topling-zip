@@ -32,7 +32,48 @@
 
 #if defined(__linux__)
   #include <linux/version.h>
+ #if defined(LINUX_CALL_AIO_BY_LIBAIO)
   #include <libaio.h> // linux native aio
+  #define linux_aio_data   data
+  #define linux_aio_buf    u.c.buf
+  #define linux_aio_nbytes u.c.nbytes
+  #define linux_aio_offset u.c.offset
+  #define linux_aio_void_ptr(x) x
+ #else
+  #include <sys/syscall.h>
+  #include <linux/aio_abi.h>
+  static inline int io_setup(unsigned nr_events, aio_context_t *ctx_idp) {
+    return syscall(__NR_io_setup, nr_events, ctx_idp);
+  }
+  static inline int io_destroy(aio_context_t ctx_id) {
+    return syscall(__NR_io_destroy, ctx_id);
+  }
+  static inline int io_submit(aio_context_t ctx_id, long nr, struct iocb **iocbpp) {
+    return syscall(__NR_io_submit, ctx_id, nr, iocbpp);
+  }
+  static inline int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout) {
+    return syscall(__NR_io_getevents, ctx_id, min_nr, nr, events, timeout);
+  }
+  static inline int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result) {
+    return syscall(__NR_io_cancel, ctx_id, iocb, result);
+  }
+  typedef aio_context_t io_context_t;
+  enum ENUM_AIO_CMD {
+    IO_CMD_PREAD = IOCB_CMD_PREAD,
+    IO_CMD_PWRITE = IOCB_CMD_PWRITE,
+    IO_CMD_FSYNC = IOCB_CMD_FSYNC,
+    IO_CMD_FDSYNC = IOCB_CMD_FDSYNC,
+    IO_CMD_POLL = IOCB_CMD_POLL,
+    IO_CMD_NOOP = IOCB_CMD_NOOP,
+    IO_CMD_PREADV = IOCB_CMD_PREADV,
+    IO_CMD_PWRITEV = IOCB_CMD_PWRITEV,
+  };
+  typedef __u64 linux_aio_void_ptr;
+  #define linux_aio_data   aio_data
+  #define linux_aio_buf    aio_buf
+  #define linux_aio_nbytes aio_nbytes
+  #define linux_aio_offset aio_offset
+ #endif
   #if defined(TOPLING_IO_WITH_URING)
     #if TOPLING_IO_WITH_URING // mandatory io uring
       #include <liburing.h>
@@ -208,12 +249,12 @@ public:
   intptr_t exec_io(int fd, void* buf, size_t len, off_t offset, int cmd) {
     io_return io_ret = {nullptr, 0, -1, false};
     struct iocb io = {0};
-    io.data = &io_ret;
+    io.linux_aio_data = linux_aio_void_ptr(&io_ret);
     io.aio_lio_opcode = cmd;
     io.aio_fildes = fd;
-    io.u.c.buf = buf;
-    io.u.c.nbytes = len;
-    io.u.c.offset = offset;
+    io.linux_aio_buf = linux_aio_void_ptr(buf);
+    io.linux_aio_nbytes = len;
+    io.linux_aio_offset = offset;
     struct iocb* iop = &io;
     while (true) {
       int ret = io_submit(io_ctx, 1, &iop);
@@ -242,12 +283,12 @@ public:
   intptr_t dt_exec_io(int fd, void* buf, size_t len, off_t offset, int cmd) {
     io_return io_ret = {nullptr, 0, -1, false};
     struct iocb io = {0};
-    io.data = &io_ret;
+    io.linux_aio_data = linux_aio_void_ptr(&io_ret);
     io.aio_lio_opcode = cmd;
     io.aio_fildes = fd;
-    io.u.c.buf = buf;
-    io.u.c.nbytes = len;
-    io.u.c.offset = offset;
+    io.linux_aio_buf = linux_aio_void_ptr(buf);
+    io.linux_aio_nbytes = len;
+    io.linux_aio_offset = offset;
     auto queue = dt_io_queue();
     while (!queue->bounded_push(&io)) yield();
     size_t loop = 0;
