@@ -141,6 +141,11 @@ ifeq (Linux,${UNAME_System})
       $(warning liburing is not detected)
     endif
   endif
+  ifneq (${LINK_LIBURING},)
+    ifneq (${LINK_SHARED_LIBURING},1)
+      LINK_LIBURING := -Wl,-Bstatic ${LINK_LIBURING} -Wl,-Bdynamic
+    endif
+  endif
 endif
 
 CFLAGS += ${FPIC}
