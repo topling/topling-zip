@@ -164,6 +164,13 @@ const noexcept {
 	if (FastLabel) {
         const byte_t* label = m_label_data + child0;
         if (lcount < 36) {
+          #if defined(__AVX512VL__) && defined(__AVX512BW__)
+            size_t i = fast_search_byte_max_35(label, lcount, ch);
+            if (i < lcount) // not need check label[i] == ch
+                return child0 + i;
+            else
+                return nil_state;
+          #endif
             if (true/* && lcount <= 16*/) {
                 if (lcount && ch <= label[lcount-1]) {
                     size_t i = size_t(-1);
@@ -235,12 +242,16 @@ const noexcept {
     _mm_prefetch((const char*)label, _MM_HINT_T0);
     m_is_link.prefetch_bit(child0); // prefetch for next search
     size_t lcount = RankSelect::fast_one_seq_len(bits, bitpos+1);
-    if (terark_unlikely(0 == lcount)) {
-        return nil_state;
-    }
     assert(child0 + lcount <= total_states());
     if (FastLabel) {
         if (lcount < 36) {
+          #if defined(__AVX512VL__) && defined(__AVX512BW__)
+            size_t i = fast_search_byte_max_35(label, lcount, ch);
+            if (i < lcount) // not need check label[i] == ch
+                return child0 + i;
+            else
+                return nil_state;
+          #endif
             if (true/* && lcount <= 16*/) {
                 if (lcount && ch <= label[lcount-1]) {
                     size_t i = size_t(-1);
