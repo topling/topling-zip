@@ -554,6 +554,16 @@ size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
     size_t hit = LineBits * (lo - 1) - xx.base;
     size_t index = (lo-1) * LineBits; // base bit index
 
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    __m128i arr1 = _mm_set_epi32(64 * 3, 64 * 2, 64 * 1, 0);
+    __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.rlev));
+    __m128i arr = _mm_sub_epi32(arr1, arr2); // rlev[0] is always 0
+    __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
+    __mmask8 cmp = _mm_cmpge_epi32_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp);
+    TERARK_ASSERT_LT(tz, 4);
+    return index + 64 * tz + UintSelect1(~xx.bit64[tz], Rank0 - (hit + 64 * tz - xx.rlev[tz]));
+  #else
     if (Rank0 < hit + 64*2 - xx.rlev[2]) {
         if (Rank0 < hit + 64*1 - xx.rlev[1]) { // xx.rlev[0] is always 0
             return index + 64*0 + UintSelect1(~xx.bit64[0], Rank0 - hit);
@@ -569,6 +579,7 @@ size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
         return index + 64*3 + UintSelect1(
                 ~xx.bit64[3], Rank0 - (hit + 64*3 - xx.rlev[3]));
     }
+  #endif
 }
 
 template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<0>(size_t Rank0) const noexcept;
@@ -601,6 +612,14 @@ size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const noexcept {
     size_t hit = xx.base;
     assert(Rank1 >= hit);
     size_t index = (lo-1) * LineBits; // base bit index
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.rlev));
+    __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
+    __mmask8 cmp = _mm_cmpge_epi32_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp);
+    TERARK_ASSERT_LT(tz, 4);
+    return index + 64 * tz + UintSelect1(xx.bit64[tz], Rank1 - (hit + xx.rlev[tz]));
+  #else
     if (Rank1 < hit + xx.rlev[2]) {
         if (Rank1 < hit + xx.rlev[1]) { // xx.rlev[0] is always 0
             return index + UintSelect1(xx.bit64[0], Rank1 - hit);
@@ -616,6 +635,7 @@ size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const noexcept {
         return index + 64*3 + UintSelect1(
                  xx.bit64[3], Rank1 - (hit + xx.rlev[3]));
     }
+  #endif
 }
 
 template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select1_dx<0>(size_t Rank1) const noexcept;

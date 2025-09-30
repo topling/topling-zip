@@ -120,6 +120,16 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
     size_t hit = LineBits * (lo-1) - rc.lev1;
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
 
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    __m128i arr1 = _mm_set_epi32(64 * 3, 64 * 2, 64 * 1, 0);
+    __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
+    __m128i arr = _mm_sub_epi32(arr1, arr2); // rc.lev2[0] is always 0
+    __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
+    __mmask8 cmp = _mm_cmpge_epi32_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp);
+    TERARK_ASSERT_LT(tz, 4);
+    return line_bitpos + 64 * tz + UintSelect1(~pBit64[tz], Rank0 - (hit + 64 * tz - rc.lev2[tz]));
+  #else
     if (Rank0 < hit + 64*2 - rc.lev2[2]) {
         if (Rank0 < hit + 64*1 - rc.lev2[1]) { // rc.lev2[0] is always 0
             return line_bitpos + UintSelect1(~pBit64[0], Rank0 - hit);
@@ -135,6 +145,7 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
         return line_bitpos + 64 * 3 +
             UintSelect1(~pBit64[3], Rank0 - (hit + 64*3 - rc.lev2[3]));
     }
+  #endif
 }
 
 inline size_t rank_select_se::
@@ -160,6 +171,14 @@ fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankC
     size_t hit = rc.lev1;
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
 
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
+    __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
+    __mmask8 cmp = _mm_cmpge_epi32_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp);
+    TERARK_ASSERT_LT(tz, 4);
+    return line_bitpos + 64 * tz + UintSelect1(pBit64[tz], Rank1 - (hit + rc.lev2[tz]));
+  #else
     if (Rank1 < hit + rc.lev2[2]) {
         if (Rank1 < hit + rc.lev2[1]) { // rc.lev2[0] is always 0
             return line_bitpos + UintSelect1(pBit64[0], Rank1 - hit);
@@ -175,6 +194,7 @@ fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankC
         return line_bitpos + 64*3 +
              UintSelect1(pBit64[3], Rank1 - (hit + rc.lev2[3]));
     }
+  #endif
 }
 
 typedef rank_select_se rank_select_se_256;

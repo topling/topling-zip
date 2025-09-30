@@ -139,6 +139,20 @@ fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* ran
 #define select0_nth64(n) line_bitpos + 64*n + \
     UintSelect1(~pBit64[n], Rank0 - (hit + 64*n - rank512(rcRela, n)))
 
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    __m128i arr0 = _mm_set_epi16(64*7, 64*6, 64*5, 64*4, 64*3, 64*2, 64*1, 0);
+    __m512i shift = _mm512_set_epi64(54, 45, 36, 27, 18, 9, 0, 64);
+    __m512i arr1 = _mm512_set1_epi64(rcRela);
+    __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
+    __m128i arr3 = _mm512_cvtepi64_epi16(arr2);
+    __m128i arr4 = _mm_and_si128(arr3, _mm_set1_epi16(0x1FF));
+    __m128i arr = _mm_sub_epi16(arr0, arr4);
+    __m128i key = _mm_set1_epi16(uint16_t(Rank0 - hit));
+    __mmask8 cmp = _mm_cmpge_epi16_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp);
+    TERARK_ASSERT_LT(tz, 8);  // tz may be 0
+    return select0_nth64(tz); // rank512 must use TERARK_GET_BITS_64
+  #else
     if (Rank0 < hit + 64*4 - rank512(rcRela, 4)) {
         if (Rank0 < hit + 64*2 - rank512(rcRela, 2))
             if (Rank0 < hit + 64*1 - rank512(rcRela, 1))
@@ -162,6 +176,7 @@ fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* ran
             else
                 return select0_nth64(7);
     }
+  #endif
 #undef select0_nth64
 }
 
@@ -192,6 +207,21 @@ fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* ran
 #define select1_nth64(n) line_bitpos + 64*n + \
      UintSelect1(pBit64[n], Rank1 - (hit + rank512(rcRela, n)))
 
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    // manual optimize, group 0 is always 0 and is not stored,
+    // the highest bit of 64bits is always 0, so right shift 63 yield 0,
+    // _mm512_srlv_epi64 set to 0 if shift count >= 64
+    __m512i shift = _mm512_set_epi64(54, 45, 36, 27, 18, 9, 0, 64);
+    __m512i arr1 = _mm512_set1_epi64(rcRela);
+    __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
+    __m128i arr3 = _mm512_cvtepi64_epi16(arr2);
+    __m128i arr = _mm_and_si128(arr3, _mm_set1_epi16(0x1FF));
+    __m128i key = _mm_set1_epi16(uint16_t(Rank1 - hit));
+    __mmask8 cmp = _mm_cmpge_epi16_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp);
+    TERARK_ASSERT_LT(tz, 8);  // tz may be 0
+    return select1_nth64(tz); // rank512 must use TERARK_GET_BITS_64
+  #else
     if (Rank1 < hit + rank512(rcRela, 4)) {
         if (Rank1 < hit + rank512(rcRela, 2))
             if (Rank1 < hit + rank512(rcRela, 1))
@@ -215,6 +245,7 @@ fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* ran
             else
                 return select1_nth64(7);
     }
+  #endif
 #undef select1_nth64
 }
 
