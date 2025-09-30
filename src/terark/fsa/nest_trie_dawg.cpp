@@ -220,7 +220,7 @@ index_impl(fstring str) const noexcept {
 				size_t map_state = da[curr].m_map_state;
 				assert(map_state < trie->total_states());
 				byte_t ch = (byte_t)str.p[i];
-                if (HasLink)
+                if (HasLink || trie->is_fast_label)
                     curr = trie->state_move_fast2(map_state, ch, labelData, loudsBits, loudsSel0, loudsRank);
                 else
 		            curr = trie->template state_move_smart<HasLink>(map_state, ch);
@@ -248,7 +248,7 @@ index_impl(fstring str) const noexcept {
 				return null_word;
 		}
 		byte_t ch = (byte_t)str.p[i];
-        if (HasLink)
+        if (HasLink || trie->is_fast_label)
             curr = trie->state_move_fast2(curr, ch, labelData, loudsBits, loudsSel0, loudsRank);
         else
 		    curr = trie->template state_move_smart<HasLink>(curr, ch);
@@ -270,6 +270,10 @@ index_impl_ctx(MatchContext& ctx, fstring str) const noexcept {
 	}
 	else {
     	auto trie = m_trie;
+		auto loudsBits = trie->m_louds.bldata();
+		auto loudsSel0 = trie->m_louds.get_sel0_cache();
+		auto loudsRank = trie->m_louds.get_rank_cache();
+		auto labelData = trie->m_label_data;
 		size_t i = ctx.pos;
 		size_t j = ctx.zidx;
 		for (; nil_state != curr; ++i) {
@@ -300,7 +304,10 @@ index_impl_ctx(MatchContext& ctx, fstring str) const noexcept {
 					return null_word;
 			}
 			byte_t ch = (byte_t)str.p[i];
-			curr = trie->template state_move_smart<HasLink>(curr, ch);
+			if (HasLink || trie->is_fast_label)
+				curr = trie->state_move_fast2(curr, ch, labelData, loudsBits, loudsSel0, loudsRank);
+			else
+				curr = trie->template state_move_smart<HasLink>(curr, ch);
 		}
     	return null_word;
 	}
