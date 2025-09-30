@@ -11,7 +11,11 @@
 #endif
 
 #if defined(__BMI2__) && TERARK_WORD_BITS == 64
-#   define rank512(bm64, i) TERARK_GET_BITS_64(bm64, i, 9)
+// plain extract bits may be faster than _bextr_u64 in some CPU,
+// but _bextr_u64 is always faster when extract const bit pos and width
+// rank512 is mostly used to extract const bit pos and width
+// #   define rank512(bm64, i) TERARK_GET_BITS_64(bm64, i, 9)
+#   define rank512(bm64, i) _bextr_u64(bm64, (i-1)*9, 9)
 #else
 #   define rank512(bm64, i) ((bm64 >> (i-1)*9) & 511)
 #endif
