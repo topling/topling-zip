@@ -369,7 +369,7 @@ size_t rank_select_il::select0_q(size_t Rank0) const {
         return index + 64*2 + UintSelect1(
                 ~xx.bit64[2], Rank0 - (hit + 64*2 - xx.rlev2[2]));
     }
-       else {
+    else {
         return index + 64*3 + UintSelect1(
                 ~xx.bit64[3], Rank0 - (hit + 64*3 - xx.rlev2[3]));
     }
@@ -416,7 +416,7 @@ size_t rank_select_il::select1_q(size_t Rank1) const {
         return index + 64*2 + UintSelect1(
                  xx.bit64[2], Rank1 - (hit + xx.rlev2[2]));
     }
-       else {
+    else {
         return index + 64*3 + UintSelect1(
                  xx.bit64[3], Rank1 - (hit + xx.rlev2[3]));
     }

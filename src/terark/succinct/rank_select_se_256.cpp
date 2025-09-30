@@ -245,7 +245,7 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
         return line_bitpos + 64*2 +
             UintSelect1(~pBit64[2], Rank0 - (hit + 64*2 - rc.lev2[2]));
     }
-       else {
+    else {
         return line_bitpos + 64 * 3 +
             UintSelect1(~pBit64[3], Rank0 - (hit + 64*3 - rc.lev2[3]));
     }
@@ -290,7 +290,7 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
         return line_bitpos + 64*2 +
              UintSelect1(pBit64[2], Rank1 - (hit + rc.lev2[2]));
     }
-       else {
+    else {
         return line_bitpos + 64*3 +
              UintSelect1(pBit64[3], Rank1 - (hit + rc.lev2[3]));
     }

@@ -131,7 +131,7 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
         return line_bitpos + 64*2 +
             UintSelect1(~pBit64[2], Rank0 - (hit + 64*2 - rc.lev2[2]));
     }
-       else {
+    else {
         return line_bitpos + 64 * 3 +
             UintSelect1(~pBit64[3], Rank0 - (hit + 64*3 - rc.lev2[3]));
     }
@@ -171,7 +171,7 @@ fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankC
         return line_bitpos + 64*2 +
              UintSelect1(pBit64[2], Rank1 - (hit + rc.lev2[2]));
     }
-       else {
+    else {
         return line_bitpos + 64*3 +
              UintSelect1(pBit64[3], Rank1 - (hit + rc.lev2[3]));
     }

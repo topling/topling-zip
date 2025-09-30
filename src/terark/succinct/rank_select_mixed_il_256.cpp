@@ -565,7 +565,7 @@ size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
         return index + 64*2 + UintSelect1(
                 ~xx.bit64[2], Rank0 - (hit + 64*2 - xx.rlev[2]));
     }
-       else {
+    else {
         return index + 64*3 + UintSelect1(
                 ~xx.bit64[3], Rank0 - (hit + 64*3 - xx.rlev[3]));
     }
