@@ -270,15 +270,14 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const no
     UintSelect1(~pBit64[n], Rank0 - (hit + 64*n - rank512(rcRela, n)))
 
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
-    __m128i arr0 = _mm_set_epi16(64*7, 64*6, 64*5, 64*4, 64*3, 64*2, 64*1, 0);
+    __m512i arr0 = _mm512_set_epi64(64*7, 64*6, 64*5, 64*4, 64*3, 64*2, 64*1, 0);
     __m512i shift = _mm512_set_epi64(54, 45, 36, 27, 18, 9, 0, 64);
     __m512i arr1 = _mm512_set1_epi64(rcRela);
     __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
-    __m128i arr3 = _mm512_cvtepi64_epi16(arr2);
-    __m128i arr4 = _mm_and_si128(arr3, _mm_set1_epi16(0x1FF));
-    __m128i arr = _mm_sub_epi16(arr0, arr4);
-    __m128i key = _mm_set1_epi16(uint16_t(Rank0 - hit));
-    __mmask8 cmp = _mm_cmpge_epi16_mask(arr, key);
+    __m512i arr3 = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
+    __m512i arr = _mm512_sub_epi64(arr0, arr3);
+    __m512i key = _mm512_set1_epi64(Rank0 - hit);
+    __mmask8 cmp = _mm512_cmpge_epi64_mask(arr, key);
     auto tz = _tzcnt_u32(cmp);
     TERARK_ASSERT_LT(tz, 8);  // tz may be 0
     return select0_nth64(tz); // rank512 must use TERARK_GET_BITS_64
@@ -349,10 +348,9 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1) const no
     __m512i shift = _mm512_set_epi64(54, 45, 36, 27, 18, 9, 0, 64);
     __m512i arr1 = _mm512_set1_epi64(rcRela);
     __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
-    __m128i arr3 = _mm512_cvtepi64_epi16(arr2);
-    __m128i arr = _mm_and_si128(arr3, _mm_set1_epi16(0x1FF));
-    __m128i key = _mm_set1_epi16(uint16_t(Rank1 - hit));
-    __mmask8 cmp = _mm_cmpge_epi16_mask(arr, key);
+    __m512i arr = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
+    __m512i key = _mm512_set1_epi64(Rank1 - hit);
+    __mmask8 cmp = _mm512_cmpge_epi64_mask(arr, key);
     auto tz = _tzcnt_u32(cmp);
     TERARK_ASSERT_LT(tz, 8);  // tz may be 0
     return select1_nth64(tz); // rank512 must use TERARK_GET_BITS_64
