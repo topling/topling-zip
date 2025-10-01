@@ -219,6 +219,7 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
         hi = (m_size + LineBits + 1) / LineBits;
     }
     const RankCache* rank_cache = m_rank_cache;
+    const bm_uint_t* bm_words = this->bldata();
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = LineBits * mid - rank_cache[mid].lev1;
@@ -228,12 +229,12 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
             hi = mid;
     }
     assert(Rank0 < LineBits * lo - rank_cache[lo].lev1);
-    const bm_uint_t* bm_words = this->bldata();
-    size_t line_bitpos = (lo-1) * LineBits;
-    RankCache rc = rank_cache[lo-1];
-    size_t hit = LineBits * (lo-1) - rc.lev1;
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
-
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+3, _MM_HINT_T0);
+    size_t line_bitpos = (lo-1) * LineBits;
+    const RankCache& rc = rank_cache[lo-1];
+    size_t hit = LineBits * (lo-1) - rc.lev1;
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr1 = _mm_set_epi32(64 * 3, 64 * 2, 64 * 1, 0);
     __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
@@ -275,6 +276,7 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
         hi = (m_size + LineBits + 1) / LineBits;
     }
     const RankCache* rank_cache = m_rank_cache;
+    const bm_uint_t* bm_words = this->bldata();
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = rank_cache[mid].lev1;
@@ -284,11 +286,12 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
             hi = mid;
     }
     assert(Rank1 < rank_cache[lo].lev1);
-    const bm_uint_t* bm_words = this->bldata();
-    size_t line_bitpos = (lo-1) * LineBits;
-    RankCache rc = rank_cache[lo-1];
-    size_t hit = rc.lev1;
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+3, _MM_HINT_T0);
+    size_t line_bitpos = (lo-1) * LineBits;
+    const RankCache& rc = rank_cache[lo-1];
+    size_t hit = rc.lev1;
 
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));

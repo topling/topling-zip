@@ -250,6 +250,7 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const no
         lo = 0;
         hi = (m_size + LineBits + 1) / LineBits;
     }
+    const bm_uint_t* bm_words = this->bldata();
     const RankCache512* rank_cache = m_rank_cache;
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
@@ -260,11 +261,12 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const no
             hi = mid;
     }
     assert(Rank0 < LineBits * lo - rank_cache[lo].base);
+    const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+7, _MM_HINT_T0);
     size_t hit = LineBits * (lo-1) - rank_cache[lo-1].base;
-    const bm_uint_t* bm_words = this->bldata();
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rank_cache[lo-1].rela;
-    const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
 
 #define select0_nth64(n) line_bitpos + 64*n + \
     UintSelect1(~pBit64[n], Rank0 - (hit + 64*n - rank512(rcRela, n)))
@@ -322,6 +324,7 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1) const no
         lo = 0;
         hi = (m_size + LineBits + 1) / LineBits;
     }
+    const bm_uint_t* bm_words = this->bldata();
     const RankCache512* rank_cache = m_rank_cache;
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
@@ -332,11 +335,12 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1) const no
             hi = mid;
     }
     assert(Rank1 < rank_cache[lo].base);
+    const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+7, _MM_HINT_T0);
     size_t hit = rank_cache[lo-1].base;
-    const bm_uint_t* bm_words = this->bldata();
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rank_cache[lo-1].rela;
-    const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
 
 #define select1_nth64(n) line_bitpos + 64*n + \
      UintSelect1(pBit64[n], Rank1 - (hit + rank512(rcRela, n)))

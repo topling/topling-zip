@@ -131,10 +131,12 @@ fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* ran
         }
     }
     assert(Rank0 < LineBits * lo - rankCache[lo].base);
+    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+7, _MM_HINT_T0);
     size_t hit = LineBits * (lo-1) - rankCache[lo-1].base;
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rankCache[lo-1].rela;
-    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
 
 #define select0_nth64(n) line_bitpos + 64*n + \
     UintSelect1(~pBit64[n], Rank0 - (hit + 64*n - rank512(rcRela, n)))
@@ -198,10 +200,12 @@ fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* ran
         }
     }
     assert(Rank1 < rankCache[lo].base);
+    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+7, _MM_HINT_T0);
     size_t hit = rankCache[lo-1].base;
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rankCache[lo-1].rela;
-    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
 
 #define select1_nth64(n) line_bitpos + 64*n + \
      UintSelect1(pBit64[n], Rank1 - (hit + rank512(rcRela, n)))

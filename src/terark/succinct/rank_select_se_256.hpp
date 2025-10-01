@@ -114,11 +114,13 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
                 hi = mid;
         }
     }
+    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+3, _MM_HINT_T0);
     assert(Rank0 < LineBits * lo - rankCache[lo].lev1);
     size_t line_bitpos = (lo-1) * LineBits;
-    RankCache rc = rankCache[lo-1];
+    const RankCache& rc = rankCache[lo-1];
     size_t hit = LineBits * (lo-1) - rc.lev1;
-    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
 
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr1 = _mm_set_epi32(64 * 3, 64 * 2, 64 * 1, 0);
@@ -165,11 +167,13 @@ fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankC
                 hi = mid;
         }
     }
+    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
+    _mm_prefetch(pBit64+0, _MM_HINT_T0);
+    _mm_prefetch(pBit64+3, _MM_HINT_T0);
     assert(Rank1 < rankCache[lo].lev1);
     size_t line_bitpos = (lo-1) * LineBits;
-    RankCache rc = rankCache[lo-1];
+    const RankCache& rc = rankCache[lo-1];
     size_t hit = rc.lev1;
-    const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
 
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
