@@ -204,8 +204,10 @@ public:
 	size_t index(fstring) const noexcept override final;
 	template<bool HasLink>
 	size_t index_impl(fstring) const noexcept;
+	size_t index_impl_true(fstring) const noexcept;
+	size_t index_impl_false(fstring) const noexcept;
 	template<bool HasLink>
-	size_t index_impl(MatchContext&, fstring) const noexcept;
+	size_t index_impl_ctx(MatchContext&, fstring) const noexcept;
 
     void lower_bound(MatchContext&, fstring, size_t* index, size_t* dict_rank) const noexcept override final;
     size_t index_begin() const noexcept;
