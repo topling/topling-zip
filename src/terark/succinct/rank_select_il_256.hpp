@@ -171,6 +171,13 @@ public:
     static size_t fast_one_seq_len(const Line*, size_t bitpos);
 
 protected:
+    template<size_t Q> size_t select0_upper_bound_line_safe(size_t id) const;
+    template<size_t Q> size_t select1_upper_bound_line_safe(size_t id) const;
+    template<size_t Q>
+    static size_t select0_upper_bound_line(const Line* bits, const uint32_t* sel0, size_t id);
+    template<size_t Q>
+    static size_t select1_upper_bound_line(const Line* bits, const uint32_t* sel1, size_t id);
+
     template<size_t Q>
     static inline size_t fast_select0_q(const Line* bits, const uint32_t* sel0, const Line* rankCache, size_t id);
     template<size_t Q>
@@ -213,8 +220,8 @@ fast_select0(const Line* lines, const uint32_t* sel0, const Line*, size_t Rank0)
     return fast_select0_q<1>(lines, sel0, lines, Rank0);
 }
 template<size_t Q>
-inline size_t rank_select_il::
-fast_select0_q(const Line* lines, const uint32_t* sel0, const Line*, size_t Rank0) {
+inline size_t rank_select_il::select0_upper_bound_line
+(const Line* lines, const uint32_t* sel0, size_t Rank0) {
     size_t lo = sel0[Rank0 / (LineBits/Q)];
     size_t hi = sel0[Rank0 / (LineBits/Q) + 1];
     if (hi - lo < 32/Q) {
@@ -230,6 +237,12 @@ fast_select0_q(const Line* lines, const uint32_t* sel0, const Line*, size_t Rank
                 hi = mid;
         }
     }
+    return lo;
+}
+template<size_t Q>
+inline size_t rank_select_il::fast_select0_q
+(const Line* lines, const uint32_t* sel0, const Line*, size_t Rank0) {
+    size_t lo = select0_upper_bound_line<Q>(lines, sel0, Rank0);
     assert(Rank0 < LineBits * lo - lines[lo].rlev1);
     const Line& xx = lines[lo - 1];
     size_t hit = LineBits * (lo - 1) - xx.rlev1;
@@ -267,8 +280,8 @@ fast_select1(const Line* lines, const uint32_t* sel1, const Line*, size_t Rank1)
     return fast_select1_q<1>(lines, sel1, lines, Rank1);
 }
 template<size_t Q>
-inline size_t rank_select_il::
-fast_select1_q(const Line* lines, const uint32_t* sel1, const Line*, size_t Rank1) {
+inline size_t rank_select_il::select1_upper_bound_line
+(const Line* lines, const uint32_t* sel1, size_t Rank1) {
     size_t lo = sel1[Rank1 / (LineBits/Q)];
     size_t hi = sel1[Rank1 / (LineBits/Q) + 1];
     if (hi - lo < 32/Q) {
@@ -283,6 +296,12 @@ fast_select1_q(const Line* lines, const uint32_t* sel1, const Line*, size_t Rank
                 hi = mid;
         }
     }
+    return lo;
+}
+template<size_t Q>
+inline size_t rank_select_il::fast_select1_q
+(const Line* lines, const uint32_t* sel1, const Line*, size_t Rank1) {
+    size_t lo = select1_upper_bound_line<Q>(lines, sel1, Rank1);
     assert(Rank1 < lines[lo].rlev1);
     const Line& xx = lines[lo - 1];
     size_t hit = xx.rlev1;

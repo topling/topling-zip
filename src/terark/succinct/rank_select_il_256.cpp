@@ -333,7 +333,7 @@ size_t rank_select_il::select0(size_t Rank0) const {
 }
 template<size_t Q>
 inline
-size_t rank_select_il::select0_q(size_t Rank0) const {
+size_t rank_select_il::select0_upper_bound_line_safe(size_t Rank0) const {
     GUARD_MAX_RANK(0, Rank0);
     size_t lo, hi;
     if (m_fast_select0) { // get the very small [lo, hi) range
@@ -354,6 +354,12 @@ size_t rank_select_il::select0_q(size_t Rank0) const {
         else
             hi = mid;
     }
+    return lo;
+}
+template<size_t Q>
+inline size_t rank_select_il::select0_q(size_t Rank0) const {
+    const Line* lines = m_lines.data();
+    size_t lo = select0_upper_bound_line_safe<Q>(Rank0);
     assert(Rank0 < LineBits * lo - lines[lo].rlev1);
     const Line& xx = lines[lo - 1];
     size_t hit = LineBits * (lo - 1) - xx.rlev1;
@@ -391,7 +397,7 @@ size_t rank_select_il::select1(size_t Rank1) const {
 }
 template<size_t Q>
 inline
-size_t rank_select_il::select1_q(size_t Rank1) const {
+size_t rank_select_il::select1_upper_bound_line_safe(size_t Rank1) const {
     GUARD_MAX_RANK(1, Rank1);
     size_t lo, hi;
     if (m_fast_select1) { // get the very small [lo, hi) range
@@ -411,6 +417,12 @@ size_t rank_select_il::select1_q(size_t Rank1) const {
         else
             hi = mid;
     }
+    return lo;
+}
+template<size_t Q>
+inline size_t rank_select_il::select1_q(size_t Rank1) const {
+    const Line* lines = m_lines.data();
+    size_t lo = select1_upper_bound_line_safe<Q>(Rank1);
     assert(Rank1 < lines[lo].rlev1);
     const Line& xx = lines[lo - 1];
     size_t hit = xx.rlev1;

@@ -528,7 +528,9 @@ template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_revlen_dx<0
 template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::zero_seq_revlen_dx<1>(size_t ebdpos) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
+inline
+size_t rank_select_mixed_il_256::select0_upper_bound_line_safe(size_t Rank0)
+const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     GUARD_MAX_RANK(0[dimensions], Rank0);
     size_t lo, hi;
@@ -549,6 +551,11 @@ size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
         else
             hi = mid;
     }
+    return lo;
+}
+template<size_t dimensions>
+size_t rank_select_mixed_il_256::select0_dx(size_t Rank0) const noexcept {
+    size_t lo = select0_upper_bound_line_safe<dimensions>(Rank0);
     assert(Rank0 < LineBits * lo - m_lines[lo].mixed[dimensions].base);
     const auto& xx = m_lines[lo - 1].mixed[dimensions];
     size_t hit = LineBits * (lo - 1) - xx.base;
@@ -586,7 +593,9 @@ template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<0>(size_t
 template size_t TERARK_DLL_EXPORT rank_select_mixed_il_256::select0_dx<1>(size_t Rank0) const noexcept;
 
 template<size_t dimensions>
-size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const noexcept {
+inline
+size_t rank_select_mixed_il_256::select1_upper_bound_line_safe(size_t Rank1)
+const noexcept {
     assert(m_flags & (1 << (dimensions == 0 ? 1 : 4)));
     GUARD_MAX_RANK(1[dimensions], Rank1);
     size_t lo, hi;
@@ -607,6 +616,11 @@ size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const noexcept {
         else
             hi = mid;
     }
+    return lo;
+}
+template<size_t dimensions>
+size_t rank_select_mixed_il_256::select1_dx(size_t Rank1) const noexcept {
+    size_t lo = select1_upper_bound_line_safe<dimensions>(Rank1);
     assert(Rank1 < m_lines[lo].mixed[dimensions].base);
     const auto& xx = m_lines[lo - 1].mixed[dimensions];
     size_t hit = xx.base;

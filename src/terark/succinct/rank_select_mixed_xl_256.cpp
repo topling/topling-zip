@@ -561,7 +561,9 @@ size_t rank_select_mixed_xl_256<Arity>::zero_seq_revlen_dx(size_t endpos) const 
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept {
+inline size_t
+rank_select_mixed_xl_256<Arity>::select0_upper_bound_line_safe(size_t Rank0)
+const noexcept {
     assert(m_flags & (1 << (1 + 3 * dimensions)));
     GUARD_MAX_RANK(0[dimensions], Rank0);
     size_t lo, hi;
@@ -582,6 +584,13 @@ size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept 
         else
             hi = mid;
     }
+    return lo;
+}
+
+template<size_t Arity>
+template<size_t dimensions>
+size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept {
+    size_t lo = select0_upper_bound_line_safe<dimensions>(Rank0);
     assert(Rank0 < LineBits * lo - m_lines[lo].mixed[dimensions].base);
     const auto& xx = m_lines[lo - 1];
     size_t hit = LineBits * (lo - 1) - xx.mixed[dimensions].base;
@@ -618,7 +627,9 @@ size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept 
 
 template<size_t Arity>
 template<size_t dimensions>
-size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const noexcept {
+inline size_t
+rank_select_mixed_xl_256<Arity>::select1_upper_bound_line_safe(size_t Rank1)
+const noexcept {
     assert(m_flags & (1 << (1 + 3 * dimensions)));
     GUARD_MAX_RANK(1[dimensions], Rank1);
     size_t lo, hi;
@@ -639,6 +650,13 @@ size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const noexcept 
         else
             hi = mid;
     }
+    return lo;
+}
+
+template<size_t Arity>
+template<size_t dimensions>
+size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const noexcept {
+    size_t lo = select1_upper_bound_line_safe<dimensions>(Rank1);
     assert(Rank1 < m_lines[lo].mixed[dimensions].base);
     const auto& xx = m_lines[lo - 1];
     size_t hit = xx.mixed[dimensions].base;

@@ -51,6 +51,10 @@ protected:
     uint32_t*  m_sel1_cache;
     size_t     m_max_rank0;
     size_t     m_max_rank1;
+    size_t select0_upper_bound_line_safe(size_t id) const noexcept;
+    size_t select1_upper_bound_line_safe(size_t id) const noexcept;
+    static size_t select0_upper_bound_line(const bm_uint_t* bits, const uint32_t* sel0, const RankCache*, size_t id) noexcept;
+    static size_t select1_upper_bound_line(const bm_uint_t* bits, const uint32_t* sel1, const RankCache*, size_t id) noexcept;
 public:
     const RankCache* get_rank_cache() const { return m_rank_cache; }
     const uint32_t* get_sel0_cache() const { return m_sel0_cache; }
@@ -97,8 +101,9 @@ fast_rank1(const bm_uint_t* bits, const RankCache* rankCache, size_t bitpos) noe
             ((const uint64_t*)bits)[bitpos / 64], bitpos % 64);
 }
 
-inline size_t rank_select_se::
-fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t Rank0) noexcept {
+inline size_t rank_select_se::select0_upper_bound_line
+(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t Rank0)
+noexcept {
     size_t lo = sel0[Rank0 / LineBits];
     size_t hi = sel0[Rank0 / LineBits + 1];
     if (hi - lo < 32) {
@@ -114,6 +119,13 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
                 hi = mid;
         }
     }
+    return lo;
+}
+
+inline size_t rank_select_se::fast_select0
+(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankCache, size_t Rank0)
+noexcept {
+    size_t lo = select0_upper_bound_line(bits, sel0, rankCache, Rank0);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);
     _mm_prefetch(pBit64+3, _MM_HINT_T0);
@@ -150,8 +162,9 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
   #endif
 }
 
-inline size_t rank_select_se::
-fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t Rank1) noexcept {
+inline size_t rank_select_se::select1_upper_bound_line
+(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t Rank1)
+noexcept {
     size_t lo = sel1[Rank1 / LineBits];
     size_t hi = sel1[Rank1 / LineBits + 1];
     if (hi - lo < 32) {
@@ -167,6 +180,13 @@ fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankC
                 hi = mid;
         }
     }
+    return lo;
+}
+
+inline size_t rank_select_se::fast_select1
+(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankCache, size_t Rank1)
+noexcept {
+    size_t lo = select1_upper_bound_line(bits, sel1, rankCache, Rank1);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);
     _mm_prefetch(pBit64+3, _MM_HINT_T0);

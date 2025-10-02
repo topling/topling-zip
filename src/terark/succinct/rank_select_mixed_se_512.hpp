@@ -151,6 +151,14 @@ protected:
     size_t     m_max_rank1[2];
 
     const RankCacheMixed* get_rank_cache_base() const { return m_rank_cache; }
+
+    template<size_t dimensions> size_t select0_upper_bound_line_safe(size_t id) const noexcept;
+    template<size_t dimensions> size_t select1_upper_bound_line_safe(size_t id) const noexcept;
+    template<size_t dimensions>
+    static inline size_t select0_upper_bound_line(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t id) noexcept;
+    template<size_t dimensions>
+    static inline size_t select1_upper_bound_line(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t id) noexcept;
+
 public:
     template<size_t dimensions>
     static inline bool fast_is0_dx(const bm_uint_t* bits, size_t i) noexcept;
@@ -229,8 +237,9 @@ fast_rank1_dx(const bm_uint_t* bits, const RankCacheMixed* rankCache, size_t bit
 }
 
 template<size_t dimensions>
-inline size_t rank_select_mixed_se_512::
-fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t Rank0) noexcept {
+inline size_t rank_select_mixed_se_512::select0_upper_bound_line
+(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t Rank0)
+noexcept {
     size_t lo, hi;
     lo = sel0[Rank0 / LineBits];
     hi = sel0[Rank0 / LineBits + 1];
@@ -242,6 +251,14 @@ fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixe
         else
             hi = mid;
     }
+    return lo;
+}
+
+template<size_t dimensions>
+inline size_t rank_select_mixed_se_512::fast_select0_dx
+(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixed* rankCache, size_t Rank0)
+noexcept {
+    size_t lo = select0_upper_bound_line<dimensions>(bits, sel0, rankCache, Rank0);
     assert(Rank0 < LineBits * lo - rankCache[lo].base[dimensions]);
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rankCache[lo-1].rela[dimensions];
@@ -292,8 +309,9 @@ fast_select0_dx(const bm_uint_t* bits, const uint32_t* sel0, const RankCacheMixe
 }
 
 template<size_t dimensions>
-inline size_t rank_select_mixed_se_512::
-fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t Rank1) noexcept {
+inline size_t rank_select_mixed_se_512::select1_upper_bound_line
+(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t Rank1)
+noexcept {
     size_t lo, hi;
     lo = sel1[Rank1 / LineBits];
     hi = sel1[Rank1 / LineBits + 1];
@@ -305,6 +323,14 @@ fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixe
         else
             hi = mid;
     }
+    return lo;
+}
+
+template<size_t dimensions>
+inline size_t rank_select_mixed_se_512::fast_select1_dx
+(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixed* rankCache, size_t Rank1)
+noexcept {
+    size_t lo = select1_upper_bound_line<dimensions>(bits, sel1, rankCache, Rank1);
     assert(Rank1 < rankCache[lo].base[dimensions]);
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rankCache[lo-1].rela[dimensions];

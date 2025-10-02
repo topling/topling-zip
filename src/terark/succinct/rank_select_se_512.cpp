@@ -238,7 +238,9 @@ void rank_select_se_512_tpl<rank_cache_base_t>::build_cache(bool speed_select0, 
 }
 
 template<class rank_cache_base_t>
-size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const noexcept {
+inline size_t
+rank_select_se_512_tpl<rank_cache_base_t>::select0_upper_bound_line_safe
+(size_t Rank0) const noexcept {
     GUARD_MAX_RANK(0, Rank0);
     size_t lo, hi;
     if (m_sel0_cache) { // get the very small [lo, hi) range
@@ -250,7 +252,6 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const no
         lo = 0;
         hi = (m_size + LineBits + 1) / LineBits;
     }
-    const bm_uint_t* bm_words = this->bldata();
     const RankCache512* rank_cache = m_rank_cache;
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
@@ -260,6 +261,15 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const no
         else
             hi = mid;
     }
+    return lo;
+}
+
+template<class rank_cache_base_t>
+size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0)
+const noexcept {
+    const bm_uint_t* bm_words = this->bldata();
+    const RankCache512* rank_cache = m_rank_cache;
+    size_t lo = select0_upper_bound_line_safe(Rank0);
     assert(Rank0 < LineBits * lo - rank_cache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);
@@ -312,7 +322,9 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0) const no
 }
 
 template<class rank_cache_base_t>
-size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1) const noexcept {
+inline size_t
+rank_select_se_512_tpl<rank_cache_base_t>::select1_upper_bound_line_safe
+(size_t Rank1) const noexcept {
     GUARD_MAX_RANK(1, Rank1);
     size_t lo, hi;
     if (m_sel1_cache) { // get the very small [lo, hi) range
@@ -324,7 +336,6 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1) const no
         lo = 0;
         hi = (m_size + LineBits + 1) / LineBits;
     }
-    const bm_uint_t* bm_words = this->bldata();
     const RankCache512* rank_cache = m_rank_cache;
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
@@ -334,6 +345,15 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1) const no
         else
             hi = mid;
     }
+    return lo;
+}
+
+template<class rank_cache_base_t>
+size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1)
+const noexcept {
+    const bm_uint_t* bm_words = this->bldata();
+    const RankCache512* rank_cache = m_rank_cache;
+    size_t lo = select1_upper_bound_line_safe(Rank1);
     assert(Rank1 < rank_cache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);

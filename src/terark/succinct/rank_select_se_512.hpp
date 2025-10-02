@@ -59,6 +59,10 @@ protected:
     index_t*   m_sel1_cache;
     size_t     m_max_rank0;
     size_t     m_max_rank1;
+    size_t select0_upper_bound_line_safe(size_t id) const noexcept;
+    size_t select1_upper_bound_line_safe(size_t id) const noexcept;
+    static size_t select0_upper_bound_line(const bm_uint_t* bits, const index_t* sel0, const RankCache512*, size_t id) noexcept;
+    static size_t select1_upper_bound_line(const bm_uint_t* bits, const index_t* sel1, const RankCache512*, size_t id) noexcept;
 public:
     const RankCache512* get_rank_cache() const { return m_rank_cache; }
     const index_t* get_sel0_cache() const { return m_sel0_cache; }
@@ -114,7 +118,9 @@ fast_rank1(const bm_uint_t* bits, const RankCache512* rankCache, size_t bitpos) 
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t Rank0) noexcept {
+select0_upper_bound_line
+(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t Rank0)
+noexcept {
     size_t lo = sel0[Rank0 / LineBits];
     size_t hi = sel0[Rank0 / LineBits + 1];
     if (hi - lo < 32) {
@@ -130,6 +136,14 @@ fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* ran
                 hi = mid;
         }
     }
+    return lo;
+}
+
+template<class rank_cache_base_t>
+inline size_t rank_select_se_512_tpl<rank_cache_base_t>::fast_select0
+(const bm_uint_t* bits, const index_t* sel0, const RankCache512* rankCache, size_t Rank0)
+noexcept {
+    size_t lo = select0_upper_bound_line(bits, sel0, rankCache, Rank0);
     assert(Rank0 < LineBits * lo - rankCache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);
@@ -183,7 +197,9 @@ fast_select0(const bm_uint_t* bits, const index_t* sel0, const RankCache512* ran
 
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
-fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t Rank1) noexcept {
+select1_upper_bound_line
+(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t Rank1)
+noexcept {
     size_t lo = sel1[Rank1 / LineBits];
     size_t hi = sel1[Rank1 / LineBits + 1];
     if (hi - lo < 32) {
@@ -199,6 +215,14 @@ fast_select1(const bm_uint_t* bits, const index_t* sel1, const RankCache512* ran
                 hi = mid;
         }
     }
+    return lo;
+}
+
+template<class rank_cache_base_t>
+inline size_t rank_select_se_512_tpl<rank_cache_base_t>::fast_select1
+(const bm_uint_t* bits, const index_t* sel1, const RankCache512* rankCache, size_t Rank1)
+noexcept {
+    size_t lo = select1_upper_bound_line(bits, sel1, rankCache, Rank1);
     assert(Rank1 < rankCache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);

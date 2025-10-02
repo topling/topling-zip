@@ -162,6 +162,14 @@ protected:
     friend void instantiate_member_template_aux(MyClass*);
 
     const RankCacheMixed* get_rank_cache_base() const { return m_lines; }
+
+    template<size_t dimensions> size_t select0_upper_bound_line_safe(size_t id) const noexcept;
+    template<size_t dimensions> size_t select1_upper_bound_line_safe(size_t id) const noexcept;
+    template<size_t dimensions>
+    static size_t select0_upper_bound_line(const bldata_t* bits, const uint32_t* sel0, size_t id) noexcept;
+    template<size_t dimensions>
+    static size_t select1_upper_bound_line(const bldata_t* bits, const uint32_t* sel1, size_t id) noexcept;
+
 public:
     template<size_t dimensions>
     static inline bool fast_is0_dx(const bldata_t* bits, size_t i) noexcept;
@@ -243,8 +251,8 @@ fast_rank1_dx(const bldata_t* m_lines, const RankCacheMixed*, size_t bitpos) noe
 
 template<size_t Arity>
 template<size_t dimensions>
-inline size_t rank_select_mixed_xl_256<Arity>::
-fast_select0_dx(const bldata_t* m_lines, const uint32_t* sel0, const RankCacheMixed*, size_t Rank0) noexcept {
+inline size_t rank_select_mixed_xl_256<Arity>::select0_upper_bound_line
+(const bldata_t* m_lines, const uint32_t* sel0, size_t Rank0) noexcept {
     size_t lo, hi;
     lo = sel0[Rank0 / LineBits];
     hi = sel0[Rank0 / LineBits + 1];
@@ -256,6 +264,14 @@ fast_select0_dx(const bldata_t* m_lines, const uint32_t* sel0, const RankCacheMi
         else
             hi = mid;
     }
+    return lo;
+}
+template<size_t Arity>
+template<size_t dimensions>
+inline size_t rank_select_mixed_xl_256<Arity>::fast_select0_dx
+(const bldata_t* m_lines, const uint32_t* sel0, const RankCacheMixed*, size_t Rank0)
+noexcept {
+    size_t lo = select0_upper_bound_line<dimensions>(m_lines, sel0, Rank0);
     assert(Rank0 < LineBits * lo - m_lines[lo].mixed[dimensions].base);
     const auto& xx = m_lines[lo - 1];
     size_t hit = LineBits * (lo - 1) - xx.mixed[dimensions].base;
@@ -292,8 +308,8 @@ fast_select0_dx(const bldata_t* m_lines, const uint32_t* sel0, const RankCacheMi
 
 template<size_t Arity>
 template<size_t dimensions>
-inline size_t rank_select_mixed_xl_256<Arity>::
-fast_select1_dx(const bldata_t* m_lines, const uint32_t* sel1, const RankCacheMixed*, size_t Rank1) noexcept {
+inline size_t rank_select_mixed_xl_256<Arity>::select1_upper_bound_line
+(const bldata_t* m_lines, const uint32_t* sel1, size_t Rank1) noexcept {
     size_t lo, hi;
     lo = sel1[Rank1 / LineBits];
     hi = sel1[Rank1 / LineBits + 1];
@@ -305,6 +321,14 @@ fast_select1_dx(const bldata_t* m_lines, const uint32_t* sel1, const RankCacheMi
         else
             hi = mid;
     }
+    return lo;
+}
+template<size_t Arity>
+template<size_t dimensions>
+inline size_t rank_select_mixed_xl_256<Arity>::fast_select1_dx
+(const bldata_t* m_lines, const uint32_t* sel1, const RankCacheMixed*, size_t Rank1)
+noexcept {
+    size_t lo = select1_upper_bound_line<dimensions>(m_lines, sel1, Rank1);
     assert(Rank1 < m_lines[lo].mixed[dimensions].base);
     const auto& xx = m_lines[lo - 1];
     size_t hit = xx.mixed[dimensions].base;

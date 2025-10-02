@@ -206,7 +206,8 @@ void rank_select_se::build_cache(bool speed_select0, bool speed_select1) {
     ((uint64_t*)(m_words + m_capacity/WordBits))[-1] = flags;
 }
 
-size_t rank_select_se::select0(size_t Rank0) const noexcept {
+inline size_t rank_select_se::select0_upper_bound_line_safe(size_t Rank0)
+const noexcept {
     GUARD_MAX_RANK(0, Rank0);
     size_t lo, hi;
     if (m_sel0_cache) { // get the very small [lo, hi) range
@@ -228,6 +229,13 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
         else
             hi = mid;
     }
+    return lo;
+}
+
+size_t rank_select_se::select0(size_t Rank0) const noexcept {
+    const RankCache* rank_cache = m_rank_cache;
+    const bm_uint_t* bm_words = this->bldata();
+    size_t lo = select0_upper_bound_line_safe(Rank0);
     assert(Rank0 < LineBits * lo - rank_cache[lo].lev1);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);
@@ -263,7 +271,8 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
   #endif
 }
 
-size_t rank_select_se::select1(size_t Rank1) const noexcept {
+inline size_t rank_select_se::select1_upper_bound_line_safe(size_t Rank1)
+const noexcept {
     GUARD_MAX_RANK(1, Rank1);
     size_t lo, hi;
     if (m_sel1_cache) { // get the very small [lo, hi) range
@@ -285,6 +294,13 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
         else
             hi = mid;
     }
+    return lo;
+}
+
+size_t rank_select_se::select1(size_t Rank1) const noexcept {
+    const RankCache* rank_cache = m_rank_cache;
+    const bm_uint_t* bm_words = this->bldata();
+    size_t lo = select1_upper_bound_line_safe(Rank1);
     assert(Rank1 < rank_cache[lo].lev1);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
     _mm_prefetch(pBit64+0, _MM_HINT_T0);
