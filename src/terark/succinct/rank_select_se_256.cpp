@@ -220,7 +220,29 @@ const noexcept {
         hi = (m_size + LineBits + 1) / LineBits;
     }
     const RankCache* rank_cache = m_rank_cache;
-    const bm_uint_t* bm_words = this->bldata();
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    size_t veclen;
+    while ((veclen = hi - lo) > 8) {
+        size_t mid = (lo + hi) / 2;
+        size_t mid_val = LineBits * mid - rank_cache[mid].lev1;
+        if (mid_val <= Rank0) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    {
+        __m256i vec0 = _mm256_add_epi32(_mm256_set1_epi32(lo), _mm256_set_epi32(7,6,5,4,3,2,1,0));
+        vec0 = _mm256_sllv_epi32(vec0, _mm256_set1_epi32(LineShift));
+        __mmask8 k = _bzhi_u32(-1, veclen);
+        __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rank_cache[lo]);
+        __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
+        __m256i vec3 = _mm256_sub_epi32(vec0, vec2);
+        __m256i key = _mm256_set1_epi32(Rank0);
+        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec3, key);
+        auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
+        lo += tz;
+    }
+  #else
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = LineBits * mid - rank_cache[mid].lev1;
@@ -229,6 +251,7 @@ const noexcept {
         else
             hi = mid;
     }
+  #endif
     return lo;
 }
 
@@ -285,7 +308,26 @@ const noexcept {
         hi = (m_size + LineBits + 1) / LineBits;
     }
     const RankCache* rank_cache = m_rank_cache;
-    const bm_uint_t* bm_words = this->bldata();
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    size_t veclen;
+    while ((veclen = hi - lo) > 8) {
+        size_t mid = (lo + hi) / 2;
+        size_t mid_val = rank_cache[mid].lev1;
+        if (mid_val <= Rank1) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    {
+        __mmask8 k = _bzhi_u32(-1, veclen);
+        __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rank_cache[lo]);
+        __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
+        __m256i key = _mm256_set1_epi32(Rank1);
+        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
+        auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
+        lo += tz;
+    }
+  #else
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = rank_cache[mid].lev1;
@@ -294,6 +336,7 @@ const noexcept {
         else
             hi = mid;
     }
+  #endif
     return lo;
 }
 

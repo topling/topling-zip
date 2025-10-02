@@ -106,6 +106,29 @@ inline size_t rank_select_se::select0_upper_bound_line
 noexcept {
     size_t lo = sel0[Rank0 / LineBits];
     size_t hi = sel0[Rank0 / LineBits + 1];
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    size_t sublen;
+    while ((sublen = hi - lo) > 8) {
+        size_t mid = (lo + hi) / 2;
+        size_t mid_val = LineBits * mid - rankCache[mid].lev1;
+        if (mid_val <= Rank0) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    {
+        __m256i vec0 = _mm256_add_epi32(_mm256_set1_epi32(lo), _mm256_set_epi32(7,6,5,4,3,2,1,0));
+        vec0 = _mm256_sllv_epi32(vec0, _mm256_set1_epi32(LineShift));
+        __mmask8 k = _bzhi_u32(-1, sublen);
+        __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rankCache[lo]);
+        __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
+        __m256i vec3 = _mm256_sub_epi32(vec0, vec2);
+        __m256i key = _mm256_set1_epi32(Rank0);
+        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec3, key);
+        auto tz = _tzcnt_u32(cmp | (1u << sublen)); // upper bound
+        lo += tz;
+    }
+  #else
     if (hi - lo < 32) {
         while (LineBits * lo - rankCache[lo].lev1 <= Rank0) lo++;
     }
@@ -119,6 +142,7 @@ noexcept {
                 hi = mid;
         }
     }
+  #endif
     return lo;
 }
 
@@ -167,6 +191,26 @@ inline size_t rank_select_se::select1_upper_bound_line
 noexcept {
     size_t lo = sel1[Rank1 / LineBits];
     size_t hi = sel1[Rank1 / LineBits + 1];
+  #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    size_t sublen;
+    while ((sublen = hi - lo) > 8) {
+        size_t mid = (lo + hi) / 2;
+        size_t mid_val = rankCache[mid].lev1;
+        if (mid_val <= Rank1) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    {
+        __mmask8 k = _bzhi_u32(-1, sublen);
+        __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rankCache[lo]);
+        __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
+        __m256i key = _mm256_set1_epi32(Rank1);
+        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
+        auto tz = _tzcnt_u32(cmp | (1u << sublen)); // upper bound
+        lo += tz;
+    }
+  #else
     if (hi - lo < 32) {
         while (rankCache[lo].lev1 <= Rank1) lo++;
     }
@@ -180,6 +224,7 @@ noexcept {
                 hi = mid;
         }
     }
+  #endif
     return lo;
 }
 
