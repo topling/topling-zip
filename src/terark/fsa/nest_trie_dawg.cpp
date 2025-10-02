@@ -140,7 +140,7 @@ template<class NestTrie, class DawgType>
 size_t NestTrieDAWG<NestTrie, DawgType>::
 index(MatchContext& ctx, fstring str) const noexcept {
     assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
-    if (m_trie->m_is_link.max_rank1() > 0)
+    if (this->m_zpath_states > 0)
         return index_impl<true>(ctx, str);
     else
         return index_impl<false>(ctx, str);
@@ -151,7 +151,7 @@ template<class NestTrie, class DawgType>
 size_t
 NestTrieDAWG<NestTrie, DawgType>::index(fstring str) const noexcept {
     assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
-    if (m_trie->m_is_link.max_rank1() > 0)
+    if (this->m_zpath_states > 0)
         return index_impl<true>(str);
     else
         return index_impl<false>(str);
