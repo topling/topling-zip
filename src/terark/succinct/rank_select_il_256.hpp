@@ -218,7 +218,7 @@ fast_select0_q(const Line* lines, const uint32_t* sel0, const Line*, size_t Rank
     size_t lo = sel0[Rank0 / (LineBits/Q)];
     size_t hi = sel0[Rank0 / (LineBits/Q) + 1];
     if (hi - lo < 32/Q) {
-        do lo++; while (LineBits * lo - lines[lo].rlev1 <= Rank0);
+        while (LineBits * lo - lines[lo].rlev1 <= Rank0) lo++;
     }
     else {
         while (lo < hi) {
@@ -261,7 +261,7 @@ fast_select1_q(const Line* lines, const uint32_t* sel1, const Line*, size_t Rank
     size_t lo = sel1[Rank1 / (LineBits/Q)];
     size_t hi = sel1[Rank1 / (LineBits/Q) + 1];
     if (hi - lo < 32/Q) {
-        do lo++; while (lines[lo].rlev1 <= Rank1);
+        while (lines[lo].rlev1 <= Rank1) lo++;
     }
     else {
         while (lo < hi) {
