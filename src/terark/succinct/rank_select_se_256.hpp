@@ -102,7 +102,7 @@ fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const RankCache* rankC
     size_t lo = sel0[Rank0 / LineBits];
     size_t hi = sel0[Rank0 / LineBits + 1];
     if (hi - lo < 32) {
-        while (LineBits * lo - rankCache[lo].lev1 <= Rank0) lo++;
+        do lo++; while (LineBits * lo - rankCache[lo].lev1 <= Rank0);
     }
     else {
         while (lo < hi) {
@@ -142,7 +142,7 @@ fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const RankCache* rankC
     size_t lo = sel1[Rank1 / LineBits];
     size_t hi = sel1[Rank1 / LineBits + 1];
     if (hi - lo < 32) {
-        while (rankCache[lo].lev1 <= Rank1) lo++;
+        do lo++; while (rankCache[lo].lev1 <= Rank1);
     }
     else {
         while (lo < hi) {
