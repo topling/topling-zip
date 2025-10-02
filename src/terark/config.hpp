@@ -198,3 +198,7 @@ extern bool g_Terark_hasValgrind;
 #define TOPLING_GCC_PRAGMA(X)
 #define TOPLING_GCC_NOLINT(warn)
 #endif
+
+#if defined(__GNUC__) && defined(__clang__) && __clang_major__ >= 20
+#pragma clang diagnostic ignored "-Wnontrivial-memcall"
+#endif
