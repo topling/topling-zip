@@ -138,7 +138,7 @@ namespace terark {
   #elif defined(__clang__)
 	inline unsigned long terark_bsr_u64(unsigned long x) {
 		unsigned long bsr;
-		asm ("bsrq\t%1, %0" : "=r" (bsr) : "rm" (x) );
+		asm ("bsrq\t%1, %0" : "=r" (bsr) : "r" (x) );
 		return bsr;
 	}
   #elif defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 4005
@@ -153,7 +153,11 @@ namespace terark {
 		return Index;
 	}
 #elif defined(__clang__)
-	inline int terark_bsr_u32(unsigned x) { return 31 - __builtin_clz(x); }
+	inline unsigned terark_bsr_u32(unsigned x) {
+		unsigned bsr;
+		asm ("bsr\t%1, %0" : "=r" (bsr) : "r" (x) );
+		return bsr;
+	}
 #else
     // for gcc/clang/icc
 	#define terark_bsr_u32 _bit_scan_reverse
