@@ -54,9 +54,9 @@
   static inline int io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout) {
     return syscall(__NR_io_getevents, ctx_id, min_nr, nr, events, timeout);
   }
-  static inline int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result) {
-    return syscall(__NR_io_cancel, ctx_id, iocb, result);
-  }
+  // static inline int io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result) {
+  //   return syscall(__NR_io_cancel, ctx_id, iocb, result);
+  // }
   typedef aio_context_t io_context_t;
   enum ENUM_AIO_CMD {
     IO_CMD_PREAD = IOCB_CMD_PREAD,
