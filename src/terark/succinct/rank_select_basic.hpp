@@ -31,6 +31,7 @@ namespace terark {
 template<size_t iLineBits>
 struct RankSelectConstants {
     static const size_t LineBits = iLineBits;
+    static const size_t LineShift = StaticUintBits<LineBits>::value;
     static const size_t LineWords = LineBits / WordBits;
 
     static size_t BitsToLines(size_t nbits)
