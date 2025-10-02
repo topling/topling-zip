@@ -152,23 +152,33 @@ size_t
 NestTrieDAWG<NestTrie, DawgType>::index(fstring str) const noexcept {
     assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
     if (this->m_zpath_states > 0)
-        return index_impl_true(str);
+        return index_impl_11(str); // try da cache
     else
-        return index_impl_false(str);
+        return index_impl_01(str); // try da cache
 }
 
 template<class NestTrie, class DawgType>
 terark_flatten size_t
-NestTrieDAWG<NestTrie, DawgType>::index_impl_true(fstring str)
-const noexcept { return index_impl<true>(str); }
+NestTrieDAWG<NestTrie, DawgType>::index_impl_00(fstring str)
+const noexcept { return index_impl<0,0>(str); }
 
 template<class NestTrie, class DawgType>
 terark_flatten size_t
-NestTrieDAWG<NestTrie, DawgType>::index_impl_false(fstring str)
-const noexcept { return index_impl<false>(str); }
+NestTrieDAWG<NestTrie, DawgType>::index_impl_01(fstring str)
+const noexcept { return index_impl<0,1>(str); }
 
 template<class NestTrie, class DawgType>
-template<bool HasLink>
+terark_flatten size_t
+NestTrieDAWG<NestTrie, DawgType>::index_impl_10(fstring str)
+const noexcept { return index_impl<1,0>(str); }
+
+template<class NestTrie, class DawgType>
+terark_flatten size_t
+NestTrieDAWG<NestTrie, DawgType>::index_impl_11(fstring str)
+const noexcept { return index_impl<1,1>(str); }
+
+template<class NestTrie, class DawgType>
+template<bool HasLink, bool TryDACache>
 terark_forceinline
 size_t NestTrieDAWG<NestTrie, DawgType>::
 index_impl(fstring str) const noexcept {
@@ -180,7 +190,7 @@ index_impl(fstring str) const noexcept {
 	auto loudsSel0 = trie->m_louds.get_sel0_cache();
 	auto loudsRank = trie->m_louds.get_rank_cache();
 	auto labelData = trie->m_label_data;
-	if (terark_unlikely(NULL != m_cache)) {
+	if (TryDACache && terark_unlikely(NULL != m_cache)) {
 		auto da = m_cache->get_double_array();
 		auto zpBase = m_cache->get_zpath_data_base();
 		while (true) {

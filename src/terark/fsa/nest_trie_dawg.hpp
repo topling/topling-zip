@@ -202,10 +202,13 @@ public:
 	using BaseDAWG::match_dawg_l;
 	size_t index(MatchContext&, fstring) const noexcept override final;
 	size_t index(fstring) const noexcept override final;
-	template<bool HasLink>
+	bool has_da_cache() const noexcept { return m_cache != nullptr; }
+	template<bool HasLink, bool TryDACache = true>
 	size_t index_impl(fstring) const noexcept;
-	size_t index_impl_true(fstring) const noexcept;
-	size_t index_impl_false(fstring) const noexcept;
+	size_t index_impl_00(fstring) const noexcept;
+	size_t index_impl_01(fstring) const noexcept;
+	size_t index_impl_10(fstring) const noexcept;
+	size_t index_impl_11(fstring) const noexcept;
 	template<bool HasLink>
 	size_t index_impl_ctx(MatchContext&, fstring) const noexcept;
 
