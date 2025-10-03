@@ -13,7 +13,7 @@ namespace terark {
 
 ///@param r rank range is [0, 64), more exctly: [0, popcnt(x))
 ///@returns [0, popcnt(x)), the bitpos of r'th 1
-inline unsigned UintSelect1(uint64_t x, unsigned r) {
+inline unsigned UintSelect1(uint64_t x, size_t r) {
     assert(0 != x);
 #if defined(NDEBUG)
 /*
