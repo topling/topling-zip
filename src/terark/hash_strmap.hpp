@@ -1912,8 +1912,9 @@ public:
 			size_t yend = LOAD_OFFSET(y[1].offset);
 			size_t ylen = yend - ybeg - extralen(yend);
 		   	if (equal(key, fstring(strpool + ybeg, ylen)))
-				return p;
+				TOPLING_ASSUME_RETURN(p, < n && n == nNodes);
 		}
+		TERARK_ASSUME(n == nNodes);
 		return n; // not found
 	}
 
@@ -1932,9 +1933,13 @@ public:
 			size_t ybeg = LOAD_OFFSET(y[0].offset);
 			size_t yend = LOAD_OFFSET(y[1].offset);
 			size_t ylen = yend - ybeg - extralen(yend);
-			if (equal(key, fstring(strpool + ybeg, ylen)))
+			if (equal(key, fstring(strpool + ybeg, ylen))) {
+				TERARK_ASSUME(n == nNodes);
+				TERARK_ASSUME(p < nNodes);
 				return {size_t(p), i};
+			}
 		}
+		TERARK_ASSUME(n == nNodes);
 		return {n, i}; // not found
 	}
 

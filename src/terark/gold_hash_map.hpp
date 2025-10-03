@@ -1132,7 +1132,7 @@ public:
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
 			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
-				return p;
+				TOPLING_ASSUME_RETURN(p, < nElem);
 		}
 		return nElem; // not found
 	}
@@ -1142,8 +1142,10 @@ public:
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
-			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p)))) {
+				TERARK_ASSUME(size_t(p) < size_t(nElem));
 				return {size_t(p), i};
+			}
 		}
 		return {size_t(nElem), i}; // not found
 	}
@@ -1160,7 +1162,7 @@ public:
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
 			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
-				return p;
+				TOPLING_ASSUME_RETURN(p, < nElem);
 		}
 		return nElem; // not found
 	}
@@ -1171,8 +1173,10 @@ public:
 		const size_t i = h % nBucket;
 		for (LinkTp p = bucket[i]; tail != p; p = m_nl.link(p)) {
 			TERARK_ASSERT_LT(p, nElem);
-			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p))))
+			if (HashEqual::equal(key, MyKeyExtractor(m_nl.data(p)))) {
+				TERARK_ASSUME(size_t(p) < size_t(nElem));
 				return {size_t(p), i};
+			}
 		}
 		return {size_t(nElem), i}; // not found
 	}

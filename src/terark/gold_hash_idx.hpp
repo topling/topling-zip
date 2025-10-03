@@ -137,7 +137,7 @@ public:
 		for (; tail != p; p = m_link_store.link(p)) {
 			HSM_SANITY(p < nElem);
 			if (HashEqual::equal(key, p))
-				return p;
+				TOPLING_ASSUME_RETURN(p, < nElem);
 		}
 		return nElem; // not found
 	}
