@@ -21,6 +21,7 @@
 
 //#include <boost/cstdint.hpp>
 #include <limits.h>
+#include <string.h> // for memcpy
 
 #ifdef ULONG_MAX
 #	if ULONG_MAX != 0xFFFFFFFFul
@@ -137,17 +138,22 @@ inline unsigned char byte_swap(unsigned char x) { return x; }
 inline   signed char byte_swap(  signed char x) { return x; }
 inline          char byte_swap(         char x) { return x; }
 
-#if defined (__clang__)
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
-#endif
-
-inline float  byte_swap(float  x) { return byte_swap(*reinterpret_cast<unsigned int*>(&x)); }
-inline double byte_swap(double x) { return byte_swap(*reinterpret_cast<unsigned long long*>(&x)); }
-
-#if defined (__clang__)
-  #pragma clang diagnostic pop
-#endif
+inline float byte_swap(float x) {
+	unsigned int tmp;
+	static_assert(sizeof(tmp) == sizeof(x));
+	memcpy(&tmp, &x, sizeof(x));
+	tmp = byte_swap(tmp);
+	memcpy(&x, &tmp, sizeof(x));
+	return x;
+}
+inline double byte_swap(double x) {
+	unsigned long long tmp;
+	static_assert(sizeof(tmp) == sizeof(x));
+	memcpy(&tmp, &x, sizeof(x));
+	tmp = byte_swap(tmp);
+	memcpy(&x, &tmp, sizeof(x));
+	return x;
+}
 
 #if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 5000
   #pragma GCC diagnostic pop
