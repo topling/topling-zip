@@ -50,7 +50,7 @@ inline __int64 byte_swap(__int64 x) { return _byteswap_uint64(x); }
 
 inline wchar_t byte_swap(wchar_t x) { return _byteswap_ushort(x); }
 
-#elif defined(__GNUC__) && defined(__GNUC_MINOR__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
+#elif defined(__GNUC__) && defined(__GNUC_MINOR__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3)) || defined(__clang__)
 
 inline unsigned short byte_swap(unsigned short x) { return x << 8 | x >> 8; }
 inline short byte_swap(short x) { return x << 8 | (unsigned short)x >> 8; }
@@ -117,7 +117,7 @@ inline long byte_swap(long x) { return byte_swap((unsigned long long)x); }
   #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #endif
 
-#if defined(__GNUC__) && __GNUC__ >= 12
+#if defined(__GNUC__) && __GNUC__ >= 12 && !defined(__INTEL_COMPILER)
 inline __int128 byte_swap(__int128 x) { return __builtin_bswap128(x); }
 inline unsigned __int128 byte_swap(unsigned __int128 x) { return __builtin_bswap128(x); }
 #elif defined(_MSC_VER)
