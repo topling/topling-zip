@@ -104,7 +104,7 @@ public:
 		// if free_bit is set, m_parent never equals to any valid state
 		// use free_bit instead of busy_bit, omited 1 bit mask op
 		if (states[next].parent() == curr)
-			return next;
+			TOPLING_ASSUME_RETURN(next, != nil_state);
 		else
 			return nil_state;
 	}
