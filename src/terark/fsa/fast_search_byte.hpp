@@ -221,7 +221,7 @@ binary_search_byte(const byte_t* data, size_t len, byte_t key) {
 		size_t i = key / TERARK_WORD_BITS;
 		size_t w = unaligned_load<size_t>(data + 4 + i*sizeof(size_t));
 		size_t b = data[i];
-		return b + fast_popcount_trail(w, key % TERARK_WORD_BITS);
+		TOPLING_ASSUME_RETURN(b + fast_popcount_trail(w, key % TERARK_WORD_BITS), < len);
 	}
 
 	inline size_t
