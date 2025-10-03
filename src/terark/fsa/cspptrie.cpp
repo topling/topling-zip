@@ -1075,6 +1075,7 @@ size_t PatriciaMem<Align>::new_root() {
     init_fast_meta(a + root, 0);
     std::fill_n(&a[root + 2].child, 256, uint32_t(nil_state));
     tiny_memset_align_4(a + root + 2 + 256, 0xABAB, m_valsize);
+    TERARK_ASSUME(root != mem_alloc_fail);
     return root;
 }
 
@@ -1250,6 +1251,7 @@ const {
   #define return_on_slot(slot) \
         auto x = slot; \
         *child_slot = x; \
+        TERARK_ASSUME(a[x].child != nil_state); \
         return a[x].child
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   #define return_if_match_ch(skip, idx) \
@@ -1483,9 +1485,11 @@ MainPatricia::new_suffix_chain(fstring suffix, size_t* pValpos,
     dst =  tiny_memset_align_p(dst, 0, AlignSize);
     *pValpos = dst - a->bytes;
     if (size_t(-1) == head) {
+        TERARK_ASSUME(node != size_t(-1));
         return node;
     } else {
         a[parent+1].child = node;
+        TERARK_ASSUME(head != size_t(-1));
         return head;
     }
 }
@@ -1541,6 +1545,7 @@ MainPatricia::fork(size_t parent, size_t zidx,
     }
     ni->oldSuffixNode = oldSuffixNode;
     ni->newSuffixNode = newSuffixNode;
+    TERARK_ASSUME(newParent != size_t(-1));
     return newParent;
 }
 
@@ -1584,6 +1589,7 @@ size_t MainPatricia::split_zpath(size_t curr, size_t splitPos,
     dst =  tiny_memset_align_p(dst, 0, AlignSize);
     *pValpos = dst - a->bytes;
     ni->oldSuffixNode = suffixNode;
+    TERARK_ASSUME(prefixNode != size_t(-1));
     return prefixNode;
 }
 
@@ -2760,6 +2766,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         }
     }
   #endif
+    TERARK_ASSUME(node != size_t(-1));
     return node;
 }
 
@@ -3600,12 +3607,12 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
     default: TERARK_DIE("bad cnt_type = %zd", cnt_type);
     case 0: assert(p->meta.b_is_final); return nil_state;
     case 1:
-    case 2: *ch = p->meta.c_label[0]; return p[1].child;
+    case 2: *ch = p->meta.c_label[0]; TOPLING_ASSUME_RETURN(p[1].child, != nil_state);
     case 3:
     case 4:
     case 5:
-    case 6: *ch = p->meta.c_label[0]; return p[2].child;
-    case 7: *ch = p->meta.c_label[2]; return p[5].child;
+    case 6: *ch = p->meta.c_label[0]; TOPLING_ASSUME_RETURN(p[2].child, != nil_state);
+    case 7: *ch = p->meta.c_label[2]; TOPLING_ASSUME_RETURN(p[5].child, != nil_state);
     case 8: // cnt >= 17
         TERARK_ASSERT_BE(p->big.n_children, 17, 256);
         TERARK_ASSERT_EQ(popcount_rs_256(p[1].bytes), p->big.n_children);
@@ -3613,7 +3620,7 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
             ullong   b = unaligned_load<uint64_t>(p+2, i);
             if (b) {
                 *ch = byte_t(i*64 + fast_ctz64(b));
-                return p[10].child;
+                TOPLING_ASSUME_RETURN(p[10].child, != nil_state);
             }
         }
         TERARK_DIE("cnt_type == 8, must found ch");
@@ -3625,7 +3632,7 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
             uint32_t child = p[2+ich].child;
             if (nil_state != child) {
                 *ch = byte_t(ich);
-                return child;
+                TOPLING_ASSUME_RETURN(child, != nil_state);
             }
         }
         // children may be all nil_state
@@ -3644,19 +3651,19 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
     switch (cnt_type) {
     default: TERARK_DIE("bad cnt_type = %zd", cnt_type);
     case 0: assert(p->meta.b_is_final); return nil_state;
-    case 1: *ch = p->meta.c_label[0]; return p[1].child;
-    case 2: *ch = p->meta.c_label[1]; return p[2].child;
+    case 1: *ch = p->meta.c_label[0]; TOPLING_ASSUME_RETURN(p[1].child, != nil_state);
+    case 2: *ch = p->meta.c_label[1]; TOPLING_ASSUME_RETURN(p[2].child, != nil_state);
     case 3:
     case 4:
     case 5:
     case 6: *ch = p->meta.c_label[cnt_type-1];
-            return p[2+cnt_type-1].child;
+            TOPLING_ASSUME_RETURN(p[2+cnt_type-1].child, != nil_state);
     case 7:
         {
             size_t n_children = p->big.n_children;
             TERARK_ASSERT_BE(n_children, 7, 16);
             *ch = p[1].bytes[n_children-1];
-            return p[5+n_children-1].child;
+            TOPLING_ASSUME_RETURN(p[5+n_children-1].child, != nil_state);
         }
     case 8:
         TERARK_ASSERT_BE(p->big.n_children, 17, 256);
@@ -3668,7 +3675,7 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
                 ullong   w = unaligned_load<uint64_t>(p+2, i);
                 if (w) {
                     *ch = i*64 + terark_bsr_u64(w);
-                    return p[10+n_children-1].child;
+                    TOPLING_ASSUME_RETURN(p[10+n_children-1].child, != nil_state);
                 }
             }
         }
@@ -3681,7 +3688,7 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
             uint32_t child = p[2+ich].child;
             if (nil_state != child) {
                 *ch = byte_t(ich);
-                return child;
+                TOPLING_ASSUME_RETURN(child, != nil_state);
             }
         }
         // children may be all nil_state
@@ -3704,24 +3711,24 @@ const {
     case 1:
         TERARK_ASSERT_EZ(nth);
         *ch = p->meta.c_label[0];
-        return p[1].child;
+        TOPLING_ASSUME_RETURN(p[1].child, != nil_state);
     case 2:
         TERARK_ASSERT_LT(nth, 2);
         *ch = p->meta.c_label[nth];
-        return p[1+nth].child;
+        TOPLING_ASSUME_RETURN(p[1+nth].child, != nil_state);
     case 3:
     case 4:
     case 5:
     case 6:
         TERARK_ASSERT_LT(nth, cnt_type);
         *ch = p->meta.c_label[nth];
-        return p[2 + nth].child;
+        TOPLING_ASSUME_RETURN(p[2 + nth].child, != nil_state);
     case 7:
         {
             TERARK_ASSERT_BE(p->big.n_children, 7, 16);
             TERARK_ASSERT_LT(nth, p->big.n_children);
             *ch = p[1].bytes[nth];
-            return p[5+nth].child;
+            TOPLING_ASSUME_RETURN(p[5+nth].child, != nil_state);
         }
     case 8:
         TERARK_ASSERT_BE(p->big.n_children, 17, 256);
@@ -3730,7 +3737,7 @@ const {
             TERARK_ASSERT_BE(p->big.n_children, 17, 256);
             TERARK_ASSERT_LT(nth, p->big.n_children);
             *ch = rs_select1(p[1].bytes, nth);
-            return p[10+nth].child;
+            TOPLING_ASSUME_RETURN(p[10+nth].child, != nil_state);
         }
     case 15:
         TERARK_ASSERT_EQ(p[0].big.n_children, 256);
@@ -3742,7 +3749,7 @@ const {
             uint32_t child = p[2+ich].child;
             if (nil_state != child) {
                 *ch = byte_t(ich);
-                return child;
+                TOPLING_ASSUME_RETURN(child, != nil_state);
             }
         }
         return nil_state;

@@ -441,8 +441,8 @@ public:
         case 0:
             assert(a[curr].meta.b_is_final);
             break;
-        case 2: if (ch == a[curr].meta.c_label[1]) return a[curr+2].child; no_break_fallthrough;
-        case 1: if (ch == a[curr].meta.c_label[0]) return a[curr+1].child; break;
+        case 2: if (ch == a[curr].meta.c_label[1]) TOPLING_ASSUME_RETURN(a[curr+2].child, != nil_state); no_break_fallthrough;
+        case 1: if (ch == a[curr].meta.c_label[0]) TOPLING_ASSUME_RETURN(a[curr+1].child, != nil_state); break;
 
 #if defined(__SSE4_2__) && !defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
         case 6: case 5: case 4:
@@ -450,17 +450,17 @@ public:
                 auto label = a[curr].meta.c_label;
                 size_t idx = sse4_2_search_byte(label, cnt_type, byte_t(ch));
                 if (idx < cnt_type)
-                    return a[curr + 2 + idx].child;
+                    TOPLING_ASSUME_RETURN(a[curr + 2 + idx].child, != nil_state);
             }
             break;
 #else
-        case 6: if (ch == a[curr].meta.c_label[5]) return a[curr+7].child; no_break_fallthrough;
-        case 5: if (ch == a[curr].meta.c_label[4]) return a[curr+6].child; no_break_fallthrough;
-        case 4: if (ch == a[curr].meta.c_label[3]) return a[curr+5].child; no_break_fallthrough;
+        case 6: if (ch == a[curr].meta.c_label[5]) TOPLING_ASSUME_RETURN(a[curr+7].child, != nil_state); no_break_fallthrough;
+        case 5: if (ch == a[curr].meta.c_label[4]) TOPLING_ASSUME_RETURN(a[curr+6].child, != nil_state); no_break_fallthrough;
+        case 4: if (ch == a[curr].meta.c_label[3]) TOPLING_ASSUME_RETURN(a[curr+5].child, != nil_state); no_break_fallthrough;
 #endif
-        case 3: if (ch == a[curr].meta.c_label[2]) return a[curr+4].child;
-                if (ch == a[curr].meta.c_label[1]) return a[curr+3].child;
-                if (ch == a[curr].meta.c_label[0]) return a[curr+2].child;
+        case 3: if (ch == a[curr].meta.c_label[2]) TOPLING_ASSUME_RETURN(a[curr+4].child, != nil_state);
+                if (ch == a[curr].meta.c_label[1]) TOPLING_ASSUME_RETURN(a[curr+3].child, != nil_state);
+                if (ch == a[curr].meta.c_label[0]) TOPLING_ASSUME_RETURN(a[curr+2].child, != nil_state);
 			break;
         case 7: // cnt in [ 7, 16 ]
             {
@@ -473,12 +473,12 @@ public:
                     size_t idx = size_t(-1);
                     do idx++; while (label[idx] < byte_t(ch));
                     if (byte_t(ch) == label[idx])
-                        return a[curr + 1 + 4 + idx].child;
+                        TOPLING_ASSUME_RETURN(a[curr + 1 + 4 + idx].child, != nil_state);
                 }
 #else
                 size_t idx = fast_search_byte_max_16(label, n_children, byte_t(ch));
                 if (idx < n_children)
-                    return a[curr + 1 + 4 + idx].child;
+                    TOPLING_ASSUME_RETURN(a[curr + 1 + 4 + idx].child, != nil_state);
 #endif
             }
             break;
@@ -486,12 +486,12 @@ public:
             TERARK_ASSERT_EQ(popcount_rs_256(a[curr+1].bytes), a[curr].big.n_children);
             if (terark_bit_test(&a[curr+1+1].child, ch)) {
                 size_t idx = fast_search_byte_rs_idx(a[curr+1].bytes, byte_t(ch));
-                return a[curr + 10 + idx].child;
+                TOPLING_ASSUME_RETURN(a[curr + 10 + idx].child, != nil_state);
             }
             break;
         case 15:
             TERARK_ASSERT_EQ(256, a[curr].big.n_children);
-            return a[curr + 2 + ch].child;
+            TOPLING_ASSUME_RETURN(a[curr + 2 + ch].child, != nil_state);
         }
         return nil_state;
     }
