@@ -167,7 +167,7 @@ const noexcept {
           #if defined(__AVX512VL__) && defined(__AVX512BW__)
             size_t i = fast_search_byte_max_35(label, lcount, ch);
             if (i < lcount) // not need check label[i] == ch
-                return child0 + i;
+                TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             else
                 return nil_state;
           #endif
@@ -176,28 +176,28 @@ const noexcept {
                     size_t i = size_t(-1);
                     do i++; while (label[i] < ch);
                     if (label[i] == ch)
-                        return child0 + i;
+                        TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
                 }
             }
             else {
                 //size_t i = fast_search_byte_max_35(label, lcount, ch);
                 size_t i = lower_bound_0(label, lcount, ch);
                 if (i < lcount && label[i] == ch)
-                    return child0 + i;
+                    TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             }
         }
         else {
 #if 0
             if (terark_bit_test((size_t*)(label + 4), ch)) {
                 size_t i = fast_search_byte_rs_idx(label, byte_t(ch));
-                return child0 + i;
+                TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             }
 #else
             size_t i = ch / TERARK_WORD_BITS;
             size_t j = ch % TERARK_WORD_BITS;
             size_t w = unaligned_load<size_t>(label + 4 + i*sizeof(size_t));
             if ((w >> j) & 1)
-                return child0 + label[i] + fast_popcount_trail(w, j);
+                TOPLING_ASSUME_RETURN(child0 + label[i] + fast_popcount_trail(w, j), != nil_state);
 #endif
         }
         return nil_state;
@@ -214,7 +214,7 @@ const noexcept {
 				hi = mid_id;
 			else
 				// early return, because label_first_byte is slow
-				return mid_id;
+				TOPLING_ASSUME_RETURN(mid_id, != nil_state);
 		}
 	}
 	return nil_state;
@@ -248,7 +248,7 @@ const noexcept {
           #if defined(__AVX512VL__) && defined(__AVX512BW__)
             size_t i = fast_search_byte_max_35(label, lcount, ch);
             if (i < lcount) // not need check label[i] == ch
-                return child0 + i;
+                TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             else
                 return nil_state;
           #endif
@@ -257,28 +257,28 @@ const noexcept {
                     size_t i = size_t(-1);
                     do i++; while (label[i] < ch);
                     if (label[i] == ch)
-                        return child0 + i;
+                        TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
                 }
             }
             else {
                 //size_t i = fast_search_byte_max_35(label, lcount, ch);
                 size_t i = lower_bound_0(label, lcount, ch);
                 if (i < lcount && label[i] == ch)
-                    return child0 + i;
+                    TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             }
         }
         else {
 #if 0
             if (terark_bit_test((size_t*)(label + 4), ch)) {
                 size_t i = fast_search_byte_rs_idx(label, ch);
-                return child0 + i;
+                TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             }
 #else
             size_t i = ch / TERARK_WORD_BITS;
             size_t j = ch % TERARK_WORD_BITS;
             size_t w = unaligned_load<size_t>(label + 4 + i*sizeof(size_t));
             if ((w >> j) & 1)
-                return child0 + label[i] + fast_popcount_trail(w, j);
+                TOPLING_ASSUME_RETURN(child0 + label[i] + fast_popcount_trail(w, j), != nil_state);
 #endif
         }
         return nil_state;
@@ -300,13 +300,13 @@ const noexcept {
                         size_t i = size_t(-1);
                         do i++; while (label[i] < ch);
                         if (label[i] == ch)
-                            return child0 + i;
+                            TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
                     }
                 }
                 else {
                     size_t i = lower_bound_0(label, lcount, ch);
                     if (i < lcount && label[i] == ch)
-                        return child0 + i;
+                        TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
                 }
                 return nil_state;
             }
@@ -322,7 +322,7 @@ const noexcept {
                 hi = mid_id;
             else
                 // early return, because label_first_byte is slow
-                return mid_id;
+                TOPLING_ASSUME_RETURN(mid_id, != nil_state);
         }
     }
     return nil_state;
@@ -387,7 +387,7 @@ state_move_no_link(size_t parent, auchar_t ch) const noexcept {
 		size_t idx;
 		idx = fast_search_byte(mylabel, lcount, byte_t(ch));
         if (idx < lcount)
-            return child0 + idx;
+            TOPLING_ASSUME_RETURN(child0 + idx, != nil_state);
     }
     return nil_state;
 }
@@ -1027,9 +1027,11 @@ initIterEntry(size_t parent, Entry* e, byte_t* buf, size_t cap) const noexcept {
     e->n_children = lcount;
     if (m_is_link[parent]) {
         size_t zlen = getZpathFixed(parent, buf, cap);
+        TERARK_ASSUME(zlen >= 2);
         assert(zlen + 1 <= cap);
         assert(zlen <= 254);
         e->zpath_len = zlen;
+        TERARK_ASSUME(zlen >= 2);
         return zlen;
     }
     else {
