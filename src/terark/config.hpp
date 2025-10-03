@@ -152,10 +152,23 @@
 #elif defined(__clang__)
 #define TERARK_ASSUME(cond) __builtin_assume(cond)
 #elif defined(__GNUC__)
-#define TERARK_ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
+  #if __GNUC__ >= 13
+    #define TERARK_ASSUME(cond) [[assume(cond)]]
+  #else
+    #define TERARK_ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
+  #endif
 #else
-#define TERARK_ASSUME(cond) static_cast<void>(!!(cond))
+#define TERARK_ASSUME(cond) static_cast<void>(0)
 #endif
+
+// usage sample:
+//   TOPLING_ASSUME_RETURN(ret, < INT_MAX)
+//   TOPLING_ASSUME_RETURN(ret, != -1)
+#define TOPLING_ASSUME_RETURN(ret, cmp_ImposibleValue) do { \
+            auto __r_y_v_ = ret; \
+            TERARK_ASSUME(__r_y_v_ cmp_ImposibleValue); \
+            return __r_y_v_; \
+        } while (0)
 
 #if defined(__gnu_linux__) || defined(__gnu_hurd__) || defined(__FreeBSD__)
     #define TERARK_HAS_WEAK_SYMBOL 1
