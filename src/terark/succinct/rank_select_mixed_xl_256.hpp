@@ -187,10 +187,14 @@ public:
 
     template<size_t dimensions>
     void prefetch_bit_dx(size_t i) const noexcept
-      { _mm_prefetch((const char*)&m_lines[i / LineBits].words[i % LineBits / WordBits * Arity + dimensions], _MM_HINT_T0); }
+      { fast_prefetch_bit_dx<dimensions>(m_lines, i); }
     template<size_t dimensions>
     static void fast_prefetch_bit_dx(const bldata_t* m_lines, size_t i) noexcept
-      { _mm_prefetch((const char*)&m_lines[i / LineBits].words[i % LineBits / WordBits * Arity + dimensions], _MM_HINT_T0); }
+      { _mm_prefetch((const char*)&m_lines[i / LineBits].words[i % LineBits / WordBits * Arity + dimensions], _MM_HINT_T0);
+        // _mm_prefetch((const char*)&m_lines[i / LineBits].mixed[dimensions], _MM_HINT_T0);
+        // _mm_prefetch(((const char*)&m_lines[i / LineBits]), _MM_HINT_T0);
+        // _mm_prefetch(((const char*)&m_lines[i / LineBits]) + sizeof(bldata_t) - 1, _MM_HINT_T0);
+      }
 
     template<size_t dimensions>
     void prefetch_rank1_dx(size_t /*bitpos*/) const noexcept
