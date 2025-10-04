@@ -190,6 +190,9 @@ index_impl(fstring str) const noexcept {
 	auto loudsSel0 = trie->m_louds.get_sel0_cache();
 	auto loudsRank = trie->m_louds.get_rank_cache();
 	auto labelData = trie->m_label_data;
+	trie->m_louds.fast_prefetch_bit(loudsBits, 0);
+	trie->m_louds.fast_prefetch_bit(loudsBits, 256);
+	trie->m_louds.fast_prefetch_bit(loudsBits, 512);
 	if (TryDACache && terark_unlikely(NULL != m_cache)) {
 		auto da = m_cache->get_double_array();
 		auto zpBase = m_cache->get_zpath_data_base();
