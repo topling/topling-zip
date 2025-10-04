@@ -224,18 +224,13 @@ inline size_t rank_select_il::select0_upper_bound_line
 (const Line* lines, const uint32_t* sel0, size_t Rank0) {
     size_t lo = sel0[Rank0 / (LineBits/Q)];
     size_t hi = sel0[Rank0 / (LineBits/Q) + 1];
-    if (hi - lo < 32/Q) {
-        while (LineBits * lo - lines[lo].rlev1 <= Rank0) lo++;
-    }
-    else {
-        while (lo < hi) {
-            size_t mid = (lo + hi) / 2;
-            size_t mid_val = LineBits * mid - lines[mid].rlev1;
-            if (mid_val <= Rank0) // upper_bound
-                lo = mid + 1;
-            else
-                hi = mid;
-        }
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        size_t mid_val = LineBits * mid - lines[mid].rlev1;
+        if (mid_val <= Rank0) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
     }
     return lo;
 }
@@ -284,17 +279,12 @@ inline size_t rank_select_il::select1_upper_bound_line
 (const Line* lines, const uint32_t* sel1, size_t Rank1) {
     size_t lo = sel1[Rank1 / (LineBits/Q)];
     size_t hi = sel1[Rank1 / (LineBits/Q) + 1];
-    if (hi - lo < 32/Q) {
-        while (lines[lo].rlev1 <= Rank1) lo++;
-    }
-    else {
-        while (lo < hi) {
-            size_t mid = (lo + hi) / 2;
-            if (lines[mid].rlev1 <= Rank1) // upper_bound
-                lo = mid + 1;
-            else
-                hi = mid;
-        }
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        if (lines[mid].rlev1 <= Rank1) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
     }
     return lo;
 }
