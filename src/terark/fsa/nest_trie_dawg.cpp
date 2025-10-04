@@ -140,6 +140,12 @@ template<class NestTrie, class DawgType>
 size_t NestTrieDAWG<NestTrie, DawgType>::
 index(MatchContext& ctx, fstring str) const noexcept {
     assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
+    if (0 == (ctx.root | ctx.pos | ctx.zidx)) {
+        if (this->m_zpath_states > 0)
+            return index_impl_11(str);
+        else
+            return index_impl_01(str);
+    }
     if (this->m_zpath_states > 0)
         return index_impl_ctx<true>(ctx, str);
     else
@@ -278,10 +284,7 @@ index_impl_ctx(MatchContext& ctx, fstring str) const noexcept {
 //	assert(0 == ctx.pos);
 //	assert(0 == ctx.zidx);
 	size_t curr = ctx.root;
-	if (0 == (curr | ctx.pos | ctx.zidx)) {
-        return index_impl<HasLink>(str);
-	}
-	else {
+	{
     	auto trie = m_trie;
 		auto loudsBits = trie->m_louds.bldata();
 		auto loudsSel0 = trie->m_louds.get_sel0_cache();
