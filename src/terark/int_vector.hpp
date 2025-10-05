@@ -205,6 +205,17 @@ public:
     size_t val = unaligned_load<size_t>(data + byte_idx);
     return (val >> bit_idx % 8) & mask;
   }
+  static void fast_prefetch(const byte* data, size_t bits, size_t idx) {
+    assert(bits <= 58);
+    size_t bit_idx = bits * idx;
+    size_t byte_idx = bit_idx / 8;
+    _mm_prefetch(data + byte_idx, _MM_HINT_T0);
+  }
+  void prefetch(size_t idx) const {
+    assert(idx < m_size);
+    assert(m_bits <= 58);
+    fast_prefetch(m_data.data(), m_bits, idx);
+  }
   size_t back() const { assert(m_size > 0); return get(m_size-1); }
   size_t operator[](size_t idx) const { return get(idx); }
 
@@ -298,6 +309,8 @@ public:
 	using UintVecMin0::risk_release_ownership;
 	using UintVecMin0::uintbits;
 	using UintVecMin0::uintmask;
+	using UintVecMin0::prefetch;
+	using UintVecMin0::fast_prefetch;
 	void swap(ZipIntVector& y) {
 		UintVecMin0::swap(y);
 		std::swap(m_min_val, y.m_min_val);
