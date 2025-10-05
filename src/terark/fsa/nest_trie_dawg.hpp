@@ -205,10 +205,6 @@ public:
 	bool has_da_cache() const noexcept { return m_cache != nullptr; }
 	template<bool HasLink, bool TryDACache = true>
 	size_t index_impl(fstring) const noexcept terark_pure_func;
-	size_t index_impl_00(fstring) const noexcept terark_pure_func;
-	size_t index_impl_01(fstring) const noexcept terark_pure_func;
-	size_t index_impl_10(fstring) const noexcept terark_pure_func;
-	size_t index_impl_11(fstring) const noexcept terark_pure_func;
 	template<bool HasLink>
 	size_t index_impl_ctx(MatchContext&, fstring) const noexcept;
 
