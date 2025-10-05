@@ -228,6 +228,17 @@ state_move_fast2(size_t parent, byte_t ch, const byte_t* label,
 const noexcept {
     assert(ch < 256);
     assert(parent < total_states());
+    auto children_range = find_children_range(parent, label, bits, sel0, rank);
+    return find_child(children_range, ch, label);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+template<class LoudsBits, class LoudsSel, class LoudsRank>
+terark_forceinline
+std::pair<size_t, size_t>
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+find_children_range(size_t parent, const byte_t* label, const LoudsBits* bits, const LoudsSel* sel0, const LoudsRank* rank)
+const noexcept {
+    assert(parent < total_states());
 #if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
     size_t bitpos = RankSelect::fast_select0(bits, sel0, rank, parent);
 #else
@@ -243,8 +254,13 @@ const noexcept {
     m_is_link.prefetch_bit(child0); // prefetch for next search
     size_t lcount = RankSelect::fast_one_seq_len(bits, bitpos+1);
     assert(child0 + lcount <= total_states());
-    if (FastLabel) {
-        if (lcount < 36) {
+    return std::pair<size_t, size_t>(child0, lcount);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+terark_forceinline
+size_t NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+find_child_max_35(size_t child0, size_t lcount, byte_t ch, const byte_t* label)
+const noexcept {
           #if defined(__AVX512VL__) && defined(__AVX512BW__)
             size_t i = fast_search_byte_max_35(label, lcount, ch);
             if (i < lcount) // not need check label[i] == ch
@@ -266,8 +282,14 @@ const noexcept {
                 if (i < lcount && label[i] == ch)
                     TOPLING_ASSUME_RETURN(child0 + i, != nil_state);
             }
-        }
-        else {
+            return nil_state;
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+terark_forceinline
+size_t NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+find_child_bitmap(size_t child0, byte_t ch, const byte_t* label)
+const noexcept {
+        {
 #if 0
             if (terark_bit_test((size_t*)(label + 4), ch)) {
                 size_t i = fast_search_byte_rs_idx(label, ch);
@@ -282,8 +304,31 @@ const noexcept {
 #endif
         }
         return nil_state;
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+terark_forceinline
+size_t NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+find_child(std::pair<size_t, size_t> children, byte_t ch, const byte_t* label)
+const noexcept {
+    auto [child0, lcount] = children;
+    label += child0;
+    if (FastLabel) {
+        if (lcount < 36) {
+            return find_child_max_35(child0, lcount, ch, label);
+        } else {
+            return find_child_bitmap(child0, ch, label);
+        }
     }
     else {
+        return find_child_SlowLabel(child0, lcount, ch, label);
+    }
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+terark_forceinline
+size_t NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+find_child_SlowLabel(size_t child0, size_t lcount, byte_t ch, const byte_t* label)
+const noexcept {
+    {
         if (false/*true*//*lcount > 6*/) {
             // this is slower :(
         #if 0

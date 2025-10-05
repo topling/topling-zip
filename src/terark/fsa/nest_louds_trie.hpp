@@ -281,6 +281,14 @@ public:
     template<class LoudsBits, class LoudsSel, class LoudsRank>
     size_t state_move_fast2(size_t parent, byte_t ch, const byte_t* label,
                             const LoudsBits*, const LoudsSel* sel0, const LoudsRank*) const noexcept terark_pure_func;
+    template<class LoudsBits, class LoudsSel, class LoudsRank>
+    std::pair<size_t, size_t> // auto [child0, lcount] = children_range(...)
+    find_children_range(size_t parent, const byte_t* label, // label for prefetch
+                        const LoudsBits*, const LoudsSel* sel0, const LoudsRank*) const noexcept terark_pure_func;
+    size_t find_child(std::pair<size_t, size_t> children_range, byte_t ch, const byte_t* label) const noexcept terark_pure_func;
+    size_t find_child_max_35(size_t child0, size_t lcount, byte_t ch, const byte_t* label) const noexcept terark_pure_func;
+    size_t find_child_bitmap(size_t child0, byte_t ch, const byte_t* label) const noexcept terark_pure_func;
+    size_t find_child_SlowLabel(size_t child0, size_t lcount, byte_t ch, const byte_t* label) const noexcept terark_pure_func;
 
     template<bool HasLink>
     size_t state_move_smart(size_t s, auchar_t ch) const noexcept {
