@@ -177,7 +177,15 @@ public:
   size_t get(size_t idx) const {
     assert(idx < m_size);
     assert(m_bits <= 58);
+#if defined(__BMI2__)
+    size_t bits = m_bits;
+    size_t bit_idx = bits * idx;
+    size_t byte_idx = bit_idx / 8;
+    size_t val = unaligned_load<size_t>(m_data.data() + byte_idx);
+    return _bextr_u64(val, bit_idx % 8, unsigned(bits));
+#else
     return fast_get(m_data.data(), m_bits, m_mask, idx);
+#endif
   }
   void get2(size_t idx, size_t aVals[2]) const {
     const byte*  data = m_data.data();
@@ -323,7 +331,7 @@ public:
 	Int operator[](size_t idx) const { return get(idx); }
 	Int get(size_t idx) const {
 		assert(idx < m_size);
-		return fast_get(m_data.data(), m_bits, m_mask, m_min_val, idx);
+		return Int(m_min_val + UintVecMin0::get(idx));
 	}
 	void get2(size_t idx, Int aVals[2]) const {
 		const byte*  data = m_data.data();
