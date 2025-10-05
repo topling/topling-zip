@@ -163,6 +163,7 @@ public:
     byte_t getNthCharPrev(size_t child0, size_t lcount, size_t nth, byte_t cch) const noexcept;
 	size_t getZpathFixed(size_t, byte_t* buf, size_t cap) const noexcept;
     intptr_t matchZpath(size_t, const byte_t* str, size_t slen) const noexcept terark_pure_func;
+    intptr_t matchZpath_link(uint64_t linkVal, const byte_t* str, size_t slen) const noexcept terark_pure_func;
 	intptr_t matchZpath_loop(size_t, intptr_t, const byte_t* str, intptr_t slen) const noexcept terark_pure_func;
 
 	NestLoudsTrieTpl();
@@ -179,6 +180,8 @@ public:
 	size_t core_mem_size() const noexcept terark_pure_func;
 
 	size_t get_parent(size_t child) const noexcept terark_pure_func;
+	size_t get_link_rank(size_t node_id) const noexcept terark_pure_func;
+	uint64_t get_link_val_by_rank(size_t node_id, size_t linkRank1) const noexcept terark_pure_func;
 	uint64_t get_link_val(size_t node_id) const noexcept terark_pure_func;
 	fstring get_core_str(size_t node_id) const noexcept terark_pure_func;
 

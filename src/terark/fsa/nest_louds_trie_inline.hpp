@@ -934,6 +934,23 @@ get_link_val(size_t node_id) const noexcept {
 	assert(node_id > 0);
 	assert(node_id < m_is_link.size());
 	size_t linkRank1 = m_is_link.rank1(node_id);
+    return get_link_val_by_rank(node_id, linkRank1);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+inline size_t
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+get_link_rank(size_t node_id) const noexcept {
+	assert(node_id > 0);
+	TERARK_ASSERT_LT(node_id, m_is_link.size());
+	return m_is_link.rank1(node_id);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+inline uint64_t
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+get_link_val_by_rank(size_t node_id, size_t linkRank1) const noexcept {
+	assert(node_id > 0);
+	TERARK_ASSERT_LT(node_id, m_is_link.size());
+	TERARK_ASSERT_LT(linkRank1, m_is_link.max_rank1());
 	if (FastLabel) {
 		return m_next_link[linkRank1];
 	}

@@ -720,6 +720,12 @@ matchZpath(size_t node_id, const byte_t* str, size_t slen) const noexcept {
     assert(node_id < m_is_link.size());
     assert(m_is_link[node_id]);
     uint64_t linkVal = get_link_val(node_id);
+    return matchZpath_link(linkVal, str, slen);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+intptr_t
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+matchZpath_link(size_t linkVal, const byte_t* str, size_t slen) const noexcept {
     size_t coreMaxLinkVal = m_core_max_link_val;
     if (linkVal < coreMaxLinkVal) {
         assert(NULL != m_core_data);
