@@ -142,9 +142,9 @@ index(MatchContext& ctx, fstring str) const noexcept {
     assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
     if (0 == (ctx.root | ctx.pos | ctx.zidx)) {
         if (this->m_zpath_states > 0)
-            return index_impl<1,1>(str);
+            return index_impl_11(str);
         else
-            return index_impl<0,1>(str);
+            return index_impl_01(str);
     }
     if (this->m_zpath_states > 0)
         return index_impl_ctx<true>(ctx, str);
@@ -158,14 +158,34 @@ size_t
 NestTrieDAWG<NestTrie, DawgType>::index(fstring str) const noexcept {
     assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
     if (this->m_zpath_states > 0)
-        return index_impl<1,1>(str); // try da cache
+        return index_impl_11(str); // try da cache
     else
-        return index_impl<0,1>(str); // try da cache
+        return index_impl_01(str); // try da cache
 }
 
 template<class NestTrie, class DawgType>
+terark_flatten size_t
+NestTrieDAWG<NestTrie, DawgType>::index_impl_00(fstring str)
+const noexcept { return index_impl<0,0>(str); }
+
+template<class NestTrie, class DawgType>
+terark_flatten size_t
+NestTrieDAWG<NestTrie, DawgType>::index_impl_01(fstring str)
+const noexcept { return index_impl<0,1>(str); }
+
+template<class NestTrie, class DawgType>
+terark_flatten size_t
+NestTrieDAWG<NestTrie, DawgType>::index_impl_10(fstring str)
+const noexcept { return index_impl<1,0>(str); }
+
+template<class NestTrie, class DawgType>
+terark_flatten size_t
+NestTrieDAWG<NestTrie, DawgType>::index_impl_11(fstring str)
+const noexcept { return index_impl<1,1>(str); }
+
+template<class NestTrie, class DawgType>
 template<bool HasLink, bool TryDACache>
-terark_flatten
+terark_forceinline
 size_t NestTrieDAWG<NestTrie, DawgType>::
 index_impl(fstring str) const noexcept {
 	assert(HasLink == (m_trie->m_is_link.max_rank1() > 0));
@@ -765,35 +785,28 @@ NestTrieDAWG<NestTrie, DawgType>::adfa_make_iter16(size_t root) const {
 }
 #endif
 
-#define template_class_NestTrieDAWG(ClassName, Base) \
-   template class  NestTrieDAWG<ClassName, Base>; \
-   template size_t NestTrieDAWG<ClassName, Base>::index_impl<false, false>(fstring) const noexcept; \
-   template size_t NestTrieDAWG<ClassName, Base>::index_impl<false, true >(fstring) const noexcept; \
-   template size_t NestTrieDAWG<ClassName, Base>::index_impl<true , false>(fstring) const noexcept; \
-   template size_t NestTrieDAWG<ClassName, Base>::index_impl<true , true >(fstring) const noexcept
+template class NestTrieDAWG<NestLoudsTrie_SE, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_IL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_SE_512, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_SE_512_64, BaseDAWG>;
 
-template_class_NestTrieDAWG(NestLoudsTrie_SE, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_IL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_SE_512, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_SE_512_64, BaseDAWG);
-
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_SE_512, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_IL_256, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_XL_256, BaseDAWG);
+template class NestTrieDAWG<NestLoudsTrie_Mixed_SE_512, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_Mixed_IL_256, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_Mixed_XL_256, BaseDAWG>;
 
 ///@{ FastLabel = true
-template_class_NestTrieDAWG(NestLoudsTrie_SE_256_32_FL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_SE_512_32_FL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_IL_256_32_FL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_SE_512_64_FL, BaseDAWG);
+template class NestTrieDAWG<NestLoudsTrie_SE_256_32_FL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_SE_512_32_FL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_IL_256_32_FL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_SE_512_64_FL, BaseDAWG>;
 
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_SE_512_32_FL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_IL_256_32_FL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_XL_256_32_FL, BaseDAWG);
+template class NestTrieDAWG<NestLoudsTrie_Mixed_SE_512_32_FL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_FL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_FL, BaseDAWG>;
 
 /*
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_IL_256_32_41_FL, BaseDAWG);
-template_class_NestTrieDAWG(NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG);
+template class NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_41_FL, BaseDAWG>;
+template class NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG>;
 */
 ///@}
 
