@@ -524,6 +524,90 @@ decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
 #define TERARK_C_CALLBACK(lambda) terark::c_callback(lambda), &lambda
 
 //--------------------------------------------------------------------
+
+
+#if defined(__GNUC__)
+  #if !defined(TOPLING_USE_BOUND_PMF)
+    #define TOPLING_USE_BOUND_PMF 1
+  #endif
+#else
+  #if defined(TOPLING_USE_BOUND_PMF) && TOPLING_USE_BOUND_PMF
+    #error "TOPLING_USE_BOUND_PMF must be 0 for non __GNUC__ compiler"
+  #endif
+  #define TOPLING_USE_BOUND_PMF 0
+#endif
+
+#if TOPLING_USE_BOUND_PMF
+  #define TOPLING_IF_BOUND_PMF(Then, Else) Then
+#else
+  #define TOPLING_IF_BOUND_PMF(Then, Else) Else
+#endif
+
+#if TOPLING_USE_BOUND_PMF
+template<class FuncPtr, class Object, class MemberFuncType>
+FuncPtr AbiExtractFuncPtr(const Object* obj, MemberFuncType MemberFunc) {
+    static_assert(sizeof(MemberFunc) == sizeof(size_t)*2);
+    static_assert(sizeof(FuncPtr)    == sizeof(size_t)*1);
+  #if defined(__ARM_ARCH)
+    struct MemberFuncABI {
+        ptrdiff_t ptr_or_virt_offset; // must be 0
+        size_t this_adjust_or_flag;
+    };
+    MemberFuncABI mf;
+    memcpy(&mf, &MemberFunc, sizeof(MemberFunc));
+    if (mf.this_adjust_or_flag & 1) { // is virtual function
+        assert(mf.this_adjust_or_flag == 1); // this adjust is not supported, must be 0
+        size_t vtab = *reinterpret_cast<const size_t*>(obj);
+        size_t fptr = *reinterpret_cast<const size_t*>(vtab + mf.ptr_or_virt_offset);
+        return reinterpret_cast<FuncPtr>(fptr);
+    } else {
+        assert(mf.this_adjust_or_flag == 0); // this adjust is not supported, must be 0
+        return reinterpret_cast<FuncPtr>(mf.ptr_or_virt_offset);
+    }
+  #else
+    struct MemberFuncABI {
+        size_t ptr_or_virt_offset;
+        ptrdiff_t this_adjust; // must be 0
+    };
+    MemberFuncABI mf;
+    memcpy(&mf, &MemberFunc, sizeof(MemberFunc));
+    assert(mf.this_adjust == 0); // this adjust is not supported, must be 0
+    if (mf.ptr_or_virt_offset & 1) { // is virtual function
+        size_t vtab = *reinterpret_cast<const size_t*>(obj);
+        size_t fptr = *reinterpret_cast<const size_t*>(vtab + mf.ptr_or_virt_offset - 1);
+        return reinterpret_cast<FuncPtr>(fptr);
+    } else {
+        return reinterpret_cast<FuncPtr>(mf.ptr_or_virt_offset);
+    }
+  #endif
+}
+template<class FuncPtr, class Object, class Ret>
+FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
+  #if defined(__clang__)
+    return AbiExtractFuncPtr<FuncPtr>(obj, MemberFunc);
+  #else
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpmf-conversions"
+    assert((FuncPtr)(obj->*MemberFunc) == AbiExtractFuncPtr<FuncPtr>(obj, MemberFunc));
+    return (FuncPtr)(obj->*MemberFunc);
+    #pragma GCC diagnostic pop
+  #endif
+}
+template<class FuncPtr, class Object, class Ret>
+FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
+  #if defined(__clang__)
+    return AbiExtractFuncPtr<FuncPtr>(obj, MemberFunc);
+  #else
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wpmf-conversions"
+    assert((FuncPtr)(obj->*MemberFunc) == AbiExtractFuncPtr<FuncPtr>(obj, MemberFunc));
+    return (FuncPtr)(obj->*MemberFunc);
+    #pragma GCC diagnostic pop
+  #endif
+}
+#endif // TOPLING_USE_BOUND_PMF
+
+//--------------------------------------------------------------------
 // User/Application defined MemPool
 class TERARK_DLL_EXPORT UserMemPool : boost::noncopyable {
     UserMemPool();
