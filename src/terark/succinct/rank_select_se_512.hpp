@@ -34,8 +34,8 @@ public:
     size_t mem_size() const { return m_capacity / 8; }
     inline size_t rank1(size_t bitpos) const noexcept;
     inline size_t rank0(size_t bitpos) const noexcept;
-    size_t select0(size_t id) const noexcept;
-    size_t select1(size_t id) const noexcept;
+    size_t select0(size_t id) const noexcept terark_pure_func;
+    size_t select1(size_t id) const noexcept terark_pure_func;
     size_t max_rank1() const { return m_max_rank1; }
     size_t max_rank0() const { return m_max_rank0; }
     bool isall0() const { return m_max_rank1 == 0; }

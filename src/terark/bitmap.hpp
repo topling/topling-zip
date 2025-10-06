@@ -371,18 +371,18 @@ public:
 	bool isall0() const;
    	bool isall1() const;
 
-	size_t popcnt() const;
-	size_t popcnt(size_t blstart, size_t blcnt) const;
+	size_t popcnt() const terark_pure_func;
+	size_t popcnt(size_t blstart, size_t blcnt) const terark_pure_func;
 
 	///@returns number of continuous one/zero bits starts at bitpos
-	size_t one_seq_len(size_t bitpos) const;
-	size_t zero_seq_len(size_t bitpos) const;
+	size_t one_seq_len(size_t bitpos) const terark_pure_func;
+	size_t zero_seq_len(size_t bitpos) const terark_pure_func;
 
 	///@returns number of continuous one/zero bits ends at endpos
 	///@note return_value = endpos - start;
 	///        where bits[start-1] is 0 and bits[start, ... endpos) are all 1/0
-	size_t one_seq_revlen(size_t endpos) const;
-	size_t zero_seq_revlen(size_t endpos) const;
+	size_t one_seq_revlen(size_t endpos) const terark_pure_func;
+	size_t zero_seq_revlen(size_t endpos) const terark_pure_func;
 
 	size_t mem_size() const {
 		return ((m_size + AllocUnitBits-1) & ~(AllocUnitBits-1)) / 8;
@@ -518,7 +518,7 @@ public:
 	static bool fast_is1(const bm_uint_t* bits, size_t i) { return  terark_bit_test(bits, i); }
 	static bool fast_is0(const bm_uint_t* bits, size_t i) { return !terark_bit_test(bits, i); }
 
-    static size_t fast_one_seq_len(const bm_uint_t* bits, size_t bitpos);
+    static size_t fast_one_seq_len(const bm_uint_t* bits, size_t bitpos) terark_pure_func;
 
     void prefetch_bit(size_t i) const
         { _mm_prefetch((const char*)&m_words[i/WordBits], _MM_HINT_T0); }

@@ -695,11 +695,12 @@ void instantiate_member_template_aux(MyClass* p) {
     bool b2 = p->m_size[Index] % 399 == 0;
     p->template bits_range_set0_dx<Index>(0, p->m_size[Index]);
     p->template bits_range_set1_dx<Index>(0, p->m_size[Index]);
-    p->template  build_cache_dx<Index>(b1, b2);
-    p->template  one_seq_len_dx<Index>(p->m_size[Index] / 2);
-    p->template zero_seq_len_dx<Index>(p->m_size[Index] / 2);
-    p->template select0_dx<Index>(p->m_size[Index] / 2);
+    p->template  build_cache_dx<Index>(b1, b2); size_t dummy =
+    p->template  one_seq_len_dx<Index>(p->m_size[Index] / 2)+
+    p->template zero_seq_len_dx<Index>(p->m_size[Index] / 2)+
+    p->template select0_dx<Index>(p->m_size[Index] / 2)+
     p->template select1_dx<Index>(p->m_size[Index] / 2);
+    (void)dummy; // avoid pure function result not used warning
 }
 namespace {
     template<size_t Index, size_t Arity, class MyClass>

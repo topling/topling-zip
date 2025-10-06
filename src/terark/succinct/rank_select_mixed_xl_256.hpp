@@ -104,14 +104,14 @@ protected:
     }
     void build_cache_impl(bool speed_select0, bool speed_select1, size_t dimensions,
         void (rank_select_mixed_xl_256<Arity>::*bits_range_set0)(size_t i, size_t k));
-    template<size_t dimensions> size_t one_seq_len_dx(size_t bitpos) const noexcept;
-    template<size_t dimensions> size_t zero_seq_len_dx(size_t bitpos) const noexcept;
-    template<size_t dimensions> size_t one_seq_revlen_dx(size_t endpos) const noexcept;
-    template<size_t dimensions> size_t zero_seq_revlen_dx(size_t endpos) const noexcept;
+    template<size_t dimensions> size_t one_seq_len_dx(size_t bitpos) const noexcept terark_pure_func;
+    template<size_t dimensions> size_t zero_seq_len_dx(size_t bitpos) const noexcept terark_pure_func;
+    template<size_t dimensions> size_t one_seq_revlen_dx(size_t endpos) const noexcept terark_pure_func;
+    template<size_t dimensions> size_t zero_seq_revlen_dx(size_t endpos) const noexcept terark_pure_func;
     template<size_t dimensions> inline size_t rank0_dx(size_t bitpos) const noexcept;
     template<size_t dimensions> inline size_t rank1_dx(size_t bitpos) const noexcept;
-    template<size_t dimensions> size_t select0_dx(size_t id) const noexcept;
-    template<size_t dimensions> size_t select1_dx(size_t id) const noexcept;
+    template<size_t dimensions> size_t select0_dx(size_t id) const noexcept terark_pure_func;
+    template<size_t dimensions> size_t select1_dx(size_t id) const noexcept terark_pure_func;
 
 public:
     template<size_t dimensions>

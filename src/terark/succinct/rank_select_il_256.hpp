@@ -112,22 +112,22 @@ public:
     bool isall0() const { return m_max_rank1 == 0; }
     bool isall1() const { return m_max_rank0 == 0; }
 
-    size_t popcnt() const;
-    size_t popcnt(size_t startline, size_t lines) const;
+    size_t popcnt() const terark_pure_func;
+    size_t popcnt(size_t startline, size_t lines) const terark_pure_func;
 
     ///@returns number of continuous one/zero bits starts at bitpos
-    size_t one_seq_len(size_t bitpos) const;
-    size_t zero_seq_len(size_t bitpos) const;
+    size_t one_seq_len(size_t bitpos) const terark_pure_func;
+    size_t zero_seq_len(size_t bitpos) const terark_pure_func;
 
     ///@returns number of continuous one/zero bits ends at endpos
     ///@note return_value = endpos - start;
     ///        where bits[start-1] is 0/1 and bits[start, ... endpos) are all 1/0
-    size_t one_seq_revlen(size_t endpos) const;
-    size_t zero_seq_revlen(size_t endpos) const;
+    size_t one_seq_revlen(size_t endpos) const terark_pure_func;
+    size_t zero_seq_revlen(size_t endpos) const terark_pure_func;
     inline size_t rank0(size_t bitpos) const;
     inline size_t rank1(size_t bitpos) const;
-    size_t select0(size_t Rank0) const;
-    size_t select1(size_t Rank1) const;
+    size_t select0(size_t Rank0) const terark_pure_func;
+    size_t select1(size_t Rank1) const terark_pure_func;
     size_t max_rank1() const { return m_max_rank1; }
     size_t max_rank0() const { return m_max_rank0; }
 
@@ -168,7 +168,7 @@ public:
     static void fast_prefetch_rank1(const Line* /*m_lines*/, size_t /*bitpos*/)
         { /*_mm_prefetch((const char*)&m_lines[bitpos/LineBits].rlev1, _MM_HINT_T0);*/ }
 
-    static size_t fast_one_seq_len(const Line*, size_t bitpos);
+    static size_t fast_one_seq_len(const Line*, size_t bitpos) terark_pure_func;
 
 protected:
     template<size_t Q> size_t select0_upper_bound_line_safe(size_t id) const;
