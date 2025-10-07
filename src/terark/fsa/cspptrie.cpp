@@ -755,10 +755,10 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
   }
   return m_stat;
 }
-
-#if defined(_MSC_VER) || defined(__clang__)
+#if TOPLING_USE_BOUND_PMF
+    #define InsertionPMF(MemberFunc) ExtractFuncPtr<insert_func_t>(static_cast<Patricia*>(this), (insert_pmf_t)MemberFunc)
 #else
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
+    #define InsertionPMF(MemberFunc) static_cast<insert_func_t>((insert_pmf_t)MemberFunc)
 #endif
 
 template<size_t Align>
@@ -792,7 +792,7 @@ void PatriciaMem<Align>::mempool_set_readonly() {
 #endif
   }
   auto conLevel = m_writing_concurrent_level;
-  m_insert = (insert_func_t)(insert_pmf_t)&PatriciaMem::insert_readonly_throw;
+  m_insert = InsertionPMF(&PatriciaMem::insert_readonly_throw);
   m_writing_concurrent_level = NoWriteReadOnly;
   if (MultiWriteMultiRead == conLevel) {
       m_mempool_lock_free.sync_frag_size_full();
@@ -819,11 +819,11 @@ case MultiWriteMultiRead: m_mempool_lock_free.print_stat(fp); break;
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
 default: TERARK_DIE("Unknown == conLevel"); break;
-case NoWriteReadOnly    : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_readonly_throw;                 break;
-case SingleThreadStrict : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_one_writer<SingleThreadStrict>; break;
-case SingleThreadShared : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_one_writer<SingleThreadShared>; break;
-case OneWriteMultiRead  : m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_one_writer<OneWriteMultiRead >; break;
-case MultiWriteMultiRead: m_insert = (insert_func_t)(insert_pmf_t)&MainPatricia::insert_multi_writer;                   break;
+case NoWriteReadOnly    : m_insert = InsertionPMF(&MainPatricia::insert_readonly_throw);                 break;
+case SingleThreadStrict : m_insert = InsertionPMF(&MainPatricia::insert_one_writer<SingleThreadStrict>); break;
+case SingleThreadShared : m_insert = InsertionPMF(&MainPatricia::insert_one_writer<SingleThreadShared>); break;
+case OneWriteMultiRead  : m_insert = InsertionPMF(&MainPatricia::insert_one_writer<OneWriteMultiRead >); break;
+case MultiWriteMultiRead: m_insert = InsertionPMF(&MainPatricia::insert_multi_writer);                   break;
     }
 }
 

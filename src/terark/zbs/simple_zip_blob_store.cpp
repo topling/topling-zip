@@ -16,11 +16,6 @@
 	#include <unistd.h> // for usleep
 #endif
 
-#if defined(_MSC_VER) || defined(__clang__)
-#else
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-#endif
-
 namespace terark {
 
 SimpleZipBlobStore::SimpleZipBlobStore() {

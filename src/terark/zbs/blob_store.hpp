@@ -53,7 +53,7 @@ public:
     uint64_t total_data_size() const { return m_unzipSize; }
     virtual size_t mem_size() const = 0;
 
-#if defined(_MSC_VER) || defined(__clang__)
+#if !TOPLING_USE_BOUND_PMF
     #define BlobStoreDefinePMF(Ret, pmf, ...) typedef Ret (BlobStore::*pmf)(__VA_ARGS__) const
     #define BlobStoreInvokePMF(pmf, ...)          (this->*pmf)(__VA_ARGS__)
     #define BlobStoreInvokePMF_EX(pmf, self, ...) (self->*pmf)(__VA_ARGS__)
@@ -63,8 +63,8 @@ public:
     #define BlobStoreDefinePMF(Ret, pmf, ...) typedef Ret (*pmf)(const BlobStore*, ##__VA_ARGS__); typedef Ret (BlobStore::*pmf##_mf)(__VA_ARGS__) const
     #define BlobStoreInvokePMF(pmf, ...)          this->pmf(this, ##__VA_ARGS__)
     #define BlobStoreInvokePMF_EX(pmf, self, ...) pmf(self, ##__VA_ARGS__)
-    #define BlobStoreStaticCastPMF(pmf, ...) (pmf)(pmf##_mf)(__VA_ARGS__)
-    #define BlobStoreReinterpretCastPMF(pmf, ...) (pmf)reinterpret_cast<pmf##_mf>(__VA_ARGS__)
+    #define BlobStoreStaticCastPMF(pmf, ...)      ExtractFuncPtr<pmf>(static_cast<const BlobStore*>(this), (pmf##_mf)__VA_ARGS__)
+    #define BlobStoreReinterpretCastPMF(pmf, ...) ExtractFuncPtr<pmf>(static_cast<const BlobStore*>(this), (pmf##_mf)__VA_ARGS__)
 #endif
 
     terark_forceinline

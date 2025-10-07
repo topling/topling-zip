@@ -180,7 +180,7 @@ public:
     ///
     terark_forceinline
     bool insert(fstring key, void* value, WriterToken* token, size_t root = initial_state) {
-      #if defined(_MSC_VER) || defined(__clang__)
+      #if !TOPLING_USE_BOUND_PMF
         return (this->*m_insert)(key, value, token, root);
       #else
         return m_insert(this, key, value, token, root);
@@ -262,7 +262,7 @@ protected:
     Patricia();
     bool insert_readonly_throw(fstring key, void* value, WriterToken*, size_t root);
     typedef bool (Patricia::*insert_pmf_t)(fstring, void*, WriterToken*, size_t root);
-#if defined(_MSC_VER) || defined(__clang__)
+#if !TOPLING_USE_BOUND_PMF
     typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*, size_t root);
 #else
     typedef bool (*insert_func_t)(Patricia*, fstring, void*, WriterToken*, size_t root);

@@ -20,11 +20,6 @@
 #include <terark/int_vector.hpp>
 #include <zstd/zstd.h>
 
-#if defined(_MSC_VER) || defined(__clang__)
-#else
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-#endif
-
 #if defined(_MSC_VER)
  // warning C4996: std::aligned_storage<576,8>::type': warning STL4034:
  // std::aligned_storage and std::aligned_storage_t are deprecated in C++23.

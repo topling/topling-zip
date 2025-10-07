@@ -3089,11 +3089,10 @@ void DictZipBlobStore::set_func_ptr() {
   case kFSE:       break;
   }
 
-#if defined(_MSC_VER) || defined(__clang__)
+#if !TOPLING_USE_BOUND_PMF
     #define CastCacheOffsetFunc(...) static_cast<get_record_append_func_t>(__VA_ARGS__)
 #else
-    #pragma GCC diagnostic ignored "-Wpmf-conversions"
-    #define CastCacheOffsetFunc(...) __VA_ARGS__
+    #define CastCacheOffsetFunc(...) static_cast<get_record_append_func_t_mf>(__VA_ARGS__)
 #endif
 
 // CacheOffsets::recData is first field, so:

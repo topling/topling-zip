@@ -12,11 +12,6 @@
 #include "blob_store_file_header.hpp"
 #include "zip_reorder_map.hpp"
 
-#if defined(_MSC_VER) || defined(__clang__)
-#else
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-#endif
-
 namespace terark {
 
 REGISTER_BlobStore(MixedLenBlobStore);
