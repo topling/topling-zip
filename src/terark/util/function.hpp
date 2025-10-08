@@ -542,6 +542,8 @@ decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
 #else
   #define TOPLING_IF_BOUND_PMF(Then, Else) Else
 #endif
+#define TOPLING_IF_BOUND_PMF_CALL(ThenFuncPtr, ElseMF, obj, ...) \
+  TOPLING_IF_BOUND_PMF(ThenFuncPtr(obj, ##__VA_ARGS__), obj->ElseMF(__VA_ARGS__))
 
 #if TOPLING_USE_BOUND_PMF
 template<class FuncPtr, class Object, class MemberFuncType>
