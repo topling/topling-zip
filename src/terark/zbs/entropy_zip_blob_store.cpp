@@ -661,8 +661,10 @@ public:
         init(freq);
     }
     void init(freq_hist_o1& freq) {
-        size_t entropy_len_o0 = freq_hist::estimate_size(freq.histogram());
-        size_t entropy_len_o1 = freq_hist_o1::estimate_size(freq.histogram());
+        // BlobStore is used for random access, DTable is resident in memory,
+        // so we need to take uncompressed DTable size into account
+        size_t entropy_len_o0 = freq_hist::estimate_size(freq.histogram()) + sizeof(Huffman::decoder);
+        size_t entropy_len_o1 = freq_hist_o1::estimate_size(freq.histogram()) + sizeof(Huffman::decoder_o1);
         freq.normalise(Huffman::NORMALISE);
         if (entropy_len_o0 * 15 / 16 < entropy_len_o1) {
             m_encoder_o0.reset(new Huffman::encoder(freq.histogram()));
