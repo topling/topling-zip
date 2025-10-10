@@ -94,7 +94,7 @@ public:
     }
 };
 
-class TerarkContext* GetTlsTerarkContext();
+class TerarkContext* GetTlsTerarkContext() terark_pure_func;
 
 struct EntropyBytes {
     fstring data;

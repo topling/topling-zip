@@ -362,6 +362,7 @@ const {
     assert(recID + 1 < m_offsets.size());
     auto BegEnd = m_offsets.get2(recID);
     assert(BegEnd[0] <= BegEnd[1]);
+    _mm_prefetch((const char*)m_content.data() + BegEnd[0], _MM_HINT_T0);
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
