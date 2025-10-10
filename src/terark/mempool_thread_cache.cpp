@@ -65,14 +65,16 @@ TCMemPoolOneThreadMF(size_t)random_level() {
 }
 
 #if defined(NDEBUG) || defined(__SANITIZE_ADDRESS__)
-    #define mptc1t_debug_fill_alloc(mem, len)
-    #define mptc1t_debug_fill_free(mem, len)
+    #define mptc1t_debug_fill_alloc(mem, pos, len)
+    #define mptc1t_debug_fill_free(mem, pos, len)
 #else
-    static void mptc1t_debug_fill_alloc(void* mem, size_t len) {
+    static void mptc1t_debug_fill_alloc(byte_t* base, size_t pos, size_t len) {
+        auto mem = base + pos;
         memset(mem, 0xCC, len);
         MSAN_POISON_MEMORY_REGION(mem, len); // can't read before write
     }
-    static void mptc1t_debug_fill_free(void* mem, size_t len) {
+    static void mptc1t_debug_fill_free(byte_t* base, size_t pos, size_t len) {
+        auto mem = base + pos;
         memset(mem, 0xDD, len);
         MSAN_POISON_MEMORY_REGION(mem, len); // can't read before write
     }
@@ -106,7 +108,7 @@ alloc(byte_t* base, size_t request) {
             ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
             list.cnt--;
             list.head = *(link_size_t*)(base + pos);
-            mptc1t_debug_fill_alloc(base + pos, request);
+            mptc1t_debug_fill_alloc(base, pos, request);
             return pos;
         }
         else {
@@ -128,7 +130,7 @@ alloc(byte_t* base, size_t request) {
                     list.cnt++;
                     list.head = (pos + request) / AlignSize;
                     ASAN_POISON_MEMORY_REGION(base + pos + request, request);
-                    mptc1t_debug_fill_alloc(base + pos, request);
+                    mptc1t_debug_fill_alloc(base, pos, request);
                     return pos;
                 }
             }
@@ -141,7 +143,7 @@ alloc(byte_t* base, size_t request) {
             if (terark_likely(End <= m_hot_end)) {
                 m_hot_pos = End;
                 ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
-                mptc1t_debug_fill_alloc(base + pos, request);
+                mptc1t_debug_fill_alloc(base, pos, request);
                 return pos;
             }
         }
@@ -186,7 +188,7 @@ alloc(byte_t* base, size_t request) {
             huge_node_cnt -= 1;
             reduce_frag_size(rlen);
             ASAN_UNPOISON_MEMORY_REGION(base + res, request);
-            mptc1t_debug_fill_alloc(base + res, request);
+            mptc1t_debug_fill_alloc(base, res, request);
             MPTC_CHECK_loop_cnt();
             return res;
         }
@@ -205,7 +207,7 @@ alloc(byte_t* base, size_t request) {
                 huge_node_cnt -= 1;
                 reduce_frag_size(rlen);
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
-                mptc1t_debug_fill_alloc(base + res, request);
+                mptc1t_debug_fill_alloc(base, res, request);
                 return res;
             }
         }
@@ -243,7 +245,7 @@ alloc(byte_t* base, size_t request) {
             huge_node_cnt -= 1;
             reduce_frag_size(n2_size);
             ASAN_UNPOISON_MEMORY_REGION(base + res, request);
-            mptc1t_debug_fill_alloc(base + res, request);
+            mptc1t_debug_fill_alloc(base, res, request);
             MPTC_CHECK_loop_cnt();
             return res;
         }
@@ -260,7 +262,7 @@ alloc(byte_t* base, size_t request) {
                     sfree(base, res + request, rlen - request);
                 }
                 ASAN_UNPOISON_MEMORY_REGION(base + res, request);
-                mptc1t_debug_fill_alloc(base + res, request);
+                mptc1t_debug_fill_alloc(base, res, request);
                 return res;
             }
         }
@@ -272,7 +274,7 @@ alloc(byte_t* base, size_t request) {
         if (terark_likely(End <= m_hot_end)) {
             m_hot_pos = End;
             ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
-            mptc1t_debug_fill_alloc(base + pos, request);
+            mptc1t_debug_fill_alloc(base, pos, request);
             MPTC_CHECK_loop_cnt();
             return pos;
         }
@@ -332,7 +334,7 @@ TCMemPoolOneThreadMF(void)sfree(byte_t* base, size_t pos, size_t len) {
     if (terark_likely(len <= m_freelist_head.size() * AlignSize)) {
         size_t idx = len / AlignSize - 1;
         auto& list = m_freelist_head[idx];
-        mptc1t_debug_fill_free((link_t*)(base + pos) + 1, len-sizeof(link_t));
+        mptc1t_debug_fill_free(base, pos + sizeof(link_t), len-sizeof(link_t));
         *(link_size_t*)(base + pos) = list.head;
         ASAN_POISON_MEMORY_REGION(base + pos, len);
         list.head = link_size_t(pos / AlignSize);
@@ -376,7 +378,7 @@ TCMemPoolOneThreadMF(void)sfree(byte_t* base, size_t pos, size_t len) {
         n2->next[0] = huge_list.next[0];
         huge_list.next[0] = link_size_t(pos >> offset_shift);
       #endif
-        mptc1t_debug_fill_free(n2 + 1, len - sizeof(*n2));
+        mptc1t_debug_fill_free(base, (byte_t*)(n2 + 1) - base, len - sizeof(*n2));
         ASAN_POISON_MEMORY_REGION(n2 + 1, len - sizeof(*n2));
         huge_size_sum += len;
         huge_node_cnt += 1;

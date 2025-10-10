@@ -2706,6 +2706,11 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
                 }
                 TERARK_ASSERT_EQ(nil_state, a[node+2+ch].child);
                 a[node+2+ch].child = suffix_node;
+                if (a[node].meta.b_is_final) {
+                    tiny_memcpy_align_4(a + node +  2 + 256,
+                                        a + curr + 10 + n_children,
+                                        aligned_valzplen);
+                }
                 break;
             }
             my_alloc_node(10+n_children+1);
