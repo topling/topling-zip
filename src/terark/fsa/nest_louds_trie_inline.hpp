@@ -251,9 +251,10 @@ const noexcept {
     size_t child0 = bitpos - parent;
     label += child0;
     _mm_prefetch((const char*)label, _MM_HINT_T0);
-    m_is_link.prefetch_bit(child0); // prefetch for next search
     size_t lcount = RankSelect::fast_one_seq_len(bits, bitpos+1);
     assert(child0 + lcount <= total_states());
+    if (lcount > 0)
+        m_is_link.prefetch_bit(child0); // prefetch for next search
     return std::pair<size_t, size_t>(child0, lcount);
 }
 template<class RankSelect, class RankSelect2, bool FastLabel>
