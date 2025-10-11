@@ -196,12 +196,12 @@ size_t rank_select_il::one_seq_len(size_t bitpos) const {
 
 size_t rank_select_il::fast_one_seq_len(const Line* lines, size_t bitpos) {
     size_t j = bitpos / LineBits, k, sum;
-    if (bitpos % WordBits != 0) {
+    if (terark_likely(bitpos % WordBits != 0)) {
         bm_uint_t x = lines[j].words[bitpos%LineBits / WordBits];
         if (!(x & (bm_uint_t(1) << bitpos%WordBits))) return 0;
         bm_uint_t y = ~(x >> bitpos%WordBits);
         size_t ctz = fast_ctz(y);
-        if (ctz < WordBits - bitpos%WordBits) {
+        if (terark_likely(ctz < WordBits - bitpos%WordBits)) {
             // last zero bit after bitpos is in x
             return ctz;
         }
@@ -230,11 +230,11 @@ size_t rank_select_il::fast_one_seq_len(const Line* lines, size_t bitpos) {
 size_t rank_select_il::zero_seq_len(size_t bitpos) const {
     assert(bitpos < this->size());
     size_t j = bitpos / LineBits, k, sum;
-    if (bitpos % WordBits != 0) {
+    if (terark_likely(bitpos % WordBits != 0)) {
         bm_uint_t x = m_lines[j].words[bitpos%LineBits / WordBits];
         if (x & (bm_uint_t(1) << bitpos%WordBits)) return 0;
         bm_uint_t y = x >> bitpos%WordBits;
-        if (y) {
+        if (terark_likely(y)) {
             // last zero bit after bitpos is in x
             return fast_ctz(y);
         }

@@ -336,12 +336,12 @@ size_t febitvec::one_seq_len(size_t bitpos) const {
 
 size_t febitvec::fast_one_seq_len(const bm_uint_t* bits, size_t bitpos) {
 	size_t j, sum;
-	if (bitpos%WordBits != 0) {
+	if (terark_likely(bitpos%WordBits != 0)) {
 		bm_uint_t x = bits[bitpos/WordBits];
 		if ( !(x & (bm_uint_t(1) << bitpos%WordBits)) ) return 0;
 		bm_uint_t y = ~(x >> bitpos%WordBits);
 		size_t ctz = fast_ctz(y);
-		if (ctz < WordBits - bitpos%WordBits) {
+		if (terark_likely(ctz < WordBits - bitpos%WordBits)) {
 			// last zero bit after bitpos is in x
 			return ctz;
 		}
@@ -369,11 +369,11 @@ size_t febitvec::zero_seq_len(size_t bitpos) const {
 	assert(bitpos < m_size);
 	const bm_uint_t* bits = m_words;
 	size_t j, sum;
-	if (bitpos%WordBits != 0) {
+	if (terark_likely(bitpos%WordBits != 0)) {
 		bm_uint_t x = bits[bitpos/WordBits];
 		if (x & (bm_uint_t(1) << bitpos%WordBits)) return 0;
 		bm_uint_t y = (x >> bitpos%WordBits);
-		if (y) {
+		if (terark_likely(y)) {
 			return fast_ctz(y);
 		}
 		j = bitpos/WordBits + 1;
