@@ -30,8 +30,9 @@ namespace terark {
 
 template<size_t iLineBits>
 struct RankSelectConstants {
+    static_assert((iLineBits & (iLineBits - 1)) == 0, "iLineBits must be power of 2");
     static const size_t LineBits = iLineBits;
-    static const size_t LineShift = StaticUintBits<LineBits>::value;
+    static const size_t LineShift = StaticUintBits<LineBits>::value - 1;
     static const size_t LineWords = LineBits / WordBits;
 
     static size_t BitsToLines(size_t nbits)

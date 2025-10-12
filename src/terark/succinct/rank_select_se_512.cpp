@@ -270,9 +270,10 @@ rank_select_se_512_tpl<rank_cache_base_t>::select0_upper_bound_line_safe
         __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rank_cache[lo]);
         __m512i vec2 = _mm512_sub_epi64(vec0, vec1);
         __m512i key = _mm512_set1_epi64(Rank0);
-        __mmask8 cmp = _mm512_mask_cmpgt_epi64_mask(k, vec2, key);
+        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
         auto tz = _tzcnt_u32(cmp | (1u << (veclen*2))); // upper bound
         lo += tz / 2;
+        TERARK_ASSERT_LT(Rank0, LineBits * lo - rank_cache[lo].lev1);
     } else {
         __mmask16 k = _bzhi_u32(-1, veclen);
         __m128i vec0 = _mm_add_epi32(_mm_set1_epi32(lo), _mm_set_epi32(3,2,1,0));
@@ -285,6 +286,7 @@ rank_select_se_512_tpl<rank_cache_base_t>::select0_upper_bound_line_safe
         __mmask8 cmp = _mm_mask_cmpgt_epi32_mask(k, vec2, key);
         auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
         lo += tz;
+        TERARK_ASSERT_LT(Rank0, LineBits * lo - rank_cache[lo].lev1);
     }
   #else
     // this is faster
@@ -325,9 +327,11 @@ const noexcept {
     __m512i arr3 = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
     __m512i arr = _mm512_sub_epi64(arr0, arr3);
     __m512i key = _mm512_set1_epi64(Rank0 - hit);
-    __mmask8 cmp = _mm512_cmpge_epi64_mask(arr, key);
-    auto tz = _tzcnt_u32(cmp);
-    TERARK_ASSERT_LT(tz, 8);  // tz may be 0
+    __mmask8 cmp = _mm512_cmpgt_epi64_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp | (1u << 8)); // upper bound
+    TERARK_ASSERT_GE(tz, 1);
+    TERARK_ASSERT_LE(tz, 8);
+    tz -= 1;
     return select0_nth64(tz); // rank512 must use TERARK_GET_BITS_64
   #else
     if (Rank0 < hit + 64*4 - rank512(rcRela, 4)) {
@@ -410,9 +414,11 @@ const noexcept {
     __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
     __m512i arr = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
     __m512i key = _mm512_set1_epi64(Rank1 - hit);
-    __mmask8 cmp = _mm512_cmpge_epi64_mask(arr, key);
-    auto tz = _tzcnt_u32(cmp);
-    TERARK_ASSERT_LT(tz, 8);  // tz may be 0
+    __mmask8 cmp = _mm512_cmpgt_epi64_mask(arr, key);
+    auto tz = _tzcnt_u32(cmp | (1u << 8)); // upper bound
+    TERARK_ASSERT_GE(tz, 1);
+    TERARK_ASSERT_LE(tz, 8);
+    tz -= 1;
     return select1_nth64(tz); // rank512 must use TERARK_GET_BITS_64
   #else
     if (Rank1 < hit + rank512(rcRela, 4)) {
