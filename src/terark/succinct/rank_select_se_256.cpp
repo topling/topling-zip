@@ -261,8 +261,8 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
     size_t lo = select0_upper_bound_line_safe(Rank0);
     assert(Rank0 < LineBits * lo - rank_cache[lo].lev1);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
-    _mm_prefetch(pBit64+0, _MM_HINT_T0);
-    _mm_prefetch(pBit64+3, _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+3), _MM_HINT_T0);
     size_t line_bitpos = (lo-1) * LineBits;
     const RankCache& rc = rank_cache[lo-1];
     size_t hit = LineBits * (lo-1) - rc.lev1;
@@ -346,8 +346,8 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
     size_t lo = select1_upper_bound_line_safe(Rank1);
     assert(Rank1 < rank_cache[lo].lev1);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
-    _mm_prefetch(pBit64+0, _MM_HINT_T0);
-    _mm_prefetch(pBit64+3, _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+3), _MM_HINT_T0);
     size_t line_bitpos = (lo-1) * LineBits;
     const RankCache& rc = rank_cache[lo-1];
     size_t hit = rc.lev1;

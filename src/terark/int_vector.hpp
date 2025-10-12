@@ -217,7 +217,7 @@ public:
     assert(bits <= 58);
     size_t bit_idx = bits * idx;
     size_t byte_idx = bit_idx / 8;
-    _mm_prefetch(data + byte_idx, _MM_HINT_T0);
+    _mm_prefetch((const char*)data + byte_idx, _MM_HINT_T0);
   }
   void prefetch(size_t idx) const {
     assert(idx < m_size);

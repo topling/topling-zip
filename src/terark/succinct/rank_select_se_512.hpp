@@ -61,8 +61,8 @@ protected:
     size_t     m_max_rank1;
     size_t select0_upper_bound_line_safe(size_t id) const noexcept;
     size_t select1_upper_bound_line_safe(size_t id) const noexcept;
-    static size_t select0_upper_bound_line(const bm_uint_t* bits, const index_t* sel0, const RankCache512*, size_t id) noexcept;
-    static size_t select1_upper_bound_line(const bm_uint_t* bits, const index_t* sel1, const RankCache512*, size_t id) noexcept;
+    static inline size_t select0_upper_bound_line(const bm_uint_t* bits, const index_t* sel0, const RankCache512*, size_t id) noexcept;
+    static inline size_t select1_upper_bound_line(const bm_uint_t* bits, const index_t* sel1, const RankCache512*, size_t id) noexcept;
 public:
     const RankCache512* get_rank_cache() const { return m_rank_cache; }
     const index_t* get_sel0_cache() const { return m_sel0_cache; }
@@ -181,8 +181,8 @@ noexcept {
     size_t lo = select0_upper_bound_line(bits, sel0, rankCache, Rank0);
     assert(Rank0 < LineBits * lo - rankCache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
-    _mm_prefetch(pBit64+0, _MM_HINT_T0);
-    _mm_prefetch(pBit64+7, _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+7), _MM_HINT_T0);
     size_t hit = LineBits * (lo-1) - rankCache[lo-1].base;
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rankCache[lo-1].rela;
@@ -260,8 +260,8 @@ noexcept {
     size_t lo = select1_upper_bound_line(bits, sel1, rankCache, Rank1);
     assert(Rank1 < rankCache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
-    _mm_prefetch(pBit64+0, _MM_HINT_T0);
-    _mm_prefetch(pBit64+7, _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+7), _MM_HINT_T0);
     size_t hit = rankCache[lo-1].base;
     size_t line_bitpos = (lo-1) * LineBits;
     uint64_t rcRela = rankCache[lo-1].rela;

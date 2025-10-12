@@ -151,8 +151,8 @@ inline size_t rank_select_se::fast_select0
 noexcept {
     size_t lo = select0_upper_bound_line(bits, sel0, rankCache, Rank0);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
-    _mm_prefetch(pBit64+0, _MM_HINT_T0);
-    _mm_prefetch(pBit64+3, _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+3), _MM_HINT_T0);
     assert(Rank0 < LineBits * lo - rankCache[lo].lev1);
     size_t line_bitpos = (lo-1) * LineBits;
     const RankCache& rc = rankCache[lo-1];
@@ -233,8 +233,8 @@ inline size_t rank_select_se::fast_select1
 noexcept {
     size_t lo = select1_upper_bound_line(bits, sel1, rankCache, Rank1);
     const uint64_t* pBit64 = (const uint64_t*)(bits + LineWords * (lo-1));
-    _mm_prefetch(pBit64+0, _MM_HINT_T0);
-    _mm_prefetch(pBit64+3, _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
+    _mm_prefetch((const char*)(pBit64+3), _MM_HINT_T0);
     assert(Rank1 < rankCache[lo].lev1);
     size_t line_bitpos = (lo-1) * LineBits;
     const RankCache& rc = rankCache[lo-1];
