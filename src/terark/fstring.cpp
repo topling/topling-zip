@@ -404,11 +404,22 @@ struct string_thief {
 		// 	size_t cap = std::max(sz, old_size * 103/64); // 103/64 <~ 1.618
 		// 	bank->reserve(cap);
 		// }
+	#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+		bank->begin(); // to copy on write
+		(bank->*p)()->_M_set_length_and_sharable(sz);
+	#else
 		(bank->*p)(sz);
+	#endif
 	}
 };
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+template struct string_thief<std::string::_Rep*() const noexcept,
+							&std::string::_M_rep>;
+#else
 template struct string_thief<void(std::string::size_type),
 							 &std::string::_M_length>;
+#endif
+
 void string_resize_no_touch_memory(std::string* bank, size_t sz) {
 	if (terark_unlikely(sz > bank->capacity())) {
 		size_t old_size = bank->size();

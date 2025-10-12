@@ -63,7 +63,7 @@
     IO_CMD_PWRITE = IOCB_CMD_PWRITE,
     IO_CMD_FSYNC = IOCB_CMD_FSYNC,
     IO_CMD_FDSYNC = IOCB_CMD_FDSYNC,
-    IO_CMD_POLL = IOCB_CMD_POLL,
+ // IO_CMD_POLL = IOCB_CMD_POLL, // we not used it and it is not available in centos7
     IO_CMD_NOOP = IOCB_CMD_NOOP,
     IO_CMD_PREADV = IOCB_CMD_PREADV,
     IO_CMD_PWRITEV = IOCB_CMD_PWRITEV,
@@ -215,7 +215,7 @@ class io_fiber_aio : public io_fiber_base {
     AIO_CMD_ENUM(PWRITE),
     AIO_CMD_ENUM(FSYNC),
     AIO_CMD_ENUM(FDSYNC),
-    AIO_CMD_ENUM(POLL),
+ // AIO_CMD_ENUM(POLL),
     AIO_CMD_ENUM(NOOP),
     AIO_CMD_ENUM(PREADV)
   );
