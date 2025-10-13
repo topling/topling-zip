@@ -392,6 +392,18 @@ std::string escape(fstring str, char quote) {
 
 #if defined(__GLIBCXX__)
 void do_string_resize_no_touch_memory(std::string* bank, size_t sz);
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+template<class RepT>
+void do_M_set_length_and_sharable(RepT* rep, size_t sz) {
+	// copy from bits/basic_string.h _M_set_length_and_sharable
+	// we removed check for rep != &_S_empty_rep() instead assert it
+	assert(rep != &RepT::_S_empty_rep()); // because bank->begin() was called
+	rep->_M_set_sharable();  // One reference.
+	rep->_M_length = sz;
+	// topling: comment out next line to reduce one memory write
+	// traits_type::assign(rep->_M_refdata()[sz], _S_terminal);
+}
+#endif
 template <typename Money_t, Money_t std::string::* p>
 struct string_thief {
 	friend
@@ -406,7 +418,8 @@ struct string_thief {
 		// }
 	#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
 		bank->begin(); // to copy on write
-		(bank->*p)()->_M_set_length_and_sharable(sz);
+		//(bank->*p)()->_M_set_length_and_sharable(sz);
+		do_M_set_length_and_sharable((bank->*p)(), sz);
 	#else
 		(bank->*p)(sz);
 	#endif
