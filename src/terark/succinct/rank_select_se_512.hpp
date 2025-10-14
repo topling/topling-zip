@@ -126,6 +126,23 @@ load_select_cache(const index_t* select_cache, size_t Rank) {
     return std::pair<size_t, size_t>(lo, hi);
 }
 
+#if defined(__AVX512VL__) && defined(__AVX512BW__)
+    #define TOPLING_RANK_SELECT_SE_512_UPPER_BOUND_USE_AVX512 0 // do not use not
+#else
+    #define TOPLING_RANK_SELECT_SE_512_UPPER_BOUND_USE_AVX512 0
+#endif
+
+#if TOPLING_RANK_SELECT_SE_512_UPPER_BOUND_USE_AVX512
+namespace rank_select_se_512_ns {
+const __m512i s_permute_index64 = _mm512_set_epi64(8|6, 8|4, 8|2, 8|0,
+                                                   0|6, 0|4, 0|2, 0|0);
+const __m512i s_permute_index32 = _mm512_set_epi32(
+    1,1,1,1, // uint32 at index 1 which was set to 0 in maskz_load
+    16|15, 16|12, 16|9, 16|6, 16|3, 16|0,
+     0|15,  0|12,  0|9,  0|6,  0|3,  0|0);
+} // namespace rank_select_se_512_ns
+#endif
+
 template<class rank_cache_base_t>
 inline size_t rank_select_se_512_tpl<rank_cache_base_t>::
 select0_upper_bound_line
@@ -133,40 +150,56 @@ select0_upper_bound_line
 noexcept {
     size_t lo = rng.first;
     size_t hi = rng.second;
-  #if defined(__AVX512VL__) && defined(__AVX512BW__) && 0
+  #if TOPLING_RANK_SELECT_SE_512_UPPER_BOUND_USE_AVX512
+    using namespace rank_select_se_512_ns;
+    // volatile force load constants before binary search
+    __m512i vecs = _mm512_set_epi64(7,6,5,4,3,2,1,0);
+    __m512i permute_index = sizeof(rankCache->base) == 8
+                          ? (volatile const __m512i&)s_permute_index64
+                          : (volatile const __m512i&)s_permute_index32;
+    size_t max_veclen = sizeof(rankCache->base) == 8 ? 8 : 12;
     size_t veclen;
-    while ((veclen = hi - lo) > 4) {
+    while (terark_unlikely((veclen = hi - lo) > max_veclen)) {
         size_t mid = (lo + hi) / 2;
-        size_t mid_val = LineBits * mid - rank_cache[mid].base;
+        size_t mid_val = LineBits * mid - rankCache[mid].base;
         if (mid_val <= Rank0) // upper_bound
             lo = mid + 1;
         else
             hi = mid;
     }
-    if (sizeof(rank_cache_base_t) == 8) { // rank_cache.base is uint64
-        __mmask16 k = _bzhi_u32(0x5555, veclen*2);
-        __m512i vec0 = _mm512_add_epi64(_mm512_set1_epi64(lo), _mm512_set_epi64(0,3, 0,2, 0,1, 0,0));
-        vec0 = _mm512_sllv_epi64(vec0, _mm512_set1_epi64(LineShift));
-        __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rank_cache[lo]);
-        __m512i vec2 = _mm512_sub_epi64(vec0, vec1);
-        __m512i key = _mm512_set1_epi64(Rank0);
-        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
-        auto tz = _tzcnt_u32(cmp | (1u << (veclen*2))); // upper bound
-        lo += tz / 2;
-        TERARK_ASSERT_LT(Rank0, LineBits * lo - rankCache[lo].lev1);
-    } else {
-        __mmask16 k = _bzhi_u32(-1, veclen);
-        __m128i vec0 = _mm_add_epi32(_mm_set1_epi32(lo), _mm_set_epi32(3,2,1,0));
-        vec0 = _mm_sllv_epi32(vec0, _mm_set1_epi32(LineShift));
-        __m512i vec1 = _mm512_maskz_loadu_epi32(_bzhi_u32(001111, veclen*3), &rank_cache[lo]);
-        vec1 = _mm512_mask_permutexvar_epi32(_mm512_setzero_si512(), k,
-            _mm512_set_epi32(0,0,0,0,   0,0,3, 0,0,2, 0,0,1, 0,0,0), vec1);
-        __m128i vec2 = _mm_sub_epi32(vec0, _mm512_castsi512_si128(vec1));
-        __m128i key = _mm_set1_epi32(Rank0);
-        __mmask8 cmp = _mm_mask_cmpgt_epi32_mask(k, vec2, key);
+    uint32_t msk = _bzhi_u32(-1, veclen); // 1 cycles
+    __m512i  key = _mm512_set1_epi64(Rank0); // 3 cycles
+    vecs = _mm512_add_epi64(_mm512_set1_epi64(lo), vecs);
+    vecs = _mm512_sllv_epi64(vecs, _mm512_set1_epi64(LineShift));
+    if (sizeof(rankCache->base) == 8) { // rankCache.base is uint64, veclen <= 8
+        uint32_t  k0 = _bzhi_u32(0x5555, veclen*2); // veclen is likely <= 4
+        __mmask8  k1 = k0 >> 8; // 1 cycle, is likely 0
+        __m512i vec0 = _mm512_maskz_loadu_epi64(k0, &rankCache[lo + 0]); // 8 cycles
+        __m512i vec1 = _mm512_maskz_loadu_epi64(k1, &rankCache[lo + 6]); // 8 cycles
+        __m512i vec2 = _mm512_permutex2var_epi64(vec0, permute_index, vec1); // 3 cycles
+        __m512i vec3 = _mm512_sub_epi64(vecs, vec2); // 1 cycles
+        auto cmp = _mm512_mask_cmpgt_epi64_mask(msk, vec3, key); // 3 cycles
         auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
         lo += tz;
-        TERARK_ASSERT_LT(Rank0, LineBits * lo - rankCache[lo].lev1);
+        TERARK_ASSERT_LT(Rank0, LineBits * lo - rankCache[lo].base);
+    }
+    else { // rankCache.base is uint32, veclen <= 12
+      #if 1
+        uint64_t  k0 = _bzhi_u64(0111111'111111u, veclen*3); // 1 cycle
+        __mmask16 k1 = k0 >> 18; // 1 cycle, is likely 0 because veclen is likely <= 6
+        __m512i vec0 = _mm512_maskz_loadu_epi32(k0, &rankCache[lo + 0]); // 8 cycles
+        __m512i vec1 = _mm512_maskz_loadu_epi32(k1, &rankCache[lo + 6]); // 8 cycles
+        __m512i vec2 = _mm512_permutex2var_epi32(vec0, permute_index, vec1); // 3 cycles
+      #else
+        // gather latency is 30 cycles
+        __m512i vec2 = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), msk,
+            _mm512_set_epi32(45,42,39,36,33,30,27,24,21,18,15,12,9,6,3,0), rankCache+lo, 4);
+      #endif
+        __m512i vec3 = _mm512_sub_epi32(vecs, vec2); // 1 cycles
+        auto cmp = _mm512_mask_cmpgt_epi32_mask(msk, vec3, key);
+        auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
+        lo += tz;
+        TERARK_ASSERT_LT(Rank0, LineBits * lo - rankCache[lo].base);
     }
   #else
     if (hi - lo < 32) {
@@ -251,6 +284,53 @@ select1_upper_bound_line
 noexcept {
     size_t lo = rng.first;
     size_t hi = rng.second;
+  #if TOPLING_RANK_SELECT_SE_512_UPPER_BOUND_USE_AVX512
+    using namespace rank_select_se_512_ns;
+    // volatile force load constants before binary search
+    __m512i permute_index = sizeof(rankCache->base) == 8
+                          ? (volatile const __m512i&)s_permute_index64
+                          : (volatile const __m512i&)s_permute_index32;
+    size_t max_veclen = sizeof(rankCache->base) == 8 ? 8 : 12;
+    size_t veclen;
+    while (terark_unlikely((veclen = hi - lo) > max_veclen)) {
+        size_t mid = (lo + hi) / 2;
+        size_t mid_val = rankCache[mid].base;
+        if (mid_val <= Rank1) // upper_bound
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    uint32_t msk = _bzhi_u32(-1, veclen); // 1 cycles
+    __m512i key = _mm512_set1_epi64(Rank1); // 3 cycles
+    if (sizeof(rankCache->base) == 8) { // veclen <= 8
+        uint32_t  k0 = _bzhi_u32(0x5555, veclen*2); // veclen is likely <= 4
+        __mmask8  k1 = k0 >> 8; // 1 cycle, is likely 0
+        __m512i vec0 = _mm512_maskz_loadu_epi64(k0, &rankCache[lo + 0]); // 8 cycles
+        __m512i vec1 = _mm512_maskz_loadu_epi64(k1, &rankCache[lo + 6]); // 8 cycles
+        __m512i vec2 = _mm512_permutex2var_epi64(vec0, permute_index, vec1); // 3 cycles
+        __mmask8 cmp = _mm512_mask_cmpgt_epi64_mask(msk, vec2, key); // 3 cycles
+        auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
+        lo += tz;
+        TERARK_ASSERT_LT(Rank1, rankCache[lo].base);
+    }
+    else { // rankCache.base is uint32, veclen <= 12
+      #if 1
+        uint64_t  k0 = _bzhi_u64(0111111'111111u, veclen*3); // 1 cycle
+        __mmask16 k1 = k0 >> 18; // 1 cycle, is likely 0 because veclen is likely <= 6
+        __m512i vec0 = _mm512_maskz_loadu_epi32(k0, &rankCache[lo + 0]); // 8 cycles
+        __m512i vec1 = _mm512_maskz_loadu_epi32(k1, &rankCache[lo + 6]); // 8 cycles
+        __m512i vec2 = _mm512_permutex2var_epi32(vec0, permute_index, vec1); // 3 cycles
+      #else
+        // gather latency is 30 cycles
+        __m512i vec2 = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), msk,
+            _mm512_set_epi32(45,42,39,36,33,30,27,24,21,18,15,12,9,6,3,0), rankCache+lo, 4);
+      #endif
+        __mmask8 cmp = _mm512_mask_cmpgt_epi32_mask(msk, vec2, key);
+        auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
+        lo += tz;
+        TERARK_ASSERT_LT(Rank1, rankCache[lo].base);
+    }
+  #else
     if (hi - lo < 32) {
         while (rankCache[lo].base <= Rank1) lo++;
     }
@@ -264,6 +344,7 @@ noexcept {
                 hi = mid;
         }
     }
+  #endif
     return lo;
 }
 
