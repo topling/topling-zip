@@ -222,7 +222,7 @@ const noexcept {
     const RankCache* rank_cache = m_rank_cache;
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     size_t veclen;
-    while ((veclen = hi - lo) > 8) {
+    while (terark_unlikely((veclen = hi - lo) > 8)) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = LineBits * mid - rank_cache[mid].lev1;
         if (mid_val <= Rank0) // upper_bound
@@ -313,7 +313,7 @@ const noexcept {
     const RankCache* rank_cache = m_rank_cache;
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     size_t veclen;
-    while ((veclen = hi - lo) > 8) {
+    while (terark_unlikely((veclen = hi - lo) > 8)) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = rank_cache[mid].lev1;
         if (mid_val <= Rank1) // upper_bound

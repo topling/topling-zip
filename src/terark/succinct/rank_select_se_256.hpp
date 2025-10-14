@@ -108,7 +108,7 @@ noexcept {
     size_t hi = sel0[Rank0 / LineBits + 1];
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     size_t sublen;
-    while ((sublen = hi - lo) > 8) {
+    while (terark_unlikely((sublen = hi - lo) > 8)) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = LineBits * mid - rankCache[mid].lev1;
         if (mid_val <= Rank0) // upper_bound
@@ -196,7 +196,7 @@ noexcept {
     size_t hi = sel1[Rank1 / LineBits + 1];
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     size_t sublen;
-    while ((sublen = hi - lo) > 8) {
+    while (terark_unlikely((sublen = hi - lo) > 8)) {
         size_t mid = (lo + hi) / 2;
         size_t mid_val = rankCache[mid].lev1;
         if (mid_val <= Rank1) // upper_bound
