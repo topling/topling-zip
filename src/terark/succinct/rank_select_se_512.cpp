@@ -238,68 +238,16 @@ void rank_select_se_512_tpl<rank_cache_base_t>::build_cache(bool speed_select0, 
 }
 
 template<class rank_cache_base_t>
-inline size_t
-rank_select_se_512_tpl<rank_cache_base_t>::select0_upper_bound_line_safe
+inline std::pair<size_t, size_t>
+rank_select_se_512_tpl<rank_cache_base_t>::load_select0_cache_safe
 (size_t Rank0) const noexcept {
     GUARD_MAX_RANK(0, Rank0);
-    size_t lo, hi;
     if (m_sel0_cache) { // get the very small [lo, hi) range
-        lo = m_sel0_cache[Rank0 / LineBits];
-        hi = m_sel0_cache[Rank0 / LineBits + 1];
-        //assert(lo < hi);
+        return load_select_cache(m_sel0_cache, Rank0);
     }
     else { // global range
-        lo = 0;
-        hi = (m_size + LineBits + 1) / LineBits;
+        return std::pair<size_t, size_t>(0, (m_size + LineBits + 1) / LineBits);
     }
-    const RankCache512* rank_cache = m_rank_cache;
-  #if defined(__AVX512VL__) && defined(__AVX512BW__) && 0
-    size_t veclen;
-    while ((veclen = hi - lo) > 4) {
-        size_t mid = (lo + hi) / 2;
-        size_t mid_val = LineBits * mid - rank_cache[mid].base;
-        if (mid_val <= Rank0) // upper_bound
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    if (sizeof(rank_cache_base_t) == 8) { // rank_cache.base is uint64
-        __mmask16 k = _bzhi_u32(0x5555, veclen*2);
-        __m512i vec0 = _mm512_add_epi64(_mm512_set1_epi64(lo), _mm512_set_epi64(0,3, 0,2, 0,1, 0,0));
-        vec0 = _mm512_sllv_epi64(vec0, _mm512_set1_epi64(LineShift));
-        __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rank_cache[lo]);
-        __m512i vec2 = _mm512_sub_epi64(vec0, vec1);
-        __m512i key = _mm512_set1_epi64(Rank0);
-        __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
-        auto tz = _tzcnt_u32(cmp | (1u << (veclen*2))); // upper bound
-        lo += tz / 2;
-        TERARK_ASSERT_LT(Rank0, LineBits * lo - rank_cache[lo].lev1);
-    } else {
-        __mmask16 k = _bzhi_u32(-1, veclen);
-        __m128i vec0 = _mm_add_epi32(_mm_set1_epi32(lo), _mm_set_epi32(3,2,1,0));
-        vec0 = _mm_sllv_epi32(vec0, _mm_set1_epi32(LineShift));
-        __m512i vec1 = _mm512_maskz_loadu_epi32(_bzhi_u32(001111, veclen*3), &rank_cache[lo]);
-        vec1 = _mm512_mask_permutexvar_epi32(_mm512_setzero_si512(), k,
-            _mm512_set_epi32(0,0,0,0,   0,0,3, 0,0,2, 0,0,1, 0,0,0), vec1);
-        __m128i vec2 = _mm_sub_epi32(vec0, _mm512_castsi512_si128(vec1));
-        __m128i key = _mm_set1_epi32(Rank0);
-        __mmask8 cmp = _mm_mask_cmpgt_epi32_mask(k, vec2, key);
-        auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
-        lo += tz;
-        TERARK_ASSERT_LT(Rank0, LineBits * lo - rank_cache[lo].lev1);
-    }
-  #else
-    // this is faster
-    while (lo < hi) {
-        size_t mid = (lo + hi) / 2;
-        size_t mid_val = LineBits * mid - rank_cache[mid].base;
-        if (mid_val <= Rank0) // upper_bound
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-  #endif
-    return lo;
 }
 
 template<class rank_cache_base_t>
@@ -307,7 +255,7 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select0(size_t Rank0)
 const noexcept {
     const bm_uint_t* bm_words = this->bldata();
     const RankCache512* rank_cache = m_rank_cache;
-    size_t lo = select0_upper_bound_line_safe(Rank0);
+    size_t lo = select0_upper_bound_line(load_select0_cache_safe(Rank0), rank_cache, Rank0);
     assert(Rank0 < LineBits * lo - rank_cache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
     _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
@@ -362,30 +310,16 @@ const noexcept {
 }
 
 template<class rank_cache_base_t>
-inline size_t
-rank_select_se_512_tpl<rank_cache_base_t>::select1_upper_bound_line_safe
+inline std::pair<size_t, size_t>
+rank_select_se_512_tpl<rank_cache_base_t>::load_select1_cache_safe
 (size_t Rank1) const noexcept {
     GUARD_MAX_RANK(1, Rank1);
-    size_t lo, hi;
     if (m_sel1_cache) { // get the very small [lo, hi) range
-        lo = m_sel1_cache[Rank1 / LineBits];
-        hi = m_sel1_cache[Rank1 / LineBits + 1];
-        //assert(lo < hi);
+        return load_select_cache(m_sel1_cache, Rank1);
     }
     else {
-        lo = 0;
-        hi = (m_size + LineBits + 1) / LineBits;
+        return std::pair<size_t, size_t>(0, (m_size + LineBits + 1) / LineBits);
     }
-    const RankCache512* rank_cache = m_rank_cache;
-    while (lo < hi) {
-        size_t mid = (lo + hi) / 2;
-        size_t mid_val = rank_cache[mid].base;
-        if (mid_val <= Rank1) // upper_bound
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    return lo;
 }
 
 template<class rank_cache_base_t>
@@ -393,7 +327,7 @@ size_t rank_select_se_512_tpl<rank_cache_base_t>::select1(size_t Rank1)
 const noexcept {
     const bm_uint_t* bm_words = this->bldata();
     const RankCache512* rank_cache = m_rank_cache;
-    size_t lo = select1_upper_bound_line_safe(Rank1);
+    size_t lo = select1_upper_bound_line(load_select1_cache_safe(Rank1), rank_cache, Rank1);
     assert(Rank1 < rank_cache[lo].base);
     const uint64_t* pBit64 = (const uint64_t*)(bm_words + LineWords * (lo-1));
     _mm_prefetch((const char*)(pBit64+0), _MM_HINT_T0);
