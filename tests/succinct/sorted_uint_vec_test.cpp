@@ -24,7 +24,7 @@ void unit_test_bug1() {
     }
     builder->finish(&szipVals);
     for (size_t i = 0; i < szipVals.size(); ++i) {
-        assert(szipVals[i] == vals[i] - '0');
+        assert(szipVals[i] == size_t(vals[i] - '0'));
     }
 }
 
