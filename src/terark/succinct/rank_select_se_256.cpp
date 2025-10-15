@@ -265,9 +265,10 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
     size_t line_bitpos = (lo-1) * LineBits;
     const RankCache& rc = rank_cache[lo-1];
     size_t hit = LineBits * (lo-1) - rc.lev1;
+    uint32_t subidx = rc.lev2_u32;
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr1 = _mm_set_epi32(64 * 3, 64 * 2, 64 * 1, 0);
-    __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
+    __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(subidx));
     __m128i arr = _mm_sub_epi32(arr1, arr2); // rc.lev2[0] is always 0
     __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
     __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
@@ -275,22 +276,22 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);
     tz -= 1;
-    return line_bitpos + 64 * tz + UintSelect1(~pBit64[tz], Rank0 - (hit + 64 * tz - rc.lev2[tz]));
+    return line_bitpos + 64 * tz + UintSelect1(~pBit64[tz], Rank0 - (hit + 64 * tz - byte_extr(subidx, tz)));
   #else
-    if (Rank0 < hit + 64*2 - rc.lev2[2]) {
-        if (Rank0 < hit + 64*1 - rc.lev2[1]) { // rc.lev2[0] is always 0
+    if (Rank0 < hit + 64*2 - byte_extr(subidx, 2)) {
+        if (Rank0 < hit + 64*1 - byte_extr(subidx, 1)) { // rc.lev2[0] is always 0
             return line_bitpos + UintSelect1(~pBit64[0], Rank0 - hit);
         }
         return line_bitpos + 64*1 +
-            UintSelect1(~pBit64[1], Rank0 - (hit + 64*1 - rc.lev2[1]));
+            UintSelect1(~pBit64[1], Rank0 - (hit + 64*1 - byte_extr(subidx, 1)));
     }
-    if (Rank0 < hit + 64*3 - rc.lev2[3]) {
+    if (Rank0 < hit + 64*3 - byte_extr(subidx, 3)) {
         return line_bitpos + 64*2 +
-            UintSelect1(~pBit64[2], Rank0 - (hit + 64*2 - rc.lev2[2]));
+            UintSelect1(~pBit64[2], Rank0 - (hit + 64*2 - byte_extr(subidx, 2)));
     }
     else {
         return line_bitpos + 64 * 3 +
-            UintSelect1(~pBit64[3], Rank0 - (hit + 64*3 - rc.lev2[3]));
+            UintSelect1(~pBit64[3], Rank0 - (hit + 64*3 - byte_extr(subidx, 3)));
     }
   #endif
 }
@@ -351,31 +352,32 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
     size_t line_bitpos = (lo-1) * LineBits;
     const RankCache& rc = rank_cache[lo-1];
     size_t hit = rc.lev1;
+    uint32_t subidx = rc.lev2_u32;
 
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
-    __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
+    __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(subidx));
     __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
     __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);
     tz -= 1;
-    return line_bitpos + 64 * tz + UintSelect1(pBit64[tz], Rank1 - (hit + rc.lev2[tz]));
+    return line_bitpos + 64 * tz + UintSelect1(pBit64[tz], Rank1 - (hit + byte_extr(subidx, tz)));
   #else
-    if (Rank1 < hit + rc.lev2[2]) {
-        if (Rank1 < hit + rc.lev2[1]) { // rc.lev2[0] is always 0
+    if (Rank1 < hit + byte_extr(subidx, 2)) {
+        if (Rank1 < hit + byte_extr(subidx, 1)) { // rc.lev2[0] is always 0
             return line_bitpos + UintSelect1(pBit64[0], Rank1 - hit);
         }
         return line_bitpos + 64*1 +
-             UintSelect1(pBit64[1], Rank1 - (hit + rc.lev2[1]));
+             UintSelect1(pBit64[1], Rank1 - (hit + byte_extr(subidx, 1)));
     }
-    if (Rank1 < hit + rc.lev2[3]) {
+    if (Rank1 < hit + byte_extr(subidx, 3)) {
         return line_bitpos + 64*2 +
-             UintSelect1(pBit64[2], Rank1 - (hit + rc.lev2[2]));
+             UintSelect1(pBit64[2], Rank1 - (hit + byte_extr(subidx, 2)));
     }
     else {
         return line_bitpos + 64*3 +
-             UintSelect1(pBit64[3], Rank1 - (hit + rc.lev2[3]));
+             UintSelect1(pBit64[3], Rank1 - (hit + byte_extr(subidx, 3)));
     }
   #endif
 }

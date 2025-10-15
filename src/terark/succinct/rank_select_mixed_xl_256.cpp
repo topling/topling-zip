@@ -595,10 +595,11 @@ size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept 
     const auto& xx = m_lines[lo - 1];
     size_t hit = LineBits * (lo - 1) - xx.mixed[dimensions].base;
     size_t index = (lo - 1) * LineBits; // base bit index
+    uint32_t subidx = xx.mixed[dimensions].rlev_u32;
 
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr1 = _mm_set_epi32(64 * 3, 64 * 2, 64 * 1, 0);
-    __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.mixed[dimensions].rlev));
+    __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(subidx));
     __m128i arr = _mm_sub_epi32(arr1, arr2); // rlev[0] is always 0
     __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
     __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
@@ -607,22 +608,22 @@ size_t rank_select_mixed_xl_256<Arity>::select0_dx(size_t Rank0) const noexcept 
     TERARK_ASSERT_LE(tz, 4);
     tz -= 1;
     return index + 64 * tz + UintSelect1(
-        ~xx.bit64[tz * Arity + dimensions], Rank0 - (hit + 64 * tz - xx.mixed[dimensions].rlev[tz]));
+        ~xx.bit64[tz * Arity + dimensions], Rank0 - (hit + 64 * tz - byte_extr(subidx, tz)));
   #else
-    if (Rank0 < hit + 64 * 2 - xx.mixed[dimensions].rlev[2]) {
-        if (Rank0 < hit + 64 * 1 - xx.mixed[dimensions].rlev[1]) { // xx.rlev[0] is always 0
+    if (Rank0 < hit + 64 * 2 - byte_extr(subidx, 2)) {
+        if (Rank0 < hit + 64 * 1 - byte_extr(subidx, 1)) { // xx.rlev[0] is always 0
             return index + 64 * 0 + UintSelect1(~xx.bit64[dimensions], Rank0 - hit);
         }
         return index + 64 * 1 + UintSelect1(
-            ~xx.bit64[1 * Arity + dimensions], Rank0 - (hit + 64 * 1 - xx.mixed[dimensions].rlev[1]));
+            ~xx.bit64[1 * Arity + dimensions], Rank0 - (hit + 64 * 1 - byte_extr(subidx, 1)));
     }
-    if (Rank0 < hit + 64 * 3 - xx.mixed[dimensions].rlev[3]) {
+    if (Rank0 < hit + 64 * 3 - byte_extr(subidx, 3)) {
         return index + 64 * 2 + UintSelect1(
-            ~xx.bit64[2 * Arity + dimensions], Rank0 - (hit + 64 * 2 - xx.mixed[dimensions].rlev[2]));
+            ~xx.bit64[2 * Arity + dimensions], Rank0 - (hit + 64 * 2 - byte_extr(subidx, 2)));
     }
     else {
         return index + 64 * 3 + UintSelect1(
-            ~xx.bit64[3 * Arity + dimensions], Rank0 - (hit + 64 * 3 - xx.mixed[dimensions].rlev[3]));
+            ~xx.bit64[3 * Arity + dimensions], Rank0 - (hit + 64 * 3 - byte_extr(subidx, 3)));
     }
   #endif
 }
@@ -664,8 +665,9 @@ size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const noexcept 
     size_t hit = xx.mixed[dimensions].base;
     assert(Rank1 >= hit);
     size_t index = (lo - 1) * LineBits; // base bit index
+    uint32_t subidx = xx.mixed[dimensions].rlev_u32;
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
-    __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.mixed[dimensions].rlev));
+    __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(subidx));
     __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
     __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
@@ -673,22 +675,22 @@ size_t rank_select_mixed_xl_256<Arity>::select1_dx(size_t Rank1) const noexcept 
     TERARK_ASSERT_LE(tz, 4);
     tz -= 1;
     return index + 64 * tz + UintSelect1(
-        xx.bit64[tz * Arity + dimensions], Rank1 - (hit + xx.mixed[dimensions].rlev[tz]));
+        xx.bit64[tz * Arity + dimensions], Rank1 - (hit + byte_extr(subidx, tz)));
   #else
-    if (Rank1 < hit + xx.mixed[dimensions].rlev[2]) {
-        if (Rank1 < hit + xx.mixed[dimensions].rlev[1]) { // xx.rlev[0] is always 0
+    if (Rank1 < hit + byte_extr(subidx, 2)) {
+        if (Rank1 < hit + byte_extr(subidx, 1)) { // xx.rlev[0] is always 0
             return index + UintSelect1(xx.bit64[dimensions], Rank1 - hit);
         }
         return index + 64 * 1 + UintSelect1(
-            xx.bit64[1 * Arity + dimensions], Rank1 - (hit + xx.mixed[dimensions].rlev[1]));
+            xx.bit64[1 * Arity + dimensions], Rank1 - (hit + byte_extr(subidx, 1)));
     }
-    if (Rank1 < hit + xx.mixed[dimensions].rlev[3]) {
+    if (Rank1 < hit + byte_extr(subidx, 3)) {
         return index + 64 * 2 + UintSelect1(
-            xx.bit64[2 * Arity + dimensions], Rank1 - (hit + xx.mixed[dimensions].rlev[2]));
+            xx.bit64[2 * Arity + dimensions], Rank1 - (hit + byte_extr(subidx, 2)));
     }
     else {
         return index + 64 * 3 + UintSelect1(
-            xx.bit64[3 * Arity + dimensions], Rank1 - (hit + xx.mixed[dimensions].rlev[3]));
+            xx.bit64[3 * Arity + dimensions], Rank1 - (hit + byte_extr(subidx, 3)));
     }
   #endif
 }

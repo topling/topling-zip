@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stddef.h>
+#include <type_traits>
 #include "config.hpp"
 
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__+0 >= 4005 || defined(__clang__)
@@ -292,6 +293,13 @@ inline long fast_ctz(unsigned long x) { return fast_ctz64(x); }
 #else
 inline int fast_ctz(unsigned long x) { return fast_ctz32(x); }
 #endif
+
+template<class Uint>
+inline unsigned char byte_extr(Uint val, unsigned idx) {
+	TERARK_ASSUME(idx < sizeof(Uint));
+	static_assert(std::is_unsigned_v<Uint>);
+	return (unsigned char)(val >> (8 * idx));
+}
 
 template<class Uint>
 static inline void bits_range_set0(Uint* data, size_t i, size_t k) {
