@@ -50,7 +50,7 @@ protected:
 
     static size_t fix_resize_size(size_t bits) noexcept {
         rank_select_check_overflow(bits, > , rank_select_mixed_se_512);
-        return ((bits + WordBits - 1) & ~(WordBits - 1)) * 2;
+        return ((bits + LineBits - 1) & ~(LineBits - 1)) * 2;
     }
     void grow() noexcept;
     void reserve(size_t bits_capacity);

@@ -201,6 +201,7 @@ void rank_select_mixed_se_512::grow() noexcept {
     assert((m_flags & (1 << 4)) == 0);
     // size_t(WordBits) prevent debug link error
     size_t newcapBits = 2 * std::max(m_capacity, size_t(WordBits));
+    newcapBits = align_up(newcapBits, 2 * LineBits);
     bm_uint_t* new_words = (bm_uint_t*)realloc(m_words, newcapBits/8);
     TERARK_VERIFY_F(nullptr != new_words, "newcapBits = %zd", newcapBits);
     if (g_Terark_hasValgrind || TERARK_IF_DEBUG(1, 0)) {
