@@ -203,9 +203,9 @@ void rank_select_mixed_se_512::grow() noexcept {
     size_t newcapBits = 2 * std::max(m_capacity, size_t(WordBits));
     bm_uint_t* new_words = (bm_uint_t*)realloc(m_words, newcapBits/8);
     TERARK_VERIFY_F(nullptr != new_words, "newcapBits = %zd", newcapBits);
-    if (g_Terark_hasValgrind) {
+    if (g_Terark_hasValgrind || TERARK_IF_DEBUG(1, 0)) {
         byte_t* q = (byte_t*)new_words;
-        memset(q + m_capacity/8, 0, (newcapBits - m_capacity)/8);
+        memset(q + m_capacity/8, 0xCC, (newcapBits - m_capacity)/8);
     }
     m_words = new_words;
     m_capacity = newcapBits;
@@ -218,9 +218,9 @@ void rank_select_mixed_se_512::reserve(size_t newcapBits) {
     auto new_words = (bm_uint_t*)realloc(m_words, newcapBits / 8);
     if (NULL == new_words)
         throw std::bad_alloc();
-    if (g_Terark_hasValgrind) {
+    if (g_Terark_hasValgrind || TERARK_IF_DEBUG(1, 0)) {
         byte_t* q = (byte_t*)new_words;
-        memset(q + m_capacity/8, 0, (newcapBits - m_capacity)/8);
+        memset(q + m_capacity/8, 0xCC, (newcapBits - m_capacity)/8);
     }
     m_words = new_words;
     m_capacity = newcapBits;
