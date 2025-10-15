@@ -245,6 +245,7 @@ void rank_select_mixed_se_512::bits_range_set0_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
+    TERARK_VERIFY_LT(i, k);
     const static size_t UintBits = sizeof(bm_uint_t) * 8;
     size_t j = i / UintBits;
     if (j == (k - 1) / UintBits) {
@@ -269,6 +270,7 @@ void rank_select_mixed_se_512::bits_range_set1_dx(size_t i, size_t k) noexcept {
     if (i == k) {
         return;
     }
+    TERARK_VERIFY_LT(i, k);
     const static size_t UintBits = sizeof(bm_uint_t) * 8;
     size_t j = i / UintBits;
     if (j == (k - 1) / UintBits) {
