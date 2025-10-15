@@ -208,7 +208,7 @@ void rank_select_mixed_se_512::grow() noexcept {
         memset(q + m_capacity/8, 0, (newcapBits - m_capacity)/8);
     }
     m_words = new_words;
-    m_capacity *= 2;
+    m_capacity = newcapBits;
 }
 
 void rank_select_mixed_se_512::reserve(size_t newcapBits) {
