@@ -116,13 +116,13 @@ noexcept {
         else
             hi = mid;
     }
-    __m256i vec0 = _mm256_add_epi32(_mm256_set1_epi32(lo), _mm256_set_epi32(7,6,5,4,3,2,1,0));
+    __m256i vec0 = _mm256_add_epi32(_mm256_set1_epi32(uint32_t(lo)), _mm256_set_epi32(7,6,5,4,3,2,1,0));
     vec0 = _mm256_sllv_epi32(vec0, _mm256_set1_epi32(LineShift));
-    __mmask8 k = _bzhi_u32(-1, sublen);
+    __mmask8 k = _bzhi_u32(-1, uint32_t(sublen));
     __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rankCache[lo]);
     __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
     __m256i vec3 = _mm256_sub_epi32(vec0, vec2);
-    __m256i key = _mm256_set1_epi32(Rank0);
+    __m256i key = _mm256_set1_epi32(uint32_t(Rank0));
     __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec3, key);
     auto tz = _tzcnt_u32(cmp | (1u << sublen)); // upper bound
     lo += tz;
@@ -202,10 +202,10 @@ noexcept {
         else
             hi = mid;
     }
-    __mmask8 k = _bzhi_u32(-1, sublen);
+    __mmask8 k = _bzhi_u32(-1, uint32_t(sublen));
     __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rankCache[lo]);
     __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
-    __m256i key = _mm256_set1_epi32(Rank1);
+    __m256i key = _mm256_set1_epi32(uint32_t(Rank1));
     __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
     auto tz = _tzcnt_u32(cmp | (1u << sublen)); // upper bound
     lo += tz;

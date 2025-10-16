@@ -134,7 +134,7 @@ binary_search_byte(const byte_t* data, size_t len, byte_t key) {
 		// _bzhi_u16 maybe slower than _bzhi_u32
 		// _bzhi_u32 will return 32 when not found, it is ok for the caller
 		// checks if return value < len or >= len
-		__mmask16 k = __mmask16(_bzhi_u32(-1, len));
+		__mmask16 k = __mmask16(_bzhi_u32(-1, uint32_t(len)));
 		__m128i   d = _mm_maskz_loadu_epi8(k, data); // load minimal bytes
 		return _tzcnt_u32(_mm_mask_cmpeq_epi8_mask(k, d, _mm_set1_epi8(key)));
 	 // return _tzcnt_u32(_mm_mask_cmpeq_epi8_mask(_bzhi_u32(-1, len), *(__m128i_u*)data, _mm_set1_epi8(key)));
@@ -143,7 +143,7 @@ binary_search_byte(const byte_t* data, size_t len, byte_t key) {
 	inline size_t
 	avx512_search_byte_max32(const byte_t* data, size_t len, byte_t key) {
 		TERARK_ASSERT_LE(len, 32);
-		__mmask32 k = _bzhi_u32(-1, len);
+		__mmask32 k = _bzhi_u32(-1, uint32_t(len));
 		__m256i   d = _mm256_maskz_loadu_epi8(k, data); // load minimal bytes
 		return _tzcnt_u32(_mm256_mask_cmpeq_epi8_mask(k, d, _mm256_set1_epi8(key)));
 	 // return _tzcnt_u32(_mm256_mask_cmpeq_epi8_mask(_bzhi_u32(-1, len), *(__m256i_u*)data, _mm256_set1_epi8(key)));
