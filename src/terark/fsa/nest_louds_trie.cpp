@@ -521,7 +521,11 @@ get_core_str(size_t node_id) const noexcept {
 	assert(NULL != m_core_data);
 	assert(m_core_size > 0);
 	uint64_t linkVal = get_link_val(node_id);
+#if defined(__BMI2__)
+	size_t length = _bzhi_u64(linkVal, m_core_len_bits) + m_core_min_len;
+#else
 	size_t length = size_t(linkVal  & m_core_len_mask) + m_core_min_len;
+#endif
 	size_t offset = size_t(linkVal >> m_core_len_bits);
 	assert(offset < m_core_size);
 	assert(offset + length <= m_core_size);
@@ -630,7 +634,11 @@ tpl_restore_next_string(size_t node_id, StrBuf* str) const noexcept {
     BOOST_STATIC_ASSERT(sizeof(char_type) == 1);
     auto coreData = (const char_type*)m_core_data;
     if (linkVal < m_core_max_link_val) {
+      #if defined(__BMI2__)
+        size_t length = _bzhi_u64(linkVal, m_core_len_bits) + m_core_min_len;
+      #else
         size_t length = size_t(linkVal &  m_core_len_mask) + m_core_min_len;
+      #endif
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
@@ -654,7 +662,11 @@ get_zpath_data(size_t node_id, MatchContext* ctx) const noexcept {
     uint64_t linkVal = get_link_val(node_id);
     if (linkVal < m_core_max_link_val) {
         assert(NULL != m_core_data);
+      #if defined(__BMI2__)
+        size_t length = _bzhi_u64(linkVal, m_core_len_bits) + m_core_min_len;
+      #else
         size_t length = size_t(linkVal &  m_core_len_mask) + m_core_min_len;
+      #endif
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
@@ -687,7 +699,11 @@ getZpathFixed(size_t node_id, byte_t* buf, size_t cap) const noexcept {
     uint64_t linkVal = get_link_val(node_id);
     if (linkVal < m_core_max_link_val) {
         assert(NULL != m_core_data);
+      #if defined(__BMI2__)
+        size_t length = _bzhi_u64(linkVal, m_core_len_bits) + m_core_min_len;
+      #else
         size_t length = size_t(linkVal &  m_core_len_mask) + m_core_min_len;
+      #endif
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
@@ -739,7 +755,11 @@ matchZpath_link(size_t linkVal, const byte_t* str, size_t slen) const noexcept {
     size_t coreMaxLinkVal = m_core_max_link_val;
     if (linkVal < coreMaxLinkVal) {
         assert(NULL != m_core_data);
+      #if defined(__BMI2__)
+        size_t length = _bzhi_u64(linkVal, m_core_len_bits) + m_core_min_len;
+      #else
         size_t length = size_t(linkVal &  m_core_len_mask) + m_core_min_len;
+      #endif
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
