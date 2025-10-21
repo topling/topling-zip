@@ -494,6 +494,16 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::core_mem_size() const noex
 
 template<class RankSelect, class RankSelect2, bool FastLabel>
 size_t
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::shell_mem_size() const noexcept {
+	return m_louds.mem_size()
+		 + m_is_link.mem_size()
+		 + m_next_link.mem_size()
+		 + total_states() // m_label_data
+		 ;
+}
+
+template<class RankSelect, class RankSelect2, bool FastLabel>
+size_t
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 get_parent(size_t child) const noexcept {
 	assert(child > 0); // 0 is root

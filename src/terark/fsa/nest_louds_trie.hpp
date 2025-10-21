@@ -178,6 +178,7 @@ public:
 	size_t mem_size() const noexcept terark_pure_func;
 	size_t nest_level() const noexcept terark_pure_func;
 	size_t core_mem_size() const noexcept terark_pure_func;
+	size_t shell_mem_size() const noexcept terark_pure_func;
 
 	size_t get_parent(size_t child) const noexcept terark_pure_func;
 	size_t get_link_rank(size_t node_id) const noexcept terark_pure_func;

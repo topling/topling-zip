@@ -44,6 +44,9 @@ public:
 	size_t mem_size() const noexcept {
 		return m_trie->mem_size() + m_is_term.mem_size();
 	}
+	size_t shell_mem_size() const noexcept {
+		return m_trie->shell_mem_size() + m_is_term.mem_size();
+	}
 };
 template<class NestTrie>
 class TERARK_DLL_EXPORT NestTrieDAWG_IsTerm<NestTrie, true> {
@@ -85,6 +88,7 @@ public:
 		m_trie->risk_release_ownership();
 	}
 	size_t mem_size() const { return m_trie->mem_size(); }
+	size_t shell_mem_size() const noexcept { return m_trie->shell_mem_size(); }
 };
 
 template<class NestTrie, class DawgType>
@@ -129,6 +133,7 @@ public:
 	NestTrieDAWG(const NestTrieDAWG&);
 	NestTrieDAWG& operator=(const NestTrieDAWG&);
 
+	size_t core_mem_size() const noexcept { return m_trie->core_mem_size(); }
 	size_t iter_mem_size() const;
 	void cons_iter(void* mem) const;
 
