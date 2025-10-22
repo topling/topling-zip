@@ -2678,6 +2678,20 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 }
 
 template<class RankSelect, class RankSelect2, bool FastLabel>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+risk_layer_load_user_mem(const void* mem, size_t num, size_t len) {
+	TERARK_VERIFY_EQ(m_layer_id_rank.size(), 0);
+	TERARK_VERIFY_EQ(m_layer_id_rank.capacity(), 0);
+	TERARK_VERIFY_EQ(m_layer_ref, nullptr);
+	TERARK_VERIFY_EQ((sizeof(layer_id_rank_t) + sizeof(layer_ref_t)) * num, len);
+	m_layer_id_rank.risk_set_capacity(0);
+	m_layer_id_rank.risk_set_data((layer_id_rank_t*)(void*)mem);
+	m_layer_id_rank.risk_set_size(num);
+	m_layer_ref = (const layer_ref_t*)(m_layer_id_rank.end());
+}
+
+template<class RankSelect, class RankSelect2, bool FastLabel>
 static void
 load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
                size_t version,

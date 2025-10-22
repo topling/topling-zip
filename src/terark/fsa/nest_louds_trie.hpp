@@ -106,16 +106,7 @@ public: // protected:
 #endif
 	valvec32<layer_id_rank_t> m_layer_id_rank;
 	const layer_ref_t*  m_layer_ref = nullptr;
-	void risk_layer_load_user_mem(const void* mem, size_t num, size_t len) {
-		TERARK_VERIFY_EQ(m_layer_id_rank.size(), 0);
-		TERARK_VERIFY_EQ(m_layer_id_rank.capacity(), 0);
-		TERARK_VERIFY_EQ(m_layer_ref, nullptr);
-		TERARK_VERIFY_EQ((sizeof(layer_id_rank_t) + sizeof(layer_ref_t)) * num, len);
-		m_layer_id_rank.risk_set_capacity(0);
-		m_layer_id_rank.risk_set_data((layer_id_rank_t*)(void*)mem);
-		m_layer_id_rank.risk_set_size(num);
-		m_layer_ref = (const layer_ref_t*)(m_layer_id_rank.end());
-	}
+	void risk_layer_load_user_mem(const void* mem, size_t num, size_t len);
 	auto layer_vec_size() { return m_layer_id_rank.size(); }
 	auto layer_data_ptr() { return m_layer_id_rank.data(); }
 	auto layer_data_len() { return m_layer_id_rank.size() * (sizeof(layer_id_rank_t) + sizeof(layer_ref_t)); }
