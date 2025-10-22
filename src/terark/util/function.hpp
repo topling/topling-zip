@@ -529,6 +529,16 @@ decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
 #if defined(__GNUC__)
   #if !defined(TOPLING_USE_BOUND_PMF)
     #define TOPLING_USE_BOUND_PMF 1
+  #elif TOPLING_USE_BOUND_PMF
+    #undef TOPLING_USE_BOUND_PMF
+    #define TOPLING_USE_BOUND_PMF 1
+  #endif
+#elif defined(_MSC_VER) && defined(_M_X64)
+  #if !defined(TOPLING_USE_BOUND_PMF)
+    #define TOPLING_USE_BOUND_PMF 2 // msvc
+  #elif TOPLING_USE_BOUND_PMF
+    #undef TOPLING_USE_BOUND_PMF
+    #define TOPLING_USE_BOUND_PMF 2 // msvc
   #endif
 #else
   #if defined(TOPLING_USE_BOUND_PMF) && TOPLING_USE_BOUND_PMF
@@ -545,7 +555,24 @@ decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
 #define TOPLING_IF_BOUND_PMF_CALL(ThenFuncPtr, ElseMF, obj, ...) \
   TOPLING_IF_BOUND_PMF(ThenFuncPtr(obj, ##__VA_ARGS__), obj->ElseMF(__VA_ARGS__))
 
-#if TOPLING_USE_BOUND_PMF
+#if TOPLING_USE_BOUND_PMF == 2 // msvc
+template<class FuncPtr, class Object, class Ret>
+FuncPtr ExtractFuncPtr(Object*, Ret Object::*MemberFunc) {
+    static_assert(sizeof(FuncPtr) == sizeof(size_t));
+    static_assert(sizeof(FuncPtr) == sizeof(MemberFunc));
+    FuncPtr fp;
+    memcpy(&fp, &MemberFunc, sizeof(FuncPtr));
+    return fp;
+}
+template<class FuncPtr, class Object, class Ret>
+FuncPtr ExtractFuncPtr(const Object*, Ret Object::*MemberFunc) {
+    static_assert(sizeof(FuncPtr) == sizeof(size_t));
+    static_assert(sizeof(FuncPtr) == sizeof(MemberFunc));
+    FuncPtr fp;
+    memcpy(&fp, &MemberFunc, sizeof(FuncPtr));
+    return fp;
+}
+#elif TOPLING_USE_BOUND_PMF == 1 // gnu
 template<class FuncPtr, class Object, class MemberFuncType>
 FuncPtr AbiExtractFuncPtr(const Object* obj, MemberFuncType MemberFunc) {
     static_assert(sizeof(MemberFunc) == sizeof(size_t)*2);
@@ -608,6 +635,27 @@ FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
   #endif
 }
 #endif // TOPLING_USE_BOUND_PMF
+
+#if TOPLING_USE_BOUND_PMF
+template<class Object, class Ret>
+class ForgeFuncPtrImpl {
+    Object* m_obj;
+    Ret Object::*m_MemberFunc;
+public:
+    template<class FuncPtr> operator FuncPtr() const {
+      return ExtractFuncPtr<FuncPtr>(m_obj, m_MemberFunc);
+    }
+    ForgeFuncPtrImpl(Object* obj, Ret Object::*MemberFunc) {
+      m_obj = obj;
+      m_MemberFunc = MemberFunc;
+    }
+};
+template<class Object, class Ret>
+ForgeFuncPtrImpl<Object, Ret>
+ForgeFuncPtr(Object* obj, Ret Object::*MemberFunc) {
+    return ForgeFuncPtrImpl<Object, Ret>(obj, MemberFunc);
+}
+#endif
 
 //--------------------------------------------------------------------
 // User/Application defined MemPool
