@@ -182,6 +182,7 @@ public:
     size_t bit_idx = bits * idx;
     size_t byte_idx = bit_idx / 8;
     size_t val = unaligned_load<size_t>(m_data.data() + byte_idx);
+    TERARK_ASSUME(bits <= 64); // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=122375
     return _bextr_u64(val, bit_idx % 8, unsigned(bits));
 #else
     return fast_get(m_data.data(), m_bits, m_mask, idx);
