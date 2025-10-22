@@ -212,7 +212,14 @@ public:
     size_t bit_idx = bits * idx;
     size_t byte_idx = bit_idx / 8;
     size_t val = unaligned_load<size_t>(data + byte_idx);
+#if defined(__BMI2__)
+    (void)(mask); // unused, expect compiler remove loading for mask
+    TERARK_ASSERT_EQ(mask, _bzhi_u64(-1, bits));
+    TERARK_ASSUME(bits <= 64); // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=122375
+    return _bextr_u64(val, bit_idx % 8, unsigned(bits));
+#else
     return (val >> bit_idx % 8) & mask;
+#endif
   }
   static void fast_prefetch(const byte* data, size_t bits, size_t idx) {
     assert(bits <= 58);
