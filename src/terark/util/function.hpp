@@ -118,6 +118,14 @@ namespace terark {
         void operator delete(void* p, size_t);
         void operator delete(void*, void*) { abort(); } // suppress warn
     };
+    class TERARK_DLL_EXPORT DynaCacheAlignedNewDelete {
+    public:
+        virtual ~DynaCacheAlignedNewDelete();
+        void* operator new(size_t);
+        void* operator new(size_t, void* p) { return p; } // placement new
+        void operator delete(void* p, size_t);
+        void operator delete(void*, void*) { abort(); } // suppress warn
+    };
 
     template<class T>
     inline

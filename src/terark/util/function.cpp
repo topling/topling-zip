@@ -91,4 +91,31 @@ void CacheAlignedNewDelete::operator delete(void* p, size_t) {
 #endif
 }
 
+DynaCacheAlignedNewDelete::~DynaCacheAlignedNewDelete() {
+    // do nothing
+}
+
+void* DynaCacheAlignedNewDelete::operator new(size_t size) {
+#if defined(_MSC_VER)
+  return _aligned_malloc(size, CACHE_LINE_SIZE);
+#elif TOPLING_USE_JEMALLOC
+  // a bit faster than posix_memalign
+  return mallocx(size, MALLOCX_ALIGN(CACHE_LINE_SIZE));
+#else
+  void* p = nullptr;
+  if (posix_memalign(&p, CACHE_LINE_SIZE, size)) {
+    TERARK_DIE("posix_memalign(%d, %zd) = %m", CACHE_LINE_SIZE, size);
+  }
+  return p;
+#endif
+}
+
+void DynaCacheAlignedNewDelete::operator delete(void* p, size_t) {
+#if defined(_MSC_VER)
+  _aligned_free(p);
+#else
+  free(p);
+#endif
+}
+
 } // namespace terark

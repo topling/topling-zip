@@ -30,8 +30,11 @@ class MainPatricia;
  * About Deterministic finite automaton :
  *     https://en.wikipedia.org/wiki/Deterministic_finite_automaton
  */
-class TERARK_DLL_EXPORT alignas(64) Patricia
-  : public MatchingDFA, public boost::noncopyable {
+class TERARK_DLL_EXPORT alignas(64) Patricia : public MatchingDFA {
+    Patricia(const Patricia&) = delete;
+    Patricia& operator=(const Patricia&) = delete;
+    Patricia(Patricia&&) = delete;
+    Patricia& operator=(Patricia&&) = delete;
 public:
     TERARK_ENUM_PLAIN_INCLASS(ConcurrentLevel, byte_t,
         NoWriteReadOnly,     // 0

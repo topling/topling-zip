@@ -11,7 +11,7 @@ class LruReadonlyCache;
 template<bool ZipOffset>
 struct BlobStoreRecBuffer;
 
-class TERARK_DLL_EXPORT BlobStore : public CacheAlignedNewDelete {
+class TERARK_DLL_EXPORT BlobStore : public DynaCacheAlignedNewDelete {
     DECLARE_NONE_MOVEABLE_CLASS(BlobStore);
 public:
     struct TERARK_DLL_EXPORT Dictionary {

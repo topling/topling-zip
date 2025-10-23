@@ -14,6 +14,8 @@ class TERARK_DLL_EXPORT NestLoudsTrieBlobStore
 	unsigned m_zpNestLevel;
 	bool m_isDawgStrPool;
 public:
+	using AbstractBlobStore::operator new;
+	using AbstractBlobStore::operator delete;
 	typedef size_t state_id_t;
 	enum { sigma = 256 };
 	using NestLoudsTrie::nil_state;
