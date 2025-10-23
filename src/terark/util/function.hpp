@@ -556,21 +556,18 @@ decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
   TOPLING_IF_BOUND_PMF(ThenFuncPtr(obj, ##__VA_ARGS__), obj->ElseMF(__VA_ARGS__))
 
 #if TOPLING_USE_BOUND_PMF == 2 // msvc
+TERARK_DLL_EXPORT const void* AbiExtractFuncPtr(const void* obj, const void* mf);
 template<class FuncPtr, class Object, class Ret>
-FuncPtr ExtractFuncPtr(Object*, Ret Object::*MemberFunc) {
+FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
     static_assert(sizeof(FuncPtr) == sizeof(size_t));
     static_assert(sizeof(FuncPtr) == sizeof(MemberFunc));
-    FuncPtr fp;
-    memcpy(&fp, &MemberFunc, sizeof(FuncPtr));
-    return fp;
+    return (FuncPtr)AbiExtractFuncPtr(obj, aligned_load<const void*>(&MemberFunc));
 }
 template<class FuncPtr, class Object, class Ret>
-FuncPtr ExtractFuncPtr(const Object*, Ret Object::*MemberFunc) {
+FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
     static_assert(sizeof(FuncPtr) == sizeof(size_t));
     static_assert(sizeof(FuncPtr) == sizeof(MemberFunc));
-    FuncPtr fp;
-    memcpy(&fp, &MemberFunc, sizeof(FuncPtr));
-    return fp;
+    return (FuncPtr)AbiExtractFuncPtr(obj, aligned_load<const void*>(&MemberFunc));
 }
 #elif TOPLING_USE_BOUND_PMF == 1 // gnu
 template<class FuncPtr, class Object, class MemberFuncType>

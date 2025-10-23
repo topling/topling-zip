@@ -2,6 +2,33 @@
 
 namespace terark {
 
+#if TOPLING_USE_BOUND_PMF == 2 // msvc
+TERARK_DLL_EXPORT
+const void* AbiExtractFuncPtr(const void* obj, const void* mf) {
+    auto ip = (const byte_t*)(mf);
+    while (ip[0]==0xE9) { // jmp XXXXXXXX(int32)
+        ip += unaligned_load<int>(ip + 1) + 5;
+    }
+    if (ip[0]==0x48 && ip[1]==0x8B && ip[2]==0x01) { // mov rax,qword ptr [rcx]
+        intptr_t disp;
+        if (ip[3]==0xFF && ip[4]==0x60) { // jmp qword ptr [rax+96]; disp 8 bits
+            disp = (byte_t)ip[5]; // it is signed but never be negtive
+        } else if (ip[3]==0xFF && ip[4]==0xA0) { // disp 32 bits
+            disp = unaligned_load<unsigned>(ip+5); // it is signed but never be negtive
+        } else {
+            return ip;
+        }
+        auto vtab = aligned_load<const byte_t*>(obj);
+        ip = aligned_load<const byte_t*>(vtab + disp);
+        while (ip[0] == 0xE9) { // jmp XXXXXXXX(int32)
+            ip += unaligned_load<int>(ip + 1) + 5;
+        }
+        return ip;
+    }
+    return ip;
+}
+#endif // TOPLING_USE_BOUND_PMF
+
 UserMemPool::UserMemPool() {}
 UserMemPool::~UserMemPool() {}
 
