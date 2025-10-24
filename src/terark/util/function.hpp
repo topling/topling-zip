@@ -568,14 +568,24 @@ TERARK_DLL_EXPORT const void* AbiExtractFuncPtr(const void* obj, const void* mf)
 template<class FuncPtr, class Object, class Ret>
 FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
     static_assert(sizeof(FuncPtr) == sizeof(size_t));
-    static_assert(sizeof(FuncPtr) == sizeof(MemberFunc));
-    return (FuncPtr)AbiExtractFuncPtr(obj, aligned_load<const void*>(&MemberFunc));
+    static_assert(sizeof(FuncPtr) == sizeof(MemberFunc)
+             || 2*sizeof(FuncPtr) == sizeof(MemberFunc));
+    if (sizeof(MemberFunc) == sizeof(void*) || aligned_load<size_t>(&MemberFunc, 1) == 0) {
+        return (FuncPtr)AbiExtractFuncPtr(obj, aligned_load<const void*>(&MemberFunc));
+    }
+    TERARK_DIE("aligned_load<size_t>(&MemberFunc, 1) = %zd",
+                aligned_load<size_t>(&MemberFunc, 1));
 }
 template<class FuncPtr, class Object, class Ret>
 FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
     static_assert(sizeof(FuncPtr) == sizeof(size_t));
-    static_assert(sizeof(FuncPtr) == sizeof(MemberFunc));
-    return (FuncPtr)AbiExtractFuncPtr(obj, aligned_load<const void*>(&MemberFunc));
+    static_assert(sizeof(FuncPtr) == sizeof(MemberFunc)
+             || 2*sizeof(FuncPtr) == sizeof(MemberFunc));
+    if (sizeof(MemberFunc) == sizeof(void*) || aligned_load<size_t>(&MemberFunc, 1) == 0) {
+        return (FuncPtr)AbiExtractFuncPtr(obj, aligned_load<const void*>(&MemberFunc));
+    }
+    TERARK_DIE("aligned_load<size_t>(&MemberFunc, 1) = %zd",
+                aligned_load<size_t>(&MemberFunc, 1));
 }
 #elif TOPLING_USE_BOUND_PMF == 1 // gnu
 template<class FuncPtr, class Object, class MemberFuncType>

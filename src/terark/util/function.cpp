@@ -15,6 +15,8 @@ const void* AbiExtractFuncPtr(const void* obj, const void* mf) {
             disp = (byte_t)ip[5]; // it is signed but never be negtive
         } else if (ip[3]==0xFF && ip[4]==0xA0) { // disp 32 bits
             disp = unaligned_load<unsigned>(ip+5); // it is signed but never be negtive
+        } else if (ip[3]==0xFF && ip[4]==0x20) { // jmp qword ptr [rax]
+            disp = 0;
         } else {
             return ip;
         }
