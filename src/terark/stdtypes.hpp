@@ -275,3 +275,10 @@ DestStaticCastProxy<SrcType> dest_scast(const SrcType& x) {
 
 template<class T> T* dest_ccast(const T* x) { return const_cast<T*>(x); }
 template<class T> T& dest_ccast(const T& x) { return const_cast<T&>(x); }
+
+#if !defined(_GNU_SOURCE) || !defined(__GNUC__) || defined(_MSC_VER)
+inline void* mempcpy(void* dest, const void* src, size_t n) {
+    memcpy(dest, src, n);
+    return (char*)dest + n;
+}
+#endif
