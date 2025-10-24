@@ -136,7 +136,7 @@ public:
 inline byte FileStream::readByte() {
 	assert(m_fp);
 	FILE* fp = m_fp;
-	if (fp->_IO_read_ptr < fp->_IO_read_end) {
+	if (terark_likely(fp->_IO_read_ptr < fp->_IO_read_end)) {
 		return *(byte*)(fp->_IO_read_ptr++);
 	} else {
 		return readByte_slow();
@@ -146,7 +146,7 @@ inline byte FileStream::readByte() {
 inline void FileStream::writeByte(byte b) {
 	assert(m_fp);
 	FILE* fp = m_fp;
-	if (fp->_IO_write_ptr < fp->_IO_write_end) {
+	if (terark_likely(fp->_IO_write_ptr < fp->_IO_write_end)) {
 		*fp->_IO_write_ptr++ = b;
 	} else {
 		writeByte_slow(b);
@@ -156,9 +156,10 @@ inline void FileStream::writeByte(byte b) {
 inline void FileStream::ensureRead(void* vbuf, size_t length) {
 	assert(m_fp);
 	FILE* fp = m_fp;
-	if (fp->_IO_read_ptr + length <= fp->_IO_read_end) {
+	char* next_ptr = fp->_IO_read_ptr + length;
+	if (terark_likely(next_ptr <= fp->_IO_read_end)) {
 		memcpy(vbuf, fp->_IO_read_ptr, length);
-		fp->_IO_read_ptr += length;
+		fp->_IO_read_ptr = next_ptr;
 	} else {
 		ensureRead_slow(vbuf, length);
 	}
@@ -167,9 +168,10 @@ inline void FileStream::ensureRead(void* vbuf, size_t length) {
 inline void FileStream::ensureWrite(const void* vbuf, size_t length) {
 	assert(m_fp);
 	FILE* fp = m_fp;
-	if (fp->_IO_write_ptr + length <= fp->_IO_write_end) {
+	char* next_ptr = fp->_IO_write_ptr + length;
+	if (terark_likely(next_ptr <= fp->_IO_write_end)) {
 		memcpy(fp->_IO_write_ptr, vbuf, length);
-		fp->_IO_write_ptr += length;
+		fp->_IO_write_ptr = next_ptr;
 	} else {
 		ensureWrite_slow(vbuf, length);
 	}

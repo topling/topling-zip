@@ -141,9 +141,10 @@ public:
 
 	size_t read(void* vbuf, size_t length)
 	{
-		if (terark_likely(m_pos+length <= m_end)) {
+		byte* next_pos = m_pos+length;
+		if (terark_likely(next_pos <= m_end)) {
 			memcpy(vbuf, m_pos, length);
-			m_pos += length;
+			m_pos = next_pos;
 			return length;
 		} else
 			return fill_and_read(vbuf, length);
@@ -153,9 +154,10 @@ public:
 		// 为了效率，这么实现可以让编译器更好地 inline 这个函数
 		// inline 后的函数体并尽可能小
 		//
-		if (terark_likely(m_pos+length <= m_end)) {
+		byte* next_pos = m_pos+length;
+		if (terark_likely(next_pos <= m_end)) {
 			memcpy(vbuf, m_pos, length);
-			m_pos += length;
+			m_pos = next_pos;
 		} else
 			fill_and_ensureRead(vbuf, length);
 	}
@@ -233,9 +235,10 @@ public:
 
 	size_t write(const void* vbuf, size_t length)
 	{
-		if (terark_likely(m_pos+length <= m_end)) {
+		byte* next_pos = m_pos+length;
+		if (terark_likely(next_pos <= m_end)) {
 			memcpy(m_pos, vbuf, length);
-			m_pos += length;
+			m_pos = next_pos;
 			return length;
 		} else
 			return flush_and_write(vbuf, length);
@@ -246,9 +249,10 @@ public:
 		// 为了效率，这么实现可以让编译器更好地 inline 这个函数
 		// inline 后的函数体并尽可能小
 		//
-		if (terark_likely(m_pos+length <= m_end)) {
+		byte* next_pos = m_pos+length;
+		if (terark_likely(next_pos <= m_end)) {
 			memcpy(m_pos, vbuf, length);
-			m_pos += length;
+			m_pos = next_pos;
 		} else
 			flush_and_ensureWrite(vbuf, length);
 	}
