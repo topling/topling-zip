@@ -25,7 +25,6 @@ const void* AbiExtractFuncPtr(const void* obj, const void* mf) {
         while (ip[0] == 0xE9) { // jmp XXXXXXXX(int32)
             ip += unaligned_load<int>(ip + 1) + 5;
         }
-        return ip;
     }
     return ip;
 }
