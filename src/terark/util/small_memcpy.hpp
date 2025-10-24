@@ -29,6 +29,20 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
 	typedef uint8_t    By1;
     auto bdst = (      By1*)dst;
     auto bsrc = (const By1*)src;
+   #if defined(__AVX512VL__) && defined(__AVX512BW__)
+    // clang generate perfect assembly for this code with -Os
+    while (terark_unlikely(len >= 64)) {
+	    __m512i m0 = _mm512_loadu_epi8(bsrc);
+	    _mm512_storeu_epi8(bdst, m0);
+        len  -= 64;
+        bsrc += 64;
+        bdst += 64;
+    }
+    auto mask = _bzhi_u64(-1, len);
+    auto tail = _mm512_maskz_loadu_epi8(mask, bsrc);
+    _mm512_mask_storeu_epi8(bdst, mask, tail);
+    return bdst + len;
+   #else
     while (len >= 16) {
 	    __m128i m0 = _mm_loadu_si128((const __m128i*)bsrc);
 	    _mm_storeu_si128((__m128i*)bdst, m0);
@@ -36,12 +50,6 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
         bsrc += 16;
         bdst += 16;
     }
-   #if defined(__AVX512VL__) && defined(__AVX512BW__)
-    auto mask = _bzhi_u32(-1, len);
-    auto tail = _mm_maskz_loadu_epi8(mask, bsrc);
-    _mm_mask_storeu_epi8(bdst, mask, tail);
-    return bdst + len;
-   #else
 	typedef uint64_t   By8 TERARK_GNU_UNALIGNED;
 	typedef uint32_t   By4 TERARK_GNU_UNALIGNED;
 	typedef uint16_t   By2 TERARK_GNU_UNALIGNED;
