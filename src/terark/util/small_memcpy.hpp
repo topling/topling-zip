@@ -29,6 +29,9 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
 	typedef uint8_t    By1;
     auto bdst = (      By1*)dst;
     auto bsrc = (const By1*)src;
+    #if defined(__GNUC__)
+        #pragma nounroll // gcc is ok now, this is for clang
+    #endif
    #if defined(__AVX512VL__) && defined(__AVX512BW__)
     // clang generate perfect assembly for this code with -Os
     while (terark_unlikely(len >= 64)) {
