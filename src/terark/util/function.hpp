@@ -565,8 +565,8 @@ decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
 
 #if TOPLING_USE_BOUND_PMF == 2 // msvc
 TERARK_DLL_EXPORT const void* AbiExtractFuncPtr(const void* obj, const void* mf);
-template<class FuncPtr, class Object, class Ret>
-FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
+template<class FuncPtr, class Object, class MFtype>
+FuncPtr ExtractFuncPtr(Object* obj, MFtype Object::*MemberFunc) {
     static_assert(sizeof(FuncPtr) == sizeof(size_t));
     static_assert(sizeof(FuncPtr) == sizeof(MemberFunc)
              || 2*sizeof(FuncPtr) == sizeof(MemberFunc));
@@ -576,8 +576,8 @@ FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
     TERARK_DIE("aligned_load<size_t>(&MemberFunc, 1) = %zd",
                 aligned_load<size_t>(&MemberFunc, 1));
 }
-template<class FuncPtr, class Object, class Ret>
-FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
+template<class FuncPtr, class Object, class MFtype>
+FuncPtr ExtractFuncPtr(const Object* obj, MFtype Object::*MemberFunc) {
     static_assert(sizeof(FuncPtr) == sizeof(size_t));
     static_assert(sizeof(FuncPtr) == sizeof(MemberFunc)
              || 2*sizeof(FuncPtr) == sizeof(MemberFunc));
@@ -625,8 +625,8 @@ FuncPtr AbiExtractFuncPtr(const Object* obj, MemberFuncType MemberFunc) {
     }
   #endif
 }
-template<class FuncPtr, class Object, class Ret>
-FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
+template<class FuncPtr, class Object, class MFtype>
+FuncPtr ExtractFuncPtr(Object* obj, MFtype Object::*MemberFunc) {
   #if defined(__clang__)
     return AbiExtractFuncPtr<FuncPtr>(obj, MemberFunc);
   #else
@@ -637,8 +637,8 @@ FuncPtr ExtractFuncPtr(Object* obj, Ret Object::*MemberFunc) {
     #pragma GCC diagnostic pop
   #endif
 }
-template<class FuncPtr, class Object, class Ret>
-FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
+template<class FuncPtr, class Object, class MFtype>
+FuncPtr ExtractFuncPtr(const Object* obj, MFtype Object::*MemberFunc) {
   #if defined(__clang__)
     return AbiExtractFuncPtr<FuncPtr>(obj, MemberFunc);
   #else
@@ -652,23 +652,23 @@ FuncPtr ExtractFuncPtr(const Object* obj, Ret Object::*MemberFunc) {
 #endif // TOPLING_USE_BOUND_PMF
 
 #if TOPLING_USE_BOUND_PMF
-template<class Object, class Ret>
+template<class Object, class MFtype>
 class ForgeFuncPtrImpl {
     Object* m_obj;
-    Ret Object::*m_MemberFunc;
+    MFtype Object::*m_MemberFunc;
 public:
     template<class FuncPtr> operator FuncPtr() const {
       return ExtractFuncPtr<FuncPtr>(m_obj, m_MemberFunc);
     }
-    ForgeFuncPtrImpl(Object* obj, Ret Object::*MemberFunc) {
+    ForgeFuncPtrImpl(Object* obj, MFtype Object::*MemberFunc) {
       m_obj = obj;
       m_MemberFunc = MemberFunc;
     }
 };
-template<class Object, class Ret>
-ForgeFuncPtrImpl<Object, Ret>
-ForgeFuncPtr(Object* obj, Ret Object::*MemberFunc) {
-    return ForgeFuncPtrImpl<Object, Ret>(obj, MemberFunc);
+template<class Object, class MFtype>
+ForgeFuncPtrImpl<Object, MFtype>
+ForgeFuncPtr(Object* obj, MFtype Object::*MemberFunc) {
+    return ForgeFuncPtrImpl<Object, MFtype>(obj, MemberFunc);
 }
 #endif
 
