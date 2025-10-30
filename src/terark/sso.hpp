@@ -338,6 +338,31 @@ public:
       m_local.m_space[n] = '\0';
   }
 
+  const char* risk_local_data() const {
+    TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+    return m_local.m_space;
+  }
+  size_t risk_local_size() const {
+    TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+    return local_size();
+  }
+  template<class Tstring>
+  auto risk_to_str_local() const
+    -> decltype(Tstring(m_local.m_space, local_size()))
+  {
+    TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+    return Tstring(m_local.m_space, local_size());
+  }
+  template<class Tstring, size_t KnownLen>
+  auto risk_to_str_local_known_len() const -> std::enable_if_t
+  <(KnownLen < SizeSSO), decltype(Tstring(m_local.m_space, KnownLen))>
+  {
+    static_assert(KnownLen < SizeSSO);
+    TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+    TERARK_ASSERT_EQ(local_size() , KnownLen);
+    return Tstring(m_local.m_space, KnownLen);
+  }
+
 public:
   template <class Tstring>
   auto append(const Tstring& s) -> std::enable_if_t
