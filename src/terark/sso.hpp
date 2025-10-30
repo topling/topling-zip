@@ -51,10 +51,22 @@ class alignas(Align) minimal_sso {
   };
   size_t local_size() const {
     TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+    TERARK_ASSUME(m_local.m_unused_len <= sizeof(m_local.m_space));
+    if ((SizeSSO & (SizeSSO-1)) == 0) { // is power of 2
+      // clang can optimize with assume hint, this is not needed for it
+      static_assert(sizeof(m_local.m_space) == SizeSSO-1);
+      return sizeof(m_local.m_space) ^ m_local.m_unused_len;
+    }
     return sizeof(m_local.m_space) - m_local.m_unused_len;
   }
   char* local_end() {
     TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+    TERARK_ASSUME(m_local.m_unused_len <= sizeof(m_local.m_space));
+    if ((SizeSSO & (SizeSSO-1)) == 0) { // is power of 2
+      // clang can optimize with assume hint, this is not needed for it
+      static_assert(sizeof(m_local.m_space) == SizeSSO-1);
+      return m_local.m_space + (sizeof(m_local.m_space) ^ m_local.m_unused_len);
+    }
     return m_local.m_space + (sizeof(m_local.m_space) - m_local.m_unused_len);
   }
   char* alloc_end() {
