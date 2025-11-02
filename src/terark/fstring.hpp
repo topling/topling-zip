@@ -760,6 +760,21 @@ TERARK_DLL_EXPORT unsigned long long ScaleSizeXiB(double val, char scale) noexce
 TERARK_DLL_EXPORT void escape_append(fstring, std::string*, char quote = '\0');
 TERARK_DLL_EXPORT std::string escape(fstring, char quote = '\0');
 
+TERARK_DLL_EXPORT size_t
+unescape_may_inplace(byte_t* dest, const byte_t* src, size_t len,
+					 std::function<bool(size_t srcpos)> on_bad_pos = nullptr);
+inline size_t
+unescape_may_inplace(char* dest, const char* src, size_t len,
+					 std::function<bool(size_t srcpos)> on_bad_pos = nullptr) {
+	return unescape_may_inplace
+		((byte_t*)dest, (const byte_t*)src, len, std::move(on_bad_pos));
+}
+TERARK_DLL_EXPORT
+size_t unescape(wchar_t* dest, const byte_t* src, size_t len,
+				std::function<bool(size_t src_pos)> on_bad_pos = nullptr);
+TERARK_DLL_EXPORT
+std::string unescape(fstring src, std::function<bool(size_t)> on_bad_pos = nullptr);
+
 TERARK_DLL_EXPORT void string_resize_no_touch_memory(std::string*, size_t);
 TERARK_DLL_EXPORT void string_set_size_no_touch_memory(std::string*, size_t);
 

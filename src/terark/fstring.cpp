@@ -1,5 +1,6 @@
 #include "fstring.hpp"
 #include <ostream>
+#include <limits>
 #include <ctype.h>
 
 #if defined(_MSC_VER)
@@ -388,6 +389,131 @@ std::string escape(fstring str, char quote) {
 	std::string res;
 	escape_append(str, &res, quote);
 	return res;
+}
+
+/// @param on_bad_pos(pos) return true to ignore the bad escape seq
+template<class DestChar>
+static size_t
+unescape_may_inplace_tpl(DestChar* dest, const byte_t* src, size_t len,
+						 std::function<bool(size_t)> on_bad_pos) {
+	DestChar* dest_begin = dest;
+	const byte_t* src_begin = src;
+	const byte_t* src_end = src + len;
+	while (src < src_end) {
+		DestChar unescaped;
+		const auto save = src;
+		if (terark_unlikely(*src == '\\')) {
+			++src;
+			switch (*src) {
+			case 'b':   unescaped = '\b';   ++src; break;
+			case 't':   unescaped = '\t';   ++src; break;
+			case 'n':   unescaped = '\n';   ++src; break;
+			case 'f':   unescaped = '\f';   ++src; break;
+			case 'r':   unescaped = '\r';   ++src; break;
+			case '"':   unescaped = '"';    ++src; break;
+			case '\'':  unescaped = '\'';   ++src; break;
+			case '\\':  unescaped = '\\';   ++src; break;
+			case 'x': case 'X':
+				{
+					DestChar hex = 0;
+					DestChar const lim = std::numeric_limits<DestChar>::max() >> 4;
+					++src;
+					while (src != src_end) {
+						byte_t c = *src;
+						if (hex > lim && isxdigit(c)) {
+							// overflow detected
+							if (on_bad_pos && !on_bad_pos(save - src_begin)) {
+								return dest - dest_begin;
+							}
+							unescaped = '?'; // invalid
+							++src;
+							break;
+						}
+						if (isdigit(c)) {
+							hex <<= 4;
+							hex |= c - '0';
+							++src;
+						}
+						else if (isxdigit(c)) {
+							hex <<= 4;
+							c = toupper(c);
+							hex |= c - 'A' + 0xA;
+							++src;
+						}
+						else {
+							break; // reached the end of the number
+						}
+					}
+					unescaped = hex;
+				}
+				break;
+			case '0': case '1': case '2': case '3':
+			case '4': case '5': case '6': case '7':
+				{
+					DestChar oct = 0;
+					DestChar const lim = std::numeric_limits<DestChar>::max() >> 3;
+					while (src != src_end) {
+						DestChar c = *src;
+						if (oct > lim && (c >= '0' && c <= '7')) {
+							// overflow detected
+							if (on_bad_pos && !on_bad_pos(save - src_begin)) {
+								return dest - dest_begin;
+							}
+							unescaped = '?'; // invalid
+							++src;
+							break;
+						}
+						if (c >= '0' && c <= '7') {
+							oct <<= 3;
+							oct |= c - '0';
+							++src;
+						} else {
+							break; // reached end of digits
+						}
+					}
+					unescaped = oct;
+				}
+				break;
+			default:
+				if (on_bad_pos && !on_bad_pos(save - src_begin)) {
+					return dest - dest_begin;
+				} else {
+					unescaped = *src;
+					++src;
+				}
+				break;
+			}
+		}
+		else {
+			unescaped = *src;
+			++src;
+		}
+		*dest++ = unescaped;
+	}
+	return dest - dest_begin;
+}
+
+TERARK_DLL_EXPORT
+size_t unescape_may_inplace(byte_t* dest, const byte_t* src, size_t len,
+							std::function<bool(size_t)> on_bad_pos) {
+	return unescape_may_inplace_tpl(dest, src, len, std::move(on_bad_pos));
+}
+TERARK_DLL_EXPORT
+size_t unescape(wchar_t* dest, const byte_t* src, size_t len,
+				std::function<bool(size_t)> on_bad_pos) {
+	return unescape_may_inplace_tpl(dest, src, len, std::move(on_bad_pos));
+}
+
+TERARK_DLL_EXPORT
+std::string unescape(fstring src, std::function<bool(size_t)> on_bad_pos) {
+	std::string dest;
+	string_resize_no_touch_memory(&dest, src.size());
+	byte_t* buf = (byte_t*)&dest[0];
+	size_t len = unescape_may_inplace
+		(buf, src.udata(), src.size(), std::move(on_bad_pos));
+	buf[len] = '\0';
+	string_resize_no_touch_memory(&dest, len);
+	return dest;
 }
 
 #if defined(__GLIBCXX__)
