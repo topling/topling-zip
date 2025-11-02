@@ -1826,7 +1826,12 @@ class gold_hash_set : public
 		, NodeLayout, HashTp
 		>
 {
+	using super = gold_hash_tab<Key, Key
+		, hash_and_equal<Key, HashFunc, KeyEqual>, terark_identity<Key>
+		, NodeLayout, HashTp
+		>;
 public:
+	using super::super;
 // DataIO support
 	template<class DataIO>
 	friend void DataIO_loadObject(DataIO& dio, gold_hash_set& x) {
