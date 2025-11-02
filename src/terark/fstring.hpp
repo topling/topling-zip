@@ -291,6 +291,10 @@ struct TERARK_DLL_EXPORT basic_fstring {
 	}
 
 	const Char* strchr(uc_t ch) const { return terark_fstrchr(p, n, ch); }
+	const Char* strchr(size_t pos, uc_t ch) const {
+		TERARK_ASSERT_LE(pos, size());
+		return terark_fstrchr(p + pos, n - pos, ch);
+	}
 	const Char* strstr(basic_fstring needle) const {
 		assert(needle.n > 0);
 		return this->strstr(0, needle);
