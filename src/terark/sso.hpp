@@ -148,6 +148,7 @@ public:
 #endif
   ) : minimal_sso(s.data(), s.size()) {}
   minimal_sso(const fstring  s) : minimal_sso(s.p, s.n) {}
+  minimal_sso(const char* s) : minimal_sso(s, strlen(s)) {}
   minimal_sso(const char* s, size_t n) : minimal_sso(n, UninitializedCopyN<char>{s}) {}
   minimal_sso(size_t n, char ch) : minimal_sso(n, UninitializedFillN<char>{ch}) {}
   template<class DataPopulator>
@@ -638,5 +639,12 @@ namespace std {
 template <size_t SizeSSO, bool WithEOS>
 void swap(terark::minimal_sso<SizeSSO, WithEOS>& x,
           terark::minimal_sso<SizeSSO, WithEOS>& y) { x.swap(y); }
+
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+struct hash<terark::minimal_sso<SizeSSO, WithEOS, Align> > : terark::fstring_func::hash {
+  size_t operator()(const terark::minimal_sso<SizeSSO, WithEOS, Align>& s) const {
+    return terark::fstring_func::hash::operator()(s.template to<terark::fstring>());
+  }
+};
 
 } // namespace std
