@@ -62,14 +62,16 @@ override CXXFLAGS += -Wno-unused-parameter
 override CXXFLAGS += -D_GNU_SOURCE
 #override CXXFLAGS += -Wno-unused-variable
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
+ifndef DISABLE_JEMALLOC
 ifeq ($(shell ${CXX} -std=c89 -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
   DISABLE_JEMALLOC ?= 0
 else
   DISABLE_JEMALLOC ?= 1
 endif
+endif # DISABLE_JEMALLOC
 ifeq (${DISABLE_JEMALLOC},0)
   # -ljemalloc should be the first
-  override LIBS := -ljemalloc ${LIBS}
+  override LIBS := -Wl,--no-as-needed -ljemalloc ${LIBS} -Wl,--as-needed
 else
   override CXXFLAGS += -DTOPLING_DISABLE_JEMALLOC
 endif
