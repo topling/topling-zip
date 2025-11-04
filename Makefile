@@ -209,7 +209,7 @@ else
 endif
 
 ifndef DISABLE_JEMALLOC
-ifeq ($(shell ${CXX} -std=c89 -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' >> /dev/null && echo 1),1)
+ifeq ($(shell ${CXX} -std=c89 -w -x c - -ljemalloc <<< 'main(){mallocx(8,0);}' -o /dev/null > /dev/null && echo 1),1)
   DISABLE_JEMALLOC ?= 0
 else
   DISABLE_JEMALLOC ?= 1
