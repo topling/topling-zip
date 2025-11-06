@@ -128,6 +128,13 @@ namespace terark {
     };
 
     template<class T>
+    std::unique_ptr<T> UniquePtrOf(T* p) { return std::unique_ptr<T>(p); }
+
+    template<class T, class Deleter>
+    std::unique_ptr<T, Deleter>
+    UniquePtrOf(T* p, Deleter d) { return std::unique_ptr<T, Deleter>(p, d); }
+
+    template<class T>
     inline
     std::enable_shared_from_this<T>* // for multi inheritance
     base_enable_shared_from_this(std::enable_shared_from_this<T>* p) { return p; }
