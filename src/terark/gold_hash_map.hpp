@@ -821,17 +821,29 @@ public:
 		if (!m_enable_freelist_reuse) {
 			return keepid_erase_if(pred);
 		}
+		size_t old_nElem = nElem;
 		size_t nErased = erase_if_impl(pred, CopyStrategy());
-		if (nElem * 2 <= maxElem)
-			shrink_to_fit();
-		else
+		if (nElem != old_nElem) {
 			relink();
+		}
 		return nErased;
 	}
 	template<class Predictor>
 	size_t shrink_after_erase_if(Predictor pred) {
+		size_t old_nBucket = nBucket;
+		size_t old_nElem   = nElem;
 		size_t nErased = erase_if_impl(pred, CopyStrategy());
-		shrink_to_fit();
+		//shrink_to_fit(); // buggy, may miss relink
+		if (nElem < maxElem) {
+			reserve_nodes(nElem); // shrink nodes
+			TERARK_VERIFY_LE(nElem, old_nElem);
+			if (nElem != old_nElem) {
+				rehash(size_t(nElem * 256 / load_factor + 1));
+				if (nBucket == old_nBucket) { // rehash does nothing
+					relink();
+				}
+			}
+		}
 		return nErased;
 	}
 	template<class Predictor>

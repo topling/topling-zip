@@ -1416,19 +1416,31 @@ public:
 	template<class Predictor>
 	size_t erase_if_kv(Predictor pred) {
 		if (fastleng == freelist_disabled) {
+			size_t old_nNodes = nNodes;
 			size_t nErased = erase_if_kv_impl(pred);
-			if (nNodes * 3/2 <= maxNodes)
-				shrink_to_fit();
-			else
+			if (nNodes != old_nNodes) {
 				relink();
+			}
 			return nErased;
 		} else
 			return keepid_erase_if_kv(pred);
 	}
 	template<class Predictor>
 	size_t shrink_after_erase_if_kv(Predictor pred) {
+		size_t old_nBucket = nBucket;
+		size_t old_nNodes  = nNodes;
 		size_t nErased = erase_if_kv_impl(pred);
-		shrink_to_fit();
+		//shrink_to_fit(); // buggy, may miss relink
+		if (nNodes < maxNodes) {
+			reserve_nodes(nNodes); // shrink nodes
+			TERARK_VERIFY_LE(nNodes, maxNodes);
+			if (nNodes != old_nNodes) {
+				rehash(size_t(nNodes * 256 / load_factor + 1));
+				if (nBucket == old_nBucket) { // rehash does nothing
+					relink();
+				}
+			}
+		}
 		return nErased;
 	}
 	template<class Predictor>
