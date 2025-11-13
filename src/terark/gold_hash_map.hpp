@@ -1413,6 +1413,17 @@ public:
 	}
 	void sort() { sort(std::less<Elem>()); }
 
+	template<class Compare>	void risk_sort_no_rebuild_hash(Compare comp) {
+		if (freelist_size)
+			revoke_deleted_no_relink();
+		fast_iterator beg_iter = m_nl.begin();
+		fast_iterator end_iter = beg_iter + nElem;
+		terark_parallel_sort(beg_iter, end_iter, Compare(comp));
+	}
+	void risk_sort_no_rebuild_hash() {
+		risk_sort_no_rebuild_hash(std::less<Elem>());
+	}
+
 	size_t bucket_size() const { return nBucket; }
 
 	template<class IntVec>
