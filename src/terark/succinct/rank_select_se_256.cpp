@@ -97,6 +97,16 @@ void rank_select_se::clear() noexcept {
     febitvec::clear();
 }
 
+void rank_select_se::erase_all() noexcept {
+    nullize_cache();
+    febitvec::erase_all();
+}
+
+void rank_select_se::resize_fill(size_t newsize, bool val) noexcept {
+    nullize_cache();
+    febitvec::resize_fill(newsize, val);
+}
+
 void rank_select_se::risk_release_ownership() noexcept {
     nullize_cache();
     febitvec::risk_release_ownership();

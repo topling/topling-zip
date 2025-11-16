@@ -23,6 +23,8 @@ public:
     rank_select_se& operator=(rank_select_se&& y) noexcept;
     ~rank_select_se();
     void clear() noexcept;
+    void erase_all() noexcept;
+    void resize_fill(size_t newsize, bool val=false) noexcept;
     void risk_release_ownership() noexcept;
     void risk_mmap_from(unsigned char* base, size_t length);
     void shrink_to_fit() noexcept;
