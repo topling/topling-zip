@@ -169,6 +169,24 @@ inline unsigned utf8_byte_count(boost::uint8_t c)
 
 #endif
 
+inline unsigned utf8_code_point(const boost::uint8_t* p, unsigned codelen) {
+   switch (codelen) {
+   default:
+      assert(false);
+      return unsigned(-1); // invalid
+   case 1: assert((p[0] < 0x80)); return (p[0]);
+   case 2: assert((p[0] & 0xE0) == 0xC0); return (p[0] & 0x1F) <<  6 | (p[1] & 0x3F);
+   case 3: assert((p[0] & 0xF0) == 0xE0); return (p[0] & 0x0F) << 12 | (p[1] & 0x3F) <<  6 | (p[2] & 0x3F);
+   case 4: assert((p[0] & 0xF8) == 0xF0); return (p[0] & 0x07) << 18 | (p[1] & 0x3F) << 12 | (p[2] & 0x3F) <<  6 | (p[3] & 0x3F);
+  #if 0 // if just use utf8 as integer encoder
+   case 5: assert((p[0] & 0xFC) == 0xF8); return (p[0] & 0x03) << 24 | (p[1] & 0x3F) << 18 | (p[2] & 0x3F) << 12 | (p[3] & 0x3F) <<  6 | (p[4] & 0x3F);
+   case 6: assert((p[0] & 0xFE) == 0xFC); return (p[0] & 0x01) << 30 | (p[1] & 0x3F) << 24 | (p[2] & 0x3F) << 18 | (p[3] & 0x3F) << 12 | (p[4] & 0x3F) <<  6 | (p[5] & 0x3F);
+ //case 7: assert((p[0] & 0xFF) == 0xFE); return                       (p[1] & 0x3F) << 30 | (p[2] & 0x3F) << 24 | (p[3] & 0x3F) << 18 | (p[4] & 0x3F) << 12 | (p[5] & 0x3F) <<  6 | (p[6] & 0x3F);
+ //case 8: assert((p[0] & 0xFF) == 0xFF); return                       (p[1] & 0x3F) << 36 | (p[2] & 0x3F) << 30 | (p[3] & 0x3F) << 24 | (p[4] & 0x3F) << 18 | (p[5] & 0x3F) << 12 | (p[6] & 0x3F) << 6 | (p[7] & 0x3F);
+  #endif
+   }
+}
+
 inline unsigned utf8_trailing_byte_count(boost::uint8_t c)
 {
    return utf8_byte_count(c) - 1;
@@ -198,6 +216,7 @@ inline void invalid_utf32_code_point(::boost::uint32_t val)
 } // namespace detail
 
 using detail::utf8_byte_count;
+using detail::utf8_code_point;
 
 template <class BaseIterator, class U16Type = ::boost::uint16_t>
 class u32_to_u16_iterator
