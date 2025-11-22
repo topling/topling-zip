@@ -10,6 +10,7 @@
 #include <utility>
 #include <algorithm>
 #include <functional>
+#include <ctype.h>
 #include <string.h>
 
 #include "config.hpp"
@@ -353,6 +354,20 @@ struct TERARK_DLL_EXPORT basic_fstring {
 					n > y.n ? +1 : 0;
 	}
 	//@}
+
+	static bool is_word_char(byte_t c) {
+		return c >= 128 || isalnum(c) || c == '_';
+	}
+	bool is_word_boundary(size_t pos) const {
+		TERARK_ASSERT_LE(pos, size_t(n));
+		if (0 == pos) {
+			return n && is_word_char((byte_t)p[0]);
+		}
+		if (size_t(n) == pos) {
+			return n && is_word_char((byte_t)p[n-1]);
+		}
+		return is_word_char((byte_t)p[pos-1]) ^ is_word_char((byte_t)p[pos]);
+	}
 
 	template<class StrClass>
 	void append_to(StrClass* str) const { str->append(p, n); }
