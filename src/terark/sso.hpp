@@ -382,6 +382,7 @@ public:
   <std::is_same_v<decltype(s.data()), const char*>, void>
   { append(s.data(), s.size()); }
   void append(const fstring  s) { append(s.p, s.n); }
+  void append(const char* s) { append(s, strlen(s)); }
   terark_flatten
   void append(const char* s, size_t n) { append(n, UninitializedCopyN<char>{s}); }
   terark_flatten
@@ -580,6 +581,7 @@ public:
     append(y.to<fstring>());
     return *this;
   }
+  minimal_sso& operator+=(const char* y) { append(y); return *this; }
 
   static minimal_sso concat(const fstring& x, const fstring& y) {
     minimal_sso z(x.size() + y.size(), valvec_reserve());
