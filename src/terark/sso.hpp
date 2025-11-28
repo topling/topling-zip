@@ -622,6 +622,10 @@ public:
     { return x.to<fstring>() op y; } \
     friend bool operator op (const fstring& x, const minimal_sso& y) \
     { return x op y.to<fstring>(); } \
+    friend bool operator op (const minimal_sso& x, const char* y) \
+    { return x.to<fstring>() op fstring(y); } \
+    friend bool operator op (const char* x, const minimal_sso& y) \
+    { return fstring(x) op y.to<fstring>(); } \
     //~~~~~~~~~~~~~~~~~~~~
  #endif
 
