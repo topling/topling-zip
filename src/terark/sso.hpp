@@ -84,12 +84,20 @@ class alignas(Align) minimal_sso {
     size_t cap = pow2_align_up(n + 1, 64);
     char*  ptr = (char*)malloc(cap);
     m_alloc.m_ptr = ptr;
-    m_alloc.m_len = n;
     m_alloc.m_cap = cap - 1;
     m_alloc.m_flag = 255;
-    populate(ptr, n);
-    if (WithEOS)
-      ptr[n] = '\0';
+    if constexpr(std::is_same_v<decltype(populate(ptr, n)), void>) {
+      m_alloc.m_len = n;
+      populate(ptr, n);
+      if (WithEOS)
+        ptr[n] = '\0';
+    } else {
+      size_t real_n = populate(ptr, n);
+      TERARK_VERIFY_LE(real_n, n);
+      m_alloc.m_len = real_n;
+      if (WithEOS)
+        ptr[real_n] = '\0';
+    }
   }
   template<class DataPopulator>
   terark_no_inline
@@ -99,7 +107,13 @@ class alignas(Align) minimal_sso {
     size_t cap = pow2_align_up(newsize + 1, 64);
     char*  ptr = (char*)malloc(cap);
     memcpy(ptr, m_local.m_space, oldsize);
-    populate(ptr + oldsize, addsize);
+    if constexpr(std::is_same_v<decltype(populate(ptr + oldsize, addsize)), void>) {
+      populate(ptr + oldsize, addsize);
+    } else {
+      size_t real_addsize = populate(ptr + oldsize, addsize);
+      TERARK_VERIFY_LE(real_addsize, addsize);
+      newsize = oldsize + real_addsize;
+    }
     if (WithEOS)
       ptr[newsize] = '\0';
     m_alloc.m_ptr = ptr;
@@ -115,7 +129,13 @@ class alignas(Align) minimal_sso {
     size_t real_cap = pow2_align_up(std::max(newsize, next_cap) + 1, 64);
     m_alloc.m_ptr = (char*)realloc(m_alloc.m_ptr, real_cap);
     m_alloc.m_cap = real_cap - 1;
-    populate(m_alloc.m_ptr + oldsize, addsize);
+    if constexpr (std::is_same_v<decltype(populate(m_alloc.m_ptr + oldsize, addsize)), void>) {
+      populate(m_alloc.m_ptr + oldsize, addsize);
+    } else {
+      size_t real_addsize = populate(m_alloc.m_ptr + oldsize, addsize);
+      TERARK_VERIFY_LE(real_addsize, addsize);
+      newsize = oldsize + real_addsize;
+    }
     if (WithEOS)
       m_alloc.m_ptr[newsize] = '\0';
     m_alloc.m_len = newsize;
@@ -156,10 +176,18 @@ public:
               n, // SFINAE size_t n, populate("", 1) must be well formed
               DataPopulator populate) {
     if (terark_likely(n <= sizeof(m_local.m_space))) {
-      m_local.m_unused_len = sizeof(m_local.m_space) - n;
-      if (WithEOS)
-        m_local.m_space[n] = '\0';
-      populate(m_local.m_space, n);
+      if constexpr (std::is_same_v<decltype(populate(m_local.m_space, n)), void>) {
+        m_local.m_unused_len = sizeof(m_local.m_space) - n;
+        if (WithEOS)
+          m_local.m_space[n] = '\0';
+        populate(m_local.m_space, n);
+      } else {
+        size_t real_n = populate(m_local.m_space, n);
+        TERARK_ASSERT_LE(real_n, n);
+        if (WithEOS)
+          m_local.m_space[real_n] = '\0';
+        m_local.m_unused_len = sizeof(m_local.m_space) - real_n;
+      }
     } else {
       malloc_populate(n, populate);
     }
@@ -351,10 +379,18 @@ private:
       free(m_alloc.m_ptr);
       new(this)minimal_sso(n, populate);
     } else {
-      m_alloc.m_len = n;
-      if (WithEOS)
-        m_alloc.m_ptr[n] = '\0';
-      populate(m_alloc.m_ptr, n);
+      if constexpr(std::is_same_v<decltype(populate(m_alloc.m_ptr, n)), void>) {
+        m_alloc.m_len = n;
+        if (WithEOS)
+          m_alloc.m_ptr[n] = '\0';
+        populate(m_alloc.m_ptr, n);
+      } else {
+        size_t real_n = populate(m_alloc.m_ptr, n);
+        TERARK_ASSERT_LE(real_n, n);
+        if (WithEOS)
+          m_alloc.m_ptr[real_n] = '\0';
+        m_alloc.m_len = real_n;
+      }
     }
   }
 
@@ -363,10 +399,18 @@ public:
   void risk_assign_local(size_t n, DataPopulator populate) {
     TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
     TERARK_ASSERT_LE(n, sizeof(m_local.m_space));
-    m_local.m_unused_len = sizeof(m_local.m_space) - n;
-    populate(m_local.m_space, n);
-    if (WithEOS)
-      m_local.m_space[n] = '\0';
+    if constexpr (std::is_same_v<decltype(populate(m_local.m_space, n)), void>) {
+      m_local.m_unused_len = sizeof(m_local.m_space) - n;
+      populate(m_local.m_space, n);
+      if (WithEOS)
+        m_local.m_space[n] = '\0';
+    } else {
+      size_t real_n = populate(m_local.m_space, n);
+      TERARK_ASSERT_LE(real_n, n);
+      if (WithEOS)
+        m_local.m_space[real_n] = '\0';
+      m_local.m_unused_len = sizeof(m_local.m_space) - real_n;
+    }
   }
 
   const char* risk_local_data() const {
@@ -413,11 +457,21 @@ public:
       size_t oldsize = local_size();
       size_t newsize = oldsize + addsize;
       if (newsize <= sizeof(m_local.m_space)) {
-        m_local.m_unused_len = sizeof(m_local.m_space) - newsize;
-        if (WithEOS)
-          m_local.m_space[newsize] = '\0';
-        populate(m_local.m_space + oldsize, addsize);
-        TERARK_ASSERT_EQ(local_size(), newsize);
+        if constexpr(std::is_same_v<decltype(populate(m_local.m_space + oldsize, addsize)), void>) {
+          m_local.m_unused_len = sizeof(m_local.m_space) - newsize;
+          if (WithEOS)
+            m_local.m_space[newsize] = '\0';
+          populate(m_local.m_space + oldsize, addsize);
+          TERARK_ASSERT_EQ(local_size(), newsize);
+        } else {
+          size_t real_addsize = populate(m_local.m_space + oldsize, addsize);
+          size_t real_newsize = oldsize + real_addsize;
+          TERARK_ASSERT_LE(real_addsize, addsize);
+          if (WithEOS)
+            m_local.m_space[real_newsize] = '\0';
+          m_local.m_unused_len = sizeof(m_local.m_space) - real_newsize;
+          TERARK_ASSERT_EQ(local_size(), real_newsize);
+        }
       } else {
         malloc_append(addsize, populate, oldsize, newsize);
       }
@@ -425,10 +479,19 @@ public:
       size_t oldsize = m_alloc.m_len;
       size_t newsize = oldsize + addsize;
       if (terark_likely(newsize <= m_alloc.m_cap)) {
-        populate(m_alloc.m_ptr + oldsize, addsize);
-        if (WithEOS)
-          m_alloc.m_ptr[newsize] = '\0';
-        m_alloc.m_len = newsize;
+        if constexpr(std::is_same_v<decltype(populate(m_local.m_space + oldsize, addsize)), void>) {
+          populate(m_alloc.m_ptr + oldsize, addsize);
+          if (WithEOS)
+            m_alloc.m_ptr[newsize] = '\0';
+          m_alloc.m_len = newsize;
+        } else {
+          size_t real_addsize = populate(m_alloc.m_ptr + oldsize, addsize);
+          size_t real_newsize = oldsize + real_addsize;
+          TERARK_ASSERT_LE(real_addsize, addsize);
+          if (WithEOS)
+            m_alloc.m_ptr[real_newsize] = '\0';
+          m_alloc.m_len = real_newsize;
+        }
       } else {
         realloc_append(addsize, populate, oldsize, newsize);
       }
