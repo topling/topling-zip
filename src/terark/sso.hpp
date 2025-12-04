@@ -307,6 +307,24 @@ public:
     append(newsize - oldsize, populate);
     return oldsize;
   }
+  size_t trim(size_t newsize) {
+    if (m_local.m_unused_len != 255) { // local
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      size_t oldsize = local_size();
+      TERARK_ASSERT_LE(newsize, oldsize);
+      if (WithEOS)
+        m_local.m_space[newsize] = '\0';
+      m_local.m_unused_len = sizeof(m_local.m_space) - newsize;
+      return oldsize;
+    } else {
+      size_t oldsize = m_alloc.m_len;
+      TERARK_ASSERT_LE(newsize, oldsize);
+      m_alloc.m_len = newsize;
+      if (WithEOS)
+        m_alloc.m_ptr[newsize] = '\0';
+      return oldsize;
+    }
+  }
   template <class Tstring>
   auto assign(const Tstring& s) -> std::enable_if_t
   <std::is_same_v<decltype(s.data()), const char*>, void>
