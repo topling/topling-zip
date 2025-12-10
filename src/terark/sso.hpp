@@ -716,8 +716,64 @@ public:
   TERARK_MINIMAL_SSO_CMP_OPERATOR(<=)
   TERARK_MINIMAL_SSO_CMP_OPERATOR(>)
   TERARK_MINIMAL_SSO_CMP_OPERATOR(>=)
+
+  template<class Range, class ToString>
+  static auto join(fstring delim, const Range& rng, ToString cvt) ->
+  decltype(cvt(*rng.begin()), rng.end(), minimal_sso()) {
+    minimal_sso s;
+    size_t cnt = 0;
+    for (auto& e : rng) {
+      if (cnt++)
+        s.append(delim);
+      s.append(cvt(e));
+    }
+    return s;
+  }
+  template<class Range>
+  static auto join(fstring delim, const Range& rng) ->
+  decltype(std::to_string(*rng.begin()), rng.end(), minimal_sso()) {
+    minimal_sso s;
+    size_t cnt = 0;
+    for (auto& e : rng) {
+      if (cnt++)
+        s.append(delim);
+      s.append(std::to_string(e));
+    }
+    return s;
+  }
+  template<class T, class ToString>
+  static auto join(fstring delim, const T* arr, size_t len, ToString cvt) ->
+  decltype(cvt(arr[0]), minimal_sso()) {
+    minimal_sso s;
+    for (size_t i = 0; i < len; i++) {
+      if (i)
+        s.append(delim);
+      s.append(cvt(arr[i]));
+    }
+    return s;
+  }
+  template<class T>
+  static auto join(fstring delim, const T* arr, size_t len) ->
+  decltype(std::to_string(arr[0]), minimal_sso()) {
+    minimal_sso s;
+    for (size_t i = 0; i < len; i++) {
+      if (i)
+        s.append(delim);
+      s.append(std::to_string(arr[i]));
+    }
+    return s;
+  }
+  template<class... Args>
+  inline static auto join(Args&&... args) ->
+  decltype(join(fstring(","), std::forward<Args>(args)...))
+  { return join(fstring(","), std::forward<Args>(args)...);}
 };
 #pragma pack(pop)
+
+template<class... Args>
+inline auto ssojoin(Args&&... args) ->
+decltype(minimal_sso<32>::join(std::forward<Args>(args)...))
+{ return minimal_sso<32>::join(std::forward<Args>(args)...);}
 
 } // namespace terark
 
