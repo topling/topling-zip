@@ -320,6 +320,19 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		return find(0, needle);
 	}
 
+	size_t find_i(ptrdiff_t pos, basic_fstring needle) const {
+		assert(pos >= 0);
+		assert(pos <= n);
+		assert(needle.n > 0);
+		if (pos + needle.n > n) return npos;
+		const Char* hit = terark_fstrstr(p + pos, n - pos, needle.p, needle.n);
+		if (hit)
+			TOPLING_ASSUME_RETURN(size_t(hit - p), != size());
+		else
+			return size();
+	}
+	size_t find_i(basic_fstring needle) const { return find(0, needle); }
+
 	bool startsWith(basic_fstring x) const {
 		if (x.n > n) return false;
 		return memcmp(p, x.p, sizeof(Char)*x.n) == 0;
