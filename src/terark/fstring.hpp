@@ -838,6 +838,12 @@ std::string unescape(fstring src, std::function<bool(size_t)> on_bad_pos = nullp
 TERARK_DLL_EXPORT void string_resize_no_touch_memory(std::string*, size_t);
 TERARK_DLL_EXPORT void string_set_size_no_touch_memory(std::string*, size_t);
 
+TERARK_DLL_EXPORT int decimal_strcmp(fstring a, fstring b);
+TERARK_DLL_EXPORT int realnum_strcmp(fstring a, fstring b);
+
+TERARK_DLL_EXPORT int decimal_strcmp(fstring a, bool a_neg, fstring b, bool b_neg);
+TERARK_DLL_EXPORT int realnum_strcmp(fstring a, bool a_neg, fstring b, bool b_neg);
+
 } // namespace terark
 
 namespace std {

@@ -588,6 +588,113 @@ void string_set_size_no_touch_memory(std::string* bank, size_t sz) {
 }
 #endif
 
+// 比较 a 和 b 的数值大小，如果 a > b，返回空接受状态
+// 简单的字符串比较逻辑需要考虑符号
+TERARK_DLL_EXPORT
+int decimal_strcmp(fstring a, bool a_neg, fstring b, bool b_neg) {
+	if (a_neg && !b_neg) return -1; // 负 < 正
+	if (!a_neg && b_neg) return +1; // 正 > 负
+	int cmp = a.compare(b);
+	if (cmp)
+		cmp = cmp < 0 ? -1 : +1;
+	if (!a_neg && !b_neg)
+		return +cmp;
+	else
+		return -cmp;
+}
+
+TERARK_DLL_EXPORT int decimal_strcmp(fstring a, fstring b) {
+	if (a.empty() || b.empty()) {
+		return -2;
+	}
+	bool a_neg = false, b_neg = false;
+	if (a[0] == '+')
+		a = a.substr(1);
+	else if (a[0] == '-')
+		a = a.substr(1), a_neg = true;
+
+	if (b[0] == '+')
+		b = b.substr(1);
+	else if (b[0] == '-')
+		b = b.substr(1), b_neg = true;
+
+	if (a.empty() || b.empty()) {
+		return -2;
+	}
+	for (byte_t c : a) {
+		if (c < '0' || c > '9')
+			return -2;
+	}
+	for (byte_t c : b) {
+		if (c < '0' || c > '9')
+			return -2;
+	}
+	return decimal_strcmp(a, a_neg, b, b_neg);
+}
+
+TERARK_DLL_EXPORT
+int realnum_strcmp(fstring a, bool a_neg, fstring b, bool b_neg) {
+	if (a_neg && !b_neg) return -1; // 负 < 正
+	if (!a_neg && b_neg) return 1;  // 正 > 负
+	TERARK_ASSERT_EQ(a_neg, b_neg);
+	size_t adot = a.find_i('.'); // 不存在则返回 a.size()
+	size_t bdot = b.find_i('.');
+	if (adot == bdot) { // 小数点位置相同，大小序就是字典序
+		int cmp = a.compare(b);
+		if (a_neg) {
+			cmp = -cmp;
+		}
+		if (cmp)
+			return cmp < 0 ? -1 : +1;
+		else
+			return 0;
+	}
+	// 小数点位置不同，小数点位置就是整数部分的位数
+	if (a_neg) { // 都是负数
+		return adot < bdot ? +1 : -1;
+	} else { // 都是正数，因为无前导0，所以整数部分更长的数字更大
+		return adot < bdot ? -1 : +1;
+	}
+}
+
+TERARK_DLL_EXPORT int realnum_strcmp(fstring a, fstring b) {
+	if (a.empty() || b.empty()) {
+		return -2;
+	}
+	bool a_neg = false, b_neg = false;
+	if (a[0] == '+')
+		a = a.substr(1);
+	else if (a[0] == '-')
+		a = a.substr(1), a_neg = true;
+
+	if (b[0] == '+')
+		b = b.substr(1);
+	else if (b[0] == '-')
+		b = b.substr(1), b_neg = true;
+
+	if (a.empty() || b.empty()) {
+		return -2;
+	}
+	int n_dot = 0;
+	for (byte_t c : a) {
+		if (c >= '0' && c <= '9') {}
+		else if ('.' == c) n_dot++;
+		else return -2;
+	}
+	if (n_dot > 1)
+		return -2;
+	n_dot = 0;
+	for (byte_t c : b) {
+		if (c >= '0' && c <= '9') {}
+		else if ('.' == c) n_dot++;
+		else return -2;
+	}
+	if (n_dot > 1)
+		return -2;
+
+	return realnum_strcmp(a, a_neg, b, b_neg);
+}
+
 } // namespace terark
 
 bool g_Terark_hasValgrind = terark::getEnvBool("Terark_hasValgrind", false);
