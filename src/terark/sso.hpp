@@ -652,6 +652,10 @@ public:
   }
   const char* c_str() const { assert('\0' == *end()); return data(); }
   std::string str() const { return to<std::string>(); }
+  const char* operator*() const { return data(); } // shorter .data()
+  size_t      operator+() const { return size(); } // shorter .size()
+  int         operator~() const { return int(size()); } // for %.*s
+  int         ilen()      const { return int(size()); } // for %.*s
 
   template <class Tstring>
   auto operator+=(const Tstring& y) -> std::enable_if_t
