@@ -29,6 +29,7 @@ base64_encode(fstring src, valvec<ByteType>* out) {
 	base64_encode(src.data(), src.size(), out);
 }
 
+inline // this inline is to remove dup symbol link error
 valvec<char> base64_encode(fstring src) {
     valvec<char> out;
     base64_encode(src.data(), src.size(), &out);
@@ -53,6 +54,12 @@ base64_decode(fstring src, valvec<ByteType>* out) {
 	base64_decode(src.data(), src.size(), out);
 }
 
+inline // this inline is to remove dup symbol link error
+valvec<char> base64_decode(fstring src) {
+    valvec<char> out;
+    base64_decode(src.data(), src.size(), &out);
+    return out;
+}
 
 } // namespace terark
 
