@@ -50,6 +50,9 @@ namespace terark {
 #define ERROR(format, ...) LOG_printf("Error", format, ##__VA_ARGS__)
 //-----------------------------------------------------------------------------
 
+// "/bin/sh" may not support process substitution, use bash
+#define SHELL_CMD "/usr/bin/bash"
+
     // system(cmd) on Linux calling fork which do copy page table
     // we should use vfork
     TERARK_DLL_EXPORT int system_vfork(const char* cmd) {
@@ -58,9 +61,9 @@ namespace terark {
     #else
         pid_t childpid = vfork();
         if (0 == childpid) { // child process
-            execl("/bin/sh", "/bin/sh", "-c", cmd, NULL);
+            execl(SHELL_CMD, SHELL_CMD, "-c", cmd, NULL);
             int err = errno;
-            ERROR("execl /bin/sh -c \"%s\" = %s", cmd, strerror(err));
+            ERROR("execl " SHELL_CMD " -c \"%s\" = %s", cmd, strerror(err));
             _exit(err);
         }
         else if (childpid < 0) {
@@ -72,7 +75,7 @@ namespace terark {
         pid_t pid = waitpid(childpid, &childstatus, 0);
         if (pid != childpid) {
             int err = errno;
-            ERROR("wait /bin/sh -c \"%s\" = %s", cmd, strerror(err));
+            ERROR("wait " SHELL_CMD " -c \"%s\" = %s", cmd, strerror(err));
             return err;
         }
         return childstatus;
@@ -230,10 +233,10 @@ void ProcPipeStream::vfork_exec_wait() noexcept {
     DEBUG(3, "calling vfork, m_cmd = \"%s\"", m_cmd);
     m_childpid = vfork();
     if (0 == m_childpid) { // child process
-        DEBUG(4, "calling execl /bin/sh -c \"%s\" = %s", m_cmd, strerror(errno));
-        execl("/bin/sh", "/bin/sh", "-c", m_cmd.c_str(), NULL);
+        DEBUG(4, "calling execl " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(errno));
+        execl(SHELL_CMD, SHELL_CMD, "-c", m_cmd.c_str(), NULL);
         int err = errno;
-        ERROR("execl /bin/sh -c \"%s\" = %s", m_cmd, strerror(err));
+        ERROR("execl " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(err));
         _exit(err);
     } else if (m_childpid < 0) {
         m_err = errno;
@@ -246,7 +249,7 @@ void ProcPipeStream::vfork_exec_wait() noexcept {
     pid_t pid = waitpid(m_childpid, &childstatus, 0);
     if (pid != m_childpid) {
         m_err = errno;
-        ERROR("wait /bin/sh -c \"%s\" = %s", m_cmd, strerror(m_err));
+        ERROR("wait " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(m_err));
         return;
     }
     DEBUG(4, "child proc done, childstatus = %d ++++", childstatus);
