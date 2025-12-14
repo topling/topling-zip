@@ -124,6 +124,10 @@ TERARK_DLL_EXPORT std::string hexlcast(long long x);
 TERARK_DLL_EXPORT std::string hexlcast(unsigned long long x);
 
 TERARK_DLL_EXPORT size_t hex_decode(const char* hex, size_t hexlen, void* databuf, size_t bufsize);
+TERARK_DLL_EXPORT std::string hex_decode(const char* hex, size_t hexlen);
+inline size_t hex_decode(fstring hex, void* databuf, size_t bufsize)
+     { return hex_decode(hex.data(), hex.size(), databuf, bufsize); }
+inline std::string hex_decode(fstring hex) { return hex_decode(hex.data(), hex.size()); }
 
 ///@note size of hexbuf must at least (2*datalen)
 TERARK_DLL_EXPORT void hex_encode(const void* data, size_t datalen, char* hexbuf);

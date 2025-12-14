@@ -288,6 +288,15 @@ hex_decode(const char* hex, size_t hexlen, void* databuf, size_t bufsize) {
 }
 
 TERARK_DLL_EXPORT
+std::string hex_decode(const char* hex, size_t hexlen) {
+	std::string bin;
+	string_resize_no_touch_memory(&bin, hexlen/2 + 1);
+	size_t len = hex_decode(hex, hexlen, bin.data(), bin.size());
+	string_set_size_no_touch_memory(&bin, (len+1)/2);
+	return bin;
+}
+
+TERARK_DLL_EXPORT
 void hex_encode(const void* data, size_t datalen, char* hexbuf) {
 	const char* tab = "0123456789abcdef";
 	const byte_t* bData = (const byte_t*)(data);
