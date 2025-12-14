@@ -26,6 +26,30 @@
 
 namespace terark {
 
+    static long g_debug = getEnvLong("ProcPipeStreamDebugLevel", TERARK_IF_DEBUG(3, 0));
+#if defined(_MSC_VER)
+    static bool stderr_is_tty = false;
+#else
+    static bool stderr_is_tty = isatty(STDERR_FILENO);
+#endif
+
+#define LOG_printf(type, format, ...) \
+        LOG_printf_ex(type, format, "1;31", ##__VA_ARGS__)
+///@param color "1;31": bold red, "1;33": bold yellow, "0;35": normal purple
+#define LOG_printf_ex(type, format, color, ...) \
+    if (stderr_is_tty) \
+        fprintf(stderr, "%s:%d:" type ": \33[" color "m" format \
+                "\33[0m\n", TERARK_PP_SmartForPrintf(__FILE__,__LINE__, ##__VA_ARGS__)); \
+    else \
+        fprintf(stderr, "%s:%d:" type ": " format \
+                "\n", TERARK_PP_SmartForPrintf(__FILE__,__LINE__, ##__VA_ARGS__))
+#undef DEBUG
+#define DEBUG(level, format, ...) \
+    if (g_debug >= level) LOG_printf_ex("Debug" #level, format, "0;35", ##__VA_ARGS__); \
+    else (void)0
+#define ERROR(format, ...) LOG_printf("Error", format, ##__VA_ARGS__)
+//-----------------------------------------------------------------------------
+
     // system(cmd) on Linux calling fork which do copy page table
     // we should use vfork
     TERARK_DLL_EXPORT int system_vfork(const char* cmd) {
@@ -36,19 +60,19 @@ namespace terark {
         if (0 == childpid) { // child process
             execl("/bin/sh", "/bin/sh", "-c", cmd, NULL);
             int err = errno;
-            fprintf(stderr, "ERROR: execl /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
+            ERROR("execl /bin/sh -c \"%s\" = %s", cmd, strerror(err));
             _exit(err);
         }
         else if (childpid < 0) {
             int err = errno;
-            fprintf(stderr, "ERROR: vfork() = %s\n", strerror(err));
+            ERROR("vfork() = %s", strerror(err));
             return err;
         }
         int childstatus = 0;
         pid_t pid = waitpid(childpid, &childstatus, 0);
         if (pid != childpid) {
             int err = errno;
-            fprintf(stderr, "ERROR: wait /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
+            ERROR("wait /bin/sh -c \"%s\" = %s", cmd, strerror(err));
             return err;
         }
         return childstatus;
@@ -126,8 +150,7 @@ noexcept {
     THROW_STD(invalid_argument, "Not implemented");
 #else
     if (m_fp) {
-        fprintf(stderr, "ERROR: %s:%d:%s: File is already open\n",
-                __FILE__, __LINE__, BOOST_CURRENT_FUNCTION);
+        ERROR("%s: File is already open", BOOST_CURRENT_FUNCTION);
         errno = EINVAL;
         return false;
     }
@@ -136,15 +159,14 @@ noexcept {
     else if (mode.strchr('w') || mode.strchr('a'))
         m_mode_is_read = false;
     else {
-        fprintf(stderr, "ERROR: %s:%d:%s: mode = \"%s\" is invalid\n",
-                __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, mode.c_str());
+        ERROR("%s: mode = \"%s\" is invalid", BOOST_CURRENT_FUNCTION, mode);
         errno = EINVAL; // invalid argument
         return false;
     }
 
     int err = ::pipe(m_pipe);
     if (err < 0) {
-        fprintf(stderr, "ERROR: pipe() = %s\n", strerror(errno));
+        ERROR("pipe() = %s", strerror(errno));
         return false;
     }
     set_close_on_exec(m_pipe[m_mode_is_read?0:1]);
@@ -168,26 +190,25 @@ noexcept {
         cmd2.swap(m_cmd);
     }
 
-//  fprintf(stderr, "INFO: mode = %s, m_pipe = [%d, %d], m_cmd = %s\n", mode.c_str(), m_pipe[0], m_pipe[1], m_cmd.c_str());
+    DEBUG(4, "mode = %s, m_pipe = [%d, %d], m_cmd = %s", mode, m_pipe[0], m_pipe[1], m_cmd);
 
     m_fp = fdopen(m_pipe[m_mode_is_read?0:1] , mode.c_str());
     if (NULL == m_fp) {
-        fprintf(stderr, "ERROR: fdopen(\"%s\", \"%s\") = %s\n", m_cmd.c_str(), mode.c_str(), strerror(m_err));
+        ERROR("fdopen(\"%s\", \"%s\") = %s", m_cmd, mode, strerror(m_err));
         ::close(m_pipe[0]); m_pipe[0] = -1;
         ::close(m_pipe[1]); m_pipe[1] = -1;
         return false;
     }
     //this->disbuf();
-    //fprintf(stderr, "INFO: fdopen(\"%s\") done\n", m_cmd.c_str());
-
- // fprintf(stderr, "INFO: onFinish is defined = %d\n", bool(onFinish));
+    DEBUG(4, "fdopen(\"%s\") done", m_cmd);
+    DEBUG(4, "onFinish is defined = %d", bool(onFinish));
     if (onFinish) {
         // onFinish can own the lifetime of this
         std::thread([this,onFinish=std::move(onFinish)]() {
             this->vfork_exec_wait();
             try { onFinish(this); }
             catch (const std::exception& ex) {
-                fprintf(stderr, "ERROR: user onFinish thrown: %s\n", ex.what());
+                ERROR("user onFinish thrown: %s", ex.what());
                 m_err = -1;
             }
             this->m_child_step = 3;
@@ -199,46 +220,46 @@ noexcept {
         usleep(1000); // 1 ms
         //std::this_thread::yield();
     }
-//  fprintf(stderr, "INFO: waited m_child_step = %d\n", m_child_step);
+    DEBUG(4, "waited m_child_step = %d", m_child_step);
     return true;
 #endif
 }
 
 void ProcPipeStream::vfork_exec_wait() noexcept {
 #if !defined(_MSC_VER)
-    fprintf(stderr, "INFO: calling vfork, m_cmd = \"%s\"\n", m_cmd.c_str());
+    DEBUG(3, "calling vfork, m_cmd = \"%s\"", m_cmd);
     m_childpid = vfork();
     if (0 == m_childpid) { // child process
-    //  fprintf(stderr, "INFO: calling execl /bin/sh -c \"%s\" = %s\n", m_cmd.c_str(), strerror(errno));
+        DEBUG(4, "calling execl /bin/sh -c \"%s\" = %s", m_cmd, strerror(errno));
         execl("/bin/sh", "/bin/sh", "-c", m_cmd.c_str(), NULL);
         int err = errno;
-        fprintf(stderr, "ERROR: execl /bin/sh -c \"%s\" = %s\n", m_cmd.c_str(), strerror(err));
+        ERROR("execl /bin/sh -c \"%s\" = %s", m_cmd, strerror(err));
         _exit(err);
     } else if (m_childpid < 0) {
         m_err = errno;
-        fprintf(stderr, "ERROR: vfork() = %s\n", strerror(m_err));
+        ERROR("vfork() = %s", strerror(m_err));
         return;
     }
-//  fprintf(stderr, "INFO: vfork done, childpid = %zd\n", m_childpid);
+    DEBUG(4, "vfork done, childpid = %zd", m_childpid);
     m_child_step = 1;
     int childstatus = 0;
     pid_t pid = waitpid(m_childpid, &childstatus, 0);
     if (pid != m_childpid) {
         m_err = errno;
-        fprintf(stderr, "ERROR: wait /bin/sh -c \"%s\" = %s\n", m_cmd.c_str(), strerror(m_err));
+        ERROR("wait /bin/sh -c \"%s\" = %s", m_cmd, strerror(m_err));
         return;
     }
-//  fprintf(stderr, "INFO: child proc done, childstatus = %d ++++\n", childstatus);
+    DEBUG(4, "child proc done, childstatus = %d ++++", childstatus);
     // const int fnofp = fileno(m_fp); // hang in fileno(m_fp) on Mac
     // fprintf(stderr, "INFO: childstatus = %d\n", childstatus);
 
     m_err = childstatus;
     // close peer ...
     if (m_mode_is_read) {
-    //  fprintf(stderr, "INFO: parent is read(fd=%d), close write peer(fd=%d)\n", m_pipe[0], m_pipe[1]);
+        DEBUG(4, "parent is read(fd=%d), close write peer(fd=%d)", m_pipe[0], m_pipe[1]);
         ::close(m_pipe[1]); m_pipe[1] = -1;
     } else {
-    //  fprintf(stderr, "INFO: parent is write(fd=%d), close read peer(fd=%d)\n", m_pipe[1], m_pipe[0]);
+        DEBUG(4, "parent is write(fd=%d), close read peer(fd=%d)", m_pipe[1], m_pipe[0]);
         ::close(m_pipe[0]); m_pipe[0] = -1;
     }
     m_child_step = 2;
@@ -250,7 +271,7 @@ void ProcPipeStream::close() {
 }
 
 int ProcPipeStream::xclose() noexcept {
-//  fprintf(stderr, "INFO: xclose(): m_pipe = [%d, %d]\n", m_pipe[0], m_pipe[1]);
+    DEBUG(4, "xclose(): m_pipe = [%d, %d]", m_pipe[0], m_pipe[1]);
     if (m_pipe[0] >= 0 || m_pipe[1] >= 0) {
         close_pipe();
         if (m_thr) {
@@ -261,13 +282,13 @@ int ProcPipeStream::xclose() noexcept {
 }
 
 void ProcPipeStream::close_pipe() noexcept {
-//  fprintf(stderr, "INFO: close_pipe(): m_pipe = [%d, %d]\n", m_pipe[0], m_pipe[1]);
+    DEBUG(4, "close_pipe(): m_pipe = [%d, %d]", m_pipe[0], m_pipe[1]);
     assert(m_pipe[0] >= 0 || m_pipe[1] >= 0);
-//  fprintf(stderr, "INFO: doing fclose(fd=%d)\n", m_pipe[m_mode_is_read?0:1]);
+    DEBUG(4, "doing fclose(fd=%d)", m_pipe[m_mode_is_read?0:1]);
     assert(NULL != m_fp);
     fclose(m_fp);
     m_fp = NULL;
-//  fprintf(stderr, "INFO: done  fclose(fd=%d)\n", m_pipe[m_mode_is_read?0:1]);
+    DEBUG(4, "done  fclose(fd=%d)", m_pipe[m_mode_is_read?0:1]);
     m_pipe[m_mode_is_read?0:1] = -1;
 }
 
@@ -277,13 +298,13 @@ void ProcPipeStream::wait_proc() noexcept {
         TERARK_IF_MSVC(Sleep(10), usleep(10000)); // 10 ms
         waited_ms += 10;
         if (waited_ms % 5000 == 0) {
-            fprintf(stderr, "INFO: waited_ms = %zd\n", waited_ms);
+            DEBUG(3, "waited_ms = %zd", waited_ms);
         }
     }
     assert(m_thr != nullptr);
     assert(m_thr->joinable());
     m_thr->join();
-//  fprintf(stderr, "INFO: m_thr joined\n");
+    DEBUG(4, "m_thr joined\n");
 }
 
 void ProcPipeStream::wait_finish() noexcept {
@@ -292,7 +313,7 @@ void ProcPipeStream::wait_finish() noexcept {
         TERARK_IF_MSVC(Sleep(10), usleep(10000)); // 10 ms
         waited_ms += 10;
         if (waited_ms % 5000 == 0) {
-            fprintf(stderr, "INFO: m_child_step = %d, wait onFinish = %zd\n", m_child_step, waited_ms);
+            DEBUG(3, "m_child_step = %d, wait onFinish = %zd", m_child_step, waited_ms);
         }
     }
 }
@@ -304,7 +325,7 @@ struct VforkCmdPromise {
         = std::make_shared<std::promise<std::string>>();
 
     void operator()(std::string&& stdoutData, const std::exception* ex) {
-    //  fprintf(stderr, "INFO: VforkCmdPromise.set(%s)\n", stdoutData.c_str());
+        DEBUG(4, "VforkCmdPromise.set(%s)\n", stdoutData);
         if (ex) {
             try {
                 throw *ex;
