@@ -490,7 +490,7 @@ ifneq ($(patsubst android%,android,${UNAME_System}),android)
 ifneq (${UNAME_System},Darwin)
 TOPLING_CORE_LD_LIBS_EXTRA += -lpthread
 # -lrt is not needed anymore, it was needed for very old glibc
-# TOPLING_CORE_LD_LIBS_EXTRA += -lrt
+TOPLING_CORE_LD_LIBS_EXTRA += -lrt
 ifneq (${UNAME_System},CYGWIN)
 ifeq (${LINUX_CALL_AIO_BY_LIBAIO},1)
 CXXFLAGS += -DLINUX_CALL_AIO_BY_LIBAIO
