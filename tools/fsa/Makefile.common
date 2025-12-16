@@ -239,8 +239,12 @@ ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
   LIB_SUF := .a
   ifneq (Darwin,${UNAME_System})
+   ifeq (${LINUX_CALL_AIO_BY_LIBAIO},1)
     override LIBS += -laio
+   endif
+   ifeq (${TOPLING_ENABLE_PARALLEL_ALGO},1)
     override LIBS += -lgomp
+   endif
   endif
 else
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_shared
