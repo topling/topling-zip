@@ -21,7 +21,7 @@ AM_V_AR = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} AR    
 
 ifeq ($(USE_LTO),1)
   COMMON_C_FLAGS += -flto
-  LDFLAGS += -flto -fuse-linker-plugin
+  LDFLAGS += -flto=auto -fuse-linker-plugin
 endif
 
 CHECK_TERARK_FSA_LIB_UPDATE ?= 1
