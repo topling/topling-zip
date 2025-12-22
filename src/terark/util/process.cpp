@@ -479,6 +479,7 @@ void vfork_cmd(fstring cmd,
                 msg << "vfork_cmd error: ";
                 msg << "realcmd = " << share->cmdw << ", ";
                 msg << "err_code/childstatus = " << proc->err_code();
+                msg^"(0x%X)"^proc->err_code();
                 std::runtime_error ex(msg);
                 onFinish(share->read_stdout(), share->read_stderr(), &ex);
             }
