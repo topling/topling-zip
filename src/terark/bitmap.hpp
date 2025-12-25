@@ -251,6 +251,7 @@ protected:
 
 	void push_back_slow_path(bool val);
 	void ensure_set1_slow_path(size_t i);
+	void fast_ensure_set1_slow_path(size_t i);
 
 public:
 	static size_t align_bits(size_t nbits) { return (nbits+WordBits-1) & ~(WordBits-1); }
@@ -351,6 +352,24 @@ public:
 			terark_bit_set1(m_words, i);
 		else
 			ensure_set1_slow_path(i);
+	}
+	// when used as a integer set, this func is much faster than ensure_set1.
+	// especially the integer set members are inserted sequentially
+	void fast_ensure_set1(size_t i) {
+		if (terark_likely(i < m_capacity)) {
+			if (m_size <= i) {
+			  #if !defined(NDEBUG)
+				// allocated but unused bits must be 0, just until i, for amortize O(1)
+				for (size_t j = m_size; j <= i; j++) {
+					TERARK_ASSERT_F(!terark_bit_test(m_words, j), "size %zd, j %zd, i %zd", m_size, j, i);
+				}
+			  #endif
+				m_size = i + 1;
+			}
+			terark_bit_set1(m_words, i);
+		} else {
+			fast_ensure_set1_slow_path(i);
+		}
 	}
 	void set0(size_t first, size_t num);
 	void set1(size_t first, size_t num);

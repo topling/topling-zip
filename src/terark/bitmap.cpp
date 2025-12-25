@@ -18,6 +18,20 @@ void febitvec::ensure_set1_slow_path(size_t i) {
 	terark_bit_set1(m_words, i);
 }
 
+void febitvec::fast_ensure_set1_slow_path(size_t i) {
+	TERARK_ASSERT_GE(i, m_capacity);
+  #if !defined(NDEBUG)
+	// allocated but unused bits must be 0
+	for (size_t j = m_size; j < m_capacity; j++) {
+		TERARK_ASSERT_F(!terark_bit_test(m_words, j), "j %zd, size %zd, cap %zd", j, m_size, m_capacity);
+	}
+  #endif
+	size_t oldcap = m_capacity;
+	resize_no_init(i+1);
+	bits_range_set0(m_words, oldcap, m_capacity); // set allocated unused to 0
+	terark_bit_set1(m_words, i);
+}
+
 febitvec::febitvec(size_t bits, bool val) {
 	risk_release_ownership();
 	resize(bits, val);
