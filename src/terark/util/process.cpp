@@ -26,7 +26,7 @@
 
 namespace terark {
 
-    static long g_debug = getEnvLong("ProcPipeStreamDebugLevel", TERARK_IF_DEBUG(3, 0));
+    static long g_debug = getEnvLong("ProcPipeStreamDebugLevel", TERARK_IF_DEBUG(3, -1));
 #if defined(_MSC_VER)
     static bool stderr_is_tty = false;
 #else
@@ -47,7 +47,9 @@ namespace terark {
 #define DEBUG(level, format, ...) \
     if (g_debug >= level) LOG_printf_ex("Debug" #level, format, "0;35", ##__VA_ARGS__); \
     else (void)0
-#define ERROR(format, ...) LOG_printf("Error", format, ##__VA_ARGS__)
+#define ERROR(format, ...) \
+    if (g_debug >= 0) LOG_printf("Error", format, ##__VA_ARGS__); \
+    else (void)0
 //-----------------------------------------------------------------------------
 
 // "/bin/sh" may not support process substitution, use bash
