@@ -81,6 +81,21 @@ Enum enum_value(const terark::fstring& name, Enum Default) {
   return Default;
 }
 
+template<class Enum>
+bool enum_value(const char* name, Enum* result) {
+  if (name)
+    return enum_value(terark::fstring(name), result);
+  else
+    return false;
+}
+
+// ex: enum_value(getenv("varname"), Default) where getenv may returns NULL
+template<class Enum>
+Enum enum_value(const char* name, Enum Default) {
+  enum_value(name, &Default);
+  return Default;
+}
+
 template<class Enum, class Func>
 void enum_for_each(Func fn) {
   auto names  = enum_all_names ((Enum*)0);
