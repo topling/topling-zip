@@ -17,12 +17,14 @@
     #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
+    #include <spawn.h>
 #endif
 #include "stat.hpp"
 #include <fcntl.h>
 
 #include <terark/num_to_str.hpp>
 #include <terark/util/function.hpp>
+#include <terark/util/enum.hpp>
 
 namespace terark {
 
@@ -230,12 +232,15 @@ noexcept {
 #endif
 }
 
+TERARK_ENUM_CLASS(HowSpawn, byte_t, fork, vfork, posix);
 void ProcPipeStream::vfork_exec_wait() noexcept {
 #if !defined(_MSC_VER)
+  static const auto how_spawn = enum_value(getenv("SubProcHowSpawn"), HowSpawn::vfork);
+  if (how_spawn == HowSpawn::vfork) {
     DEBUG(3, "calling vfork, m_cmd = \"%s\"", m_cmd);
     m_childpid = vfork();
     if (0 == m_childpid) { // child process
-        DEBUG(4, "calling execl " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(errno));
+        DEBUG(4, "calling execl " SHELL_CMD " -c \"%s\"", m_cmd);
         execl(SHELL_CMD, SHELL_CMD, "-c", m_cmd.c_str(), NULL);
         int err = errno;
         ERROR("execl " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(err));
@@ -246,6 +251,33 @@ void ProcPipeStream::vfork_exec_wait() noexcept {
         return;
     }
     DEBUG(4, "vfork done, childpid = %zd", m_childpid);
+  } else if (how_spawn == HowSpawn::fork) {
+    DEBUG(4, "calling fork, m_cmd = \"%s\"", m_cmd);
+    m_childpid = fork();
+    if (0 == m_childpid) { // child process
+        DEBUG(4, "calling execl " SHELL_CMD " -c \"%s\"", m_cmd);
+        execl(SHELL_CMD, SHELL_CMD, "-c", m_cmd.c_str(), NULL);
+        int err = errno;
+        ERROR("execl " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(err));
+        _exit(err);
+    } else if (m_childpid < 0) {
+        m_err = errno;
+        ERROR("fork() = %s", strerror(m_err));
+        return;
+    }
+    DEBUG(4, "fork done, childpid = %zd", m_childpid);
+  } else {
+    DEBUG(4, "calling posix_spawn " SHELL_CMD " -c \"%s\"", m_cmd);
+    const char* argv[] = { SHELL_CMD, "-c", m_cmd.data(), NULL };
+    pid_t pid = -1;
+    m_err = posix_spawn(&pid, SHELL_CMD, NULL, NULL, (char**)argv, environ);
+    m_childpid = pid;
+    if (m_err != 0) { // posix_spawn returns err instead of set errno
+        ERROR("posix_spawn " SHELL_CMD " -c \"%s\" = %s", m_cmd, strerror(m_err));
+        return;
+    }
+    DEBUG(4, "posix_spawn done, childpid = %zd", m_childpid);
+  }
     m_child_step = 1;
     int childstatus = 0;
     pid_t pid = waitpid(m_childpid, &childstatus, 0);
