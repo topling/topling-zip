@@ -117,7 +117,12 @@ GetoptDone:
                     fname, strerror(errno));
             return 1;
         }
-        ftruncate(fd, fsize);
+        int err = ftruncate(fd, fsize);
+        if (err < 0) {
+            fprintf(stderr, "ERROR: ftruncate(%s, %zd) = %s\n",
+                    fname, fsize, strerror(errno));
+            return 1;
+        }
     	terark::valvec<std::thread> w_thr_vec(w_thr_num-1, valvec_reserve());
         auto run = [&](void* base) {
             for (size_t i = 0; i < w_thr_num-1; ++i) {
