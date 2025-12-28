@@ -730,9 +730,9 @@ getZpathFixed(size_t node_id, byte_t* buf, size_t cap) const noexcept {
         if (FastLabel)
             return zbuf.size();
         else {
-            size_t len = zbuf.size()-1;
-            size_t cnt = len;
-            do buf[0] = buf[1], buf++, cnt--; while (cnt);
+            intptr_t len = zbuf.size()-1;
+            intptr_t cnt = len;
+            do buf[0] = buf[1], buf++, cnt--; while (cnt > 0);
             return len;
         }
     }
