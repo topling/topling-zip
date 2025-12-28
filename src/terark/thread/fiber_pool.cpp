@@ -2,6 +2,12 @@
 // Created by leipeng on 2022-08-24 14:24
 //
 
+// boost-include/boost/context/posix/protected_fixedsize_stack.hpp:73:19: warning: unused variable ‘result’ [-Wunused-variable]
+#if defined(__clang__)
+	#pragma clang diagnostic ignored "-Wunused-variable"
+#elif defined(__GNUC__) //
+	#pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
 #include "fiber_pool.hpp"
 #include <boost/fiber/fiber.hpp>
 #include <boost/fiber/protected_fixedsize_stack.hpp>
