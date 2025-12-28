@@ -78,6 +78,14 @@ public:
 		}
 		return std::move(*this);
 	}
+
+#if defined(__clang__)
+	#pragma clang diagnostic push
+	#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#elif defined(__GNUC__)
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
 	template<class T>
 	typename std::enable_if<std::is_fundamental<T>::value ||
 							std::is_pointer<T>::value, string_op_fmt&&>::type
@@ -92,6 +100,12 @@ public:
 		}
 		return std::move(*this);
 	}
+#if defined(__clang__)
+	#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+	#pragma GCC diagnostic pop
+#endif
+
 	// T is a string type
 	template<class T>
 	auto operator^(const T& x) && ->
