@@ -596,7 +596,7 @@ inline bool operator==(fstring x, fstring y) {
 inline bool operator!=(fstring x, fstring y) { return !(x == y); }
 inline bool operator< (fstring x, fstring y) {
 	using namespace std;
-    int cmp = memcmp(x.p, y.p, min(x.n, y.n));
+    int cmp = memcmp(x.p, y.p, min<size_t>(x.n, y.n));
     if (cmp)
         return cmp < 0;
     else
