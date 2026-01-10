@@ -19,11 +19,6 @@ AM_V_CC = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${CC_VARIANT_DIR} CC ${s
 AM_V_LD = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} LD so %6.2f %5.2f  %s\n' `cat` lib_shared/$(notdir $@))
 AM_V_AR = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} AR .a %6.2f %5.2f  %s\n' `cat` lib_static/$(notdir $@))
 
-ifeq ($(USE_LTO),1)
-  COMMON_C_FLAGS += -flto
-  LDFLAGS += -flto=auto -fuse-linker-plugin
-endif
-
 #DBG_ASAN ?= -fsanitize=address
 #AFR_ASAN ?= -fsanitize=address
 #RLS_ASAN ?=
@@ -458,6 +453,12 @@ allsrc = ${core_src} ${fsa_src} ${zbs_src} ${idx_src} ${rpc_src}
 alldep = $(addprefix ${rdir}/, $(addsuffix .d, $(basename ${allsrc}))) \
          $(addprefix ${adir}/, $(addsuffix .d, $(basename ${allsrc}))) \
          $(addprefix ${ddir}/, $(addsuffix .d, $(basename ${allsrc})))
+
+ifeq ($(USE_LTO),1)
+  RLS_FLAGS += -flto
+  LTO_LDFLAGS := -flto=auto -fuse-linker-plugin
+${RLS_TARGETS}: LDFLAGS := ${LDFLAGS} ${LTO_LDFLAGS}
+endif
 
 .PHONY : dbg rls afr
 dbg: ${DBG_TARGETS}

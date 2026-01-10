@@ -19,11 +19,6 @@ AM_V_CC = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${CC_VARIANT_DIR} CC ${s
 AM_V_LD = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} LD    %6.2f %5.2f  %s\n' `cat` $(notdir $@))
 AM_V_AR = ${AM_V_at}${TIME_CMD} -f "%e %S" -o >(printf '${LD_VARIANT_DIR} AR    %6.2f %5.2f  %s\n' `cat` $(notdir $@))
 
-ifeq ($(USE_LTO),1)
-  COMMON_C_FLAGS += -flto
-  LDFLAGS += -flto=auto -fuse-linker-plugin
-endif
-
 CHECK_TERARK_FSA_LIB_UPDATE ?= 1
 TERARK_HOME ?= ../..
 BOOST_INC ?= -I../../boost-include
@@ -83,6 +78,11 @@ endif
 AFR_FLAGS = -Og ${AFR_ASAN}
 DBG_FLAGS = -O0 ${DBG_ASAN}
 RLS_FLAGS = -Ofast -DNDEBUG ${RLS_ASAN}
+
+ifeq ($(USE_LTO),1)
+  RLS_FLAGS += -flto
+  LTO_LDFLAGS := -flto=auto -fuse-linker-plugin
+endif
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
@@ -285,12 +285,12 @@ endif
 ifneq (${DLL_SRCS},)
 ${DLL_BINS_A} : LDFLAGS := ${AFR_ASAN} ${LDFLAGS}
 ${DLL_BINS_D} : LDFLAGS := ${DBG_ASAN} ${LDFLAGS}
-${DLL_BINS_R} : LDFLAGS := ${RLS_ASAN} ${LDFLAGS}
+${DLL_BINS_R} : LDFLAGS := ${RLS_ASAN} ${LDFLAGS} ${LTO_LDFLAGS}
 endif
 
 ${EXE_BINS_A} : LDFLAGS := ${AFR_ASAN} ${LDFLAGS}
 ${EXE_BINS_D} : LDFLAGS := ${DBG_ASAN} ${LDFLAGS}
-${EXE_BINS_R} : LDFLAGS := ${RLS_ASAN} ${LDFLAGS}
+${EXE_BINS_R} : LDFLAGS := ${RLS_ASAN} ${LDFLAGS} ${LTO_LDFLAGS}
 
 ${EXE_BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
 ${EXE_BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
