@@ -421,6 +421,45 @@ struct TERARK_DLL_EXPORT basic_fstring {
 	template<class StrClass>
 	void append_to(StrClass* str) const { str->append(p, n); }
 
+	///@{
+	/// Sample Usage:
+	///   for(size_t i = 0, field_iter = 0; field_iter < line.size(); i++) {
+	///       auto field = line.iter_field(field_iter, '\t').trim();
+	///       ...
+	///   }
+	basic_fstring iter_field(size_t& field_iter, uc_t delim) const {
+		assert(!this->empty());
+		TERARK_ASSERT_LT(field_iter, this->size());
+		size_t beg = field_iter;
+		const Char* hit = this->strchr(beg, delim);
+		if (hit) {
+			size_t End = hit - this->p;
+			field_iter = End + 1;
+			return basic_fstring(this->p + beg, End - beg);
+		} else {
+			size_t End = this->size();
+			field_iter = End;
+			return basic_fstring(this->p + beg, End - beg);
+		}
+	}
+	basic_fstring iter_field(size_t& field_iter, basic_fstring delim) const {
+		assert(!delim.empty());
+		assert(!this->empty());
+		TERARK_ASSERT_LT(field_iter, this->size());
+		size_t beg = field_iter;
+		const Char* hit = this->strstr(beg, delim);
+		if (hit) {
+			size_t End = hit - this->p;
+			field_iter = End + delim.size();
+			return basic_fstring(this->p + beg, End - beg);
+		} else {
+			size_t End = this->size();
+			field_iter = End;
+			return basic_fstring(this->p + beg, End - beg);
+		}
+	}
+	///@}
+
 	template<class Vec>
 	size_t split(const Char delim, Vec* F, size_t max_fields = ~size_t(0)) const {
 		F->resize(0);
