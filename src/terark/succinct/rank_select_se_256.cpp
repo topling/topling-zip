@@ -49,7 +49,6 @@ rank_select_se::rank_select_se(const rank_select_se& y)
     this->m_size = y.m_size;
     std::copy_n(y.m_words, y.m_capacity/WordBits, this->m_words);
     if (y.m_rank_cache) {
-        assert(m_size % WordBits == 0);
         m_rank_cache = (RankCache*)this->m_words
                      + (y.m_rank_cache - (RankCache*)y.m_words);
     }
