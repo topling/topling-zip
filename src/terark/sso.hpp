@@ -721,9 +721,15 @@ public:
   TERARK_MINIMAL_SSO_CMP_OPERATOR(>)
   TERARK_MINIMAL_SSO_CMP_OPERATOR(>=)
 
+private:
+  // for clang bug: https://github.com/llvm/llvm-project/issues/178610
+  // use minimal_sso() instead of ret_type_sso() triggers this clang bug
+  static minimal_sso ret_type_sso();
+public:
+
   template<class Range, class ToString>
   static auto join(fstring delim, const Range& rng, ToString cvt) ->
-  decltype(cvt(*rng.begin()), rng.end(), minimal_sso()) {
+  decltype(cvt(*rng.begin()), rng.end(), ret_type_sso()) {
     minimal_sso s;
     size_t cnt = 0;
     for (auto& e : rng) {
@@ -735,7 +741,7 @@ public:
   }
   template<class Range>
   static auto join(fstring delim, const Range& rng) ->
-  decltype(std::to_string(*rng.begin()), rng.end(), minimal_sso()) {
+  decltype(std::to_string(*rng.begin()), rng.end(), ret_type_sso()) {
     minimal_sso s;
     size_t cnt = 0;
     for (auto& e : rng) {
@@ -747,7 +753,7 @@ public:
   }
   template<class T, class ToString>
   static auto join(fstring delim, const T* arr, size_t len, ToString cvt) ->
-  decltype(cvt(arr[0]), minimal_sso()) {
+  decltype(cvt(arr[0]), ret_type_sso()) {
     minimal_sso s;
     for (size_t i = 0; i < len; i++) {
       if (i)
@@ -758,7 +764,7 @@ public:
   }
   template<class T>
   static auto join(fstring delim, const T* arr, size_t len) ->
-  decltype(std::to_string(arr[0]), minimal_sso()) {
+  decltype(std::to_string(arr[0]), ret_type_sso()) {
     minimal_sso s;
     for (size_t i = 0; i < len; i++) {
       if (i)
