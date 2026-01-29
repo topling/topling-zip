@@ -904,10 +904,10 @@ CombinableExtractor(Extractor1&& ex1) {
 ///@param f field
 ///@param o order/operator, '<' or '>'
 #define TERARK_CMP1(d,f,o) \
-    if (__x_ d f o __y_ d f) return true; \
-    if (__y_ d f o __x_ d f) return false;
+    if ((__x_ d f) o (__y_ d f)) return true; \
+    if ((__y_ d f) o (__x_ d f)) return false;
 
-#define TERARK_CMP_O_2(f,o)     return __x_.f o __y_.f;
+#define TERARK_CMP_O_2(f,o)     return (__x_.f) o (__y_.f);
 #define TERARK_CMP_O_4(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_2(__VA_ARGS__)
 #define TERARK_CMP_O_6(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_4(__VA_ARGS__)
 #define TERARK_CMP_O_8(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_6(__VA_ARGS__)
@@ -928,7 +928,7 @@ CombinableExtractor(Extractor1&& ex1) {
 #define TERARK_CMP_O_C(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_A(__VA_ARGS__)
 #define TERARK_CMP_O_E(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_C(__VA_ARGS__)
 
-#define TERARK_CMP_P_2(f,o)     return __x_->f o __y_->f;
+#define TERARK_CMP_P_2(f,o)     return (__x_->f) o (__y_->f);
 #define TERARK_CMP_P_4(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_2(__VA_ARGS__)
 #define TERARK_CMP_P_6(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_4(__VA_ARGS__)
 #define TERARK_CMP_P_8(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_6(__VA_ARGS__)
