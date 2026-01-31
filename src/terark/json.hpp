@@ -8268,6 +8268,26 @@ class lexer : public lexer_base<BasicJsonType>
                 {
                     switch (get())
                     {
+                        case '0':
+                            add('\0'); // topling extension
+                            break;
+
+                        case 'x': // topling extension
+                        {
+                            unsigned char h0 = get();
+                            unsigned char h1 = get();
+                            if (isxdigit(h0) && isxdigit(h1)) {
+                                unsigned x0 = isdigit(h0) ? h0 - '0' : 10 + toupper(h0) - 'A';
+                                unsigned x1 = isdigit(h1) ? h1 - '0' : 10 + toupper(h1) - 'A';
+                                add(x0 << 4 | x1);
+                            }
+                            else {
+                                error_message = "invalid string: '\\x' must be followed by 2 hex digits";
+                                return token_type::parse_error;
+                            }
+                            break;
+                        }
+
                         // quotation mark
                         case '\"':
                             add('\"');
