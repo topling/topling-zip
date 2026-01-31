@@ -863,6 +863,9 @@ TERARK_DLL_EXPORT unsigned long long ScaleSizeXiB(double val, char scale) noexce
 TERARK_DLL_EXPORT void escape_append(fstring, std::string*, char quote = '\0');
 TERARK_DLL_EXPORT std::string escape(fstring, char quote = '\0');
 
+TERARK_DLL_EXPORT void c_escape_append(fstring, std::string*, char quote = '\0');
+TERARK_DLL_EXPORT std::string c_escape(fstring, char quote = '\0');
+
 TERARK_DLL_EXPORT size_t
 unescape_may_inplace(byte_t* dest, const byte_t* src, size_t len,
 					 std::function<bool(size_t srcpos)> on_bad_pos = nullptr);

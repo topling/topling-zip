@@ -332,13 +332,16 @@ unsigned long long ScaleSizeXiB(double val, char scale) noexcept {
 // if quote == ("), escape (") as (\")
 // if quote == ('), escape (') as (\')
 // otherwise do not escape (') and (")
-template<class PushBack>
+template<bool VerbatimNonAscii, class PushBack>
 void escape_append_imp(fstring str, char quote, PushBack push_back) {
 	for(size_t  i = 0; i < size_t(str.n); ++i) {
 		byte_t  c = str.p[i];
 		switch (c) {
 		default:
 			if (c >= 0x20 && c <= 0x7E) { // isprint for ascii
+				push_back(c);
+			}
+			else if (VerbatimNonAscii && c > 0x7F) { // 127 is DEL non-print
 				push_back(c);
 			}
 			else {
@@ -375,19 +378,33 @@ void escape_append_imp(fstring str, char quote, PushBack push_back) {
 	}
 }
 
-void escape_append(fstring str, std::string* res, char quote) {
+template<bool VerbatimNonAscii>
+void escape_append_aux(fstring str, std::string* res, char quote) {
 	size_t esclen = 0;
-	escape_append_imp(str, quote, [&esclen](byte_t) { esclen++; });
+	escape_append_imp<VerbatimNonAscii>(str, quote, [&esclen](byte_t) { esclen++; });
 	size_t oldsize = res->size();
 	res->resize(oldsize + esclen);
 	char* p = &*res->begin() + oldsize;
-	escape_append_imp(str, quote, [&p](byte_t c) { *p++ = char(c); });
+	escape_append_imp<VerbatimNonAscii>(str, quote, [&p](byte_t c) { *p++ = char(c); });
 	assert(&*res->begin() + res->size() == p);
+}
+
+void escape_append(fstring str, std::string* res, char quote) {
+	escape_append_aux<false>(str, res, quote);
 }
 
 std::string escape(fstring str, char quote) {
 	std::string res;
 	escape_append(str, &res, quote);
+	return res;
+}
+
+void c_escape_append(fstring str, std::string* res, char quote) {
+	escape_append_aux<true>(str, res, quote);
+}
+std::string c_escape(fstring str, char quote) {
+	std::string res;
+	c_escape_append(str, &res, quote);
 	return res;
 }
 
