@@ -61,6 +61,7 @@ protected:
 	};
 
 public:
+	enum { is_value_out = NodeLayout::is_value_out };
 	typedef typename ParamPassType<Key>::type         key_param_pass_t;
 
 	typedef typename NodeLayout::      iterator       fast_iterator;
