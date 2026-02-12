@@ -65,6 +65,18 @@ namespace terark {
 	using std::remove_reference;
 #endif
 
+    namespace detail_adl {
+        using std::begin;
+        using std::end  ;
+        using std::size ;
+        template<class C> inline auto adl_begin(const C& c) -> decltype(begin(c)) { return begin(c); }
+        template<class C> inline auto adl_end  (const C& c) -> decltype(end  (c)) { return end  (c); }
+        template<class C> inline auto adl_size (const C& c) -> decltype(size (c)) { return size (c); }
+    }
+    using detail_adl::adl_begin;
+    using detail_adl::adl_end  ;
+    using detail_adl::adl_size ;
+
     template<size_t N, int shift> struct StaticAlignSizeHelper {
         static_assert(N != 0);
         static const int next_shift = N & (size_t(1) << shift) ? -1 : shift + 1;

@@ -789,6 +789,14 @@ public:
         std::uninitialized_copy_n(first, len, p+n);
         n = newsize;
     }
+    template<class Container>
+    auto unchecked_append(const Container& cont)
+      -> decltype(this->unchecked_append(adl_begin(cont), adl_size(cont)))
+    {
+        TERARK_ASSERT_LE(this->size(), this->capacity());
+        TERARK_ASSERT_LE(this->size() + adl_size(cont), this->capacity());
+        this->unchecked_append(adl_begin(cont), adl_size(cont));
+    }
 
     terark_no_inline
     void push_n(size_t cnt, param_type val) {
