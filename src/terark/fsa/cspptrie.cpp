@@ -2080,7 +2080,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     parent_unlock.meta.b_lazy_free = 0;
     parent_unlock.meta.b_lock = 0;
     parent_locked.meta.b_lock = 1;
-    if (!cas_weak(a[parent], parent_unlock, parent_locked)) {
+    if (!cas_weak(a[parent], parent_unlock, parent_locked, std::memory_order_acquire)) {
         lzf->m_race.lfl_parent.add_count(a[parent]);
         goto RaceCondition2;
     }
@@ -2090,7 +2090,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     curr_unlock.meta.b_lock = 0;
     curr_unlock.meta.b_lazy_free = 0;
     curr_locked.meta.b_lazy_free = 1;
-    if (!cas_weak(a[curr], curr_unlock, curr_locked)) {
+    if (!cas_weak(a[curr], curr_unlock, curr_locked, std::memory_order_acquire)) {
         lzf->m_race.lfl_curr.add_count(a[curr]);
         goto RaceCondition1;
     }
@@ -2493,7 +2493,7 @@ MarkFinalStateOnFastNode: {
       // FLAG_set_final is permanent for FastNode: once set, never clear
       lzf->m_race.n_fast_node_set_final++;
       use_busy_loop_measure;
-      while (!(as_atomic(a[curr].flags).load(std::memory_order_relaxed) & FLAG_final)) {
+      while (!(as_atomic(a[curr].flags).load(std::memory_order_acquire) & FLAG_final)) {
           _mm_pause();
       }
       token->m_valpos = valpos;

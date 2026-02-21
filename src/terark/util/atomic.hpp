@@ -45,22 +45,26 @@ namespace terark {
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wstrict-aliasing"
     template<class T>
-    inline bool cas_weak(T& x, T expected, T desired) {
+    inline bool cas_weak(T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
+        TERARK_UNUSED_VAR(mo_success);
         typedef typename GccAtomicType<sizeof(T)>::type A;
         return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
     template<class T>
-    inline bool cas_weak(volatile T& x, T expected, T desired) {
+    inline bool cas_weak(volatile T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
+        TERARK_UNUSED_VAR(mo_success);
         typedef typename GccAtomicType<sizeof(T)>::type A;
         return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
     template<class T>
-    inline bool cas_strong(T& x, T expected, T desired) {
+    inline bool cas_strong(T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
+        TERARK_UNUSED_VAR(mo_success);
         typedef typename GccAtomicType<sizeof(T)>::type A;
         return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
     template<class T>
-    inline bool cas_strong(volatile T& x, T expected, T desired) {
+    inline bool cas_strong(volatile T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
+        TERARK_UNUSED_VAR(mo_success);
         typedef typename GccAtomicType<sizeof(T)>::type A;
         return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
@@ -68,63 +72,63 @@ namespace terark {
 #else
     template<class T>
     inline
-    bool cas_weak(T& x, T expected, T desired) {
+    bool cas_weak(T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<std::atomic<T>&>(x)
         .compare_exchange_weak(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
     template<class T>
     inline
-    bool cas_weak(volatile T& x, T expected, T desired) {
+    bool cas_weak(volatile T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<volatile std::atomic<T>&>(x)
         .compare_exchange_weak(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
 
     template<class T>
     inline
-    bool cas_strong(T& x, T expected, T desired) {
+    bool cas_strong(T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<std::atomic<T>&>(x)
         .compare_exchange_strong(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
     template<class T>
     inline
-    bool cas_strong(volatile T& x, T expected, T desired) {
+    bool cas_strong(volatile T& x, T expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<volatile std::atomic<T>&>(x)
         .compare_exchange_strong(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
 #endif
 
     template<class T>
     inline
-    bool cax_weak(T& x, T& expected, T desired) {
+    bool cax_weak(T& x, T& expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<std::atomic<T>&>(x)
         .compare_exchange_weak(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
     template<class T>
     inline
-    bool cax_weak(volatile T& x, T& expected, T desired) {
+    bool cax_weak(volatile T& x, T& expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<volatile std::atomic<T>&>(x)
         .compare_exchange_weak(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
 
     template<class T>
     inline
-    bool cax_strong(T& x, T& expected, T desired) {
+    bool cax_strong(T& x, T& expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<std::atomic<T>&>(x)
         .compare_exchange_strong(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
     template<class T>
     inline
-    bool cax_strong(volatile T& x, T& expected, T desired) {
+    bool cax_strong(volatile T& x, T& expected, T desired, std::memory_order mo_success = std::memory_order_release) {
         return reinterpret_cast<volatile std::atomic<T>&>(x)
         .compare_exchange_strong(expected, desired,
-            std::memory_order_release, std::memory_order_relaxed);
+            mo_success, std::memory_order_relaxed);
     }
 
     template<class T>
