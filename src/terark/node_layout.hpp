@@ -339,7 +339,7 @@ struct node_layout<Data, Link, FastCopy, ValueInline>
 {
 	void reserve(size_t old_size, size_t new_capacity) {
 		typedef ValueInline::Node<Data, Link> Node;
-		assert(old_size < new_capacity);
+		TERARK_ASSERT_LT(old_size, new_capacity);
 		TERARK_UNUSED_VAR(old_size);
 		using M = PreferAlignAlloc<Node>;
 		Node* pn = (Node*)M::pa_realloc(this->aNode, sizeof(Node)*new_capacity);
@@ -359,7 +359,7 @@ struct node_layout<Data, Link, FastCopy, ValueOut>
 	 : node_layout_base_out<Data, Link>
 {
 	void reserve(size_t old_size, size_t new_capacity) {
-		assert(old_size < new_capacity);
+		TERARK_ASSERT_LT(old_size, new_capacity);
 		TERARK_UNUSED_VAR(old_size);
 		using M = PreferAlignAlloc<Data>;
 		Data* d = (Data*)M::pa_realloc(this->aData, sizeof(Data)*new_capacity);
@@ -385,7 +385,7 @@ struct node_layout<Data, Link, SafeCopy, ValueInline>
 	 : node_layout_base_inline<Data, Link>
 {
 	void reserve(size_t old_size, size_t new_capacity) {
-		assert(old_size < new_capacity);
+		TERARK_ASSERT_LT(old_size, new_capacity);
 		using M = PreferAlignAlloc<Node>;
 		Node* pn = (Node*)M::pa_malloc(sizeof(Node)*new_capacity);
 		if (NULL == pn) throw std::bad_alloc();
@@ -399,7 +399,7 @@ struct node_layout<Data, Link, SafeCopy, ValueInline>
 	}
 	template<class IsNotFree>
 	void reserve(size_t old_size, size_t new_capacity, IsNotFree is_not_free) {
-		assert(old_size < new_capacity);
+		TERARK_ASSERT_LT(old_size, new_capacity);
 		using M = PreferAlignAlloc<Node>;
 		Node* pn = (Node*)M::pa_malloc(sizeof(Node)*new_capacity);
 		if (NULL == pn) throw std::bad_alloc();
@@ -425,7 +425,7 @@ struct node_layout<Data, Link, SafeCopy, ValueOut>
 	 : node_layout_base_out<Data, Link>
 {
 	void reserve(size_t old_size, size_t new_capacity) {
-		assert(old_size < new_capacity);
+		TERARK_ASSERT_LT(old_size, new_capacity);
 		Link* l = (Link*)realloc(this->aLink, sizeof(Link)*new_capacity);
 		if (NULL == l) throw std::bad_alloc();
 		this->aLink = l;
@@ -442,7 +442,7 @@ struct node_layout<Data, Link, SafeCopy, ValueOut>
 	}
 	template<class IsNotFree>
 	void reserve(size_t old_size, size_t new_capacity, IsNotFree is_not_free) {
-		assert(old_size < new_capacity);
+		TERARK_ASSERT_LT(old_size, new_capacity);
 		Link* l = (Link*)realloc(this->aLink, sizeof(Link)*new_capacity);
 		if (NULL == l) throw std::bad_alloc();
 		this->aLink = l;
