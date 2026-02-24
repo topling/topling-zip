@@ -333,6 +333,9 @@ struct node_layout_base_out
 	}
 };
 
+#define NODE_LAYOUT_CHECK_ALLOC(p, AllocFunc, bytes) \
+	TERARK_VERIFY_F(p != nullptr, "%s(%zd)", AllocFunc, bytes)
+
 template<class Data, class Link>
 struct node_layout<Data, Link, FastCopy, ValueInline>
 	 : node_layout_base_inline<Data, Link>
@@ -340,10 +343,13 @@ struct node_layout<Data, Link, FastCopy, ValueInline>
 	void reserve(size_t old_size, size_t new_capacity) {
 		typedef ValueInline::Node<Data, Link> Node;
 		TERARK_ASSERT_LT(old_size, new_capacity);
-		TERARK_UNUSED_VAR(old_size);
+		if (0 == old_size) {
+			// to avoid realloc memcpy old memory
+			this->free(); // will nullize aNode
+		}
 		using M = PreferAlignAlloc<Node>;
 		Node* pn = (Node*)M::pa_realloc(this->aNode, sizeof(Node)*new_capacity);
-		if (NULL == pn) throw std::bad_alloc();
+		NODE_LAYOUT_CHECK_ALLOC(pn, "pa_realloc", sizeof(Node)*new_capacity);
 		this->aNode = pn;
 	}
 	template<class IsNotFree>
@@ -360,13 +366,16 @@ struct node_layout<Data, Link, FastCopy, ValueOut>
 {
 	void reserve(size_t old_size, size_t new_capacity) {
 		TERARK_ASSERT_LT(old_size, new_capacity);
-		TERARK_UNUSED_VAR(old_size);
+		if (0 == old_size) {
+			// to avoid realloc memcpy old memory
+			this->free(); // will nullize aData & aLink
+		}
 		using M = PreferAlignAlloc<Data>;
 		Data* d = (Data*)M::pa_realloc(this->aData, sizeof(Data)*new_capacity);
-		if (NULL == d) throw std::bad_alloc();
+		NODE_LAYOUT_CHECK_ALLOC(d, "pa_realloc", sizeof(Data)*new_capacity);
 		this->aData = d;
 		Link* l = (Link*)realloc(this->aLink, sizeof(Link)*new_capacity);
-		if (NULL == l) throw std::bad_alloc();
+		NODE_LAYOUT_CHECK_ALLOC(l, "realloc", sizeof(Link)*new_capacity);
 		this->aLink = l;
 	}
 	template<class IsNotFree>
