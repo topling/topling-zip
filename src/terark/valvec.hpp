@@ -363,9 +363,15 @@ private:
     void reserve_slow(size_t newcap) {
         assert(newcap > c);
         TERARK_VERIFY_LE(n, c);
-        T* q = (T*)pa_realloc(p, sizeof(T) * newcap);
-        if (NULL == q) TERARK_DIE("realloc(%zd)", sizeof(T) * newcap);
-        p = q;
+        if (n) {
+            T* q = (T*)pa_realloc(p, sizeof(T) * newcap);
+            if (NULL == q) TERARK_DIE("realloc(%zd)", sizeof(T) * newcap);
+            p = q;
+        } else {
+            free(p);
+            p = (T*)pa_malloc(sizeof(T) * newcap);
+            if (NULL == p) TERARK_DIE("malloc(%zd)", sizeof(T) * newcap);
+        }
         c = newcap;
     }
     terark_no_inline void destroy_and_free() {
