@@ -116,7 +116,11 @@ namespace terark {
                     else
                         return mallocx(bytes, MALLOCX_ALIGN(NatureAlign));
                 else
+                {
+                    if (ptr)
+                        free(ptr);
                     return nullptr;
+                }
             }
            #endif
             return ::realloc(ptr, bytes);
