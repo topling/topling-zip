@@ -94,7 +94,7 @@ public:
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	template<class String>
-	typename std::enable_if<!std::is_fundamental<String>::value>::type
+	typename std::enable_if<!std::is_pointer<String>::value>::type
 	push_back(const String& str) {
 		basic_fstrvec_check_overflow(str.size());
 		strpool.append(str.data(), str.size());
@@ -106,7 +106,7 @@ public:
 		offsets.push_back(OffsetOp::make(strpool.size()));
 	}
 	template<class String>
-	typename std::enable_if<!std::is_fundamental<String>::value>::type
+	typename std::enable_if<!std::is_pointer<String>::value>::type
 	push_back(const String& str, Char lastChar) {
 		basic_fstrvec_check_overflow(str.size()+1);
 		strpool.append(str.data(), str.size());
@@ -147,7 +147,7 @@ public:
 		OffsetOp::inc(offsets.back(), last - first);
 	}
 	template<class String>
-	typename std::enable_if<!std::is_fundamental<String>::value>::type
+	typename std::enable_if<!std::is_scalar<String>::value>::type
 	back_append(const String& str) {
 		assert(offsets.size() >= 2);
 		basic_fstrvec_check_overflow(str.size());
