@@ -25,6 +25,7 @@ public:
 	FILE* operator->() const { return f; } // feof(fp) maybe a macro
 	explicit Auto_fclose(FILE* fp = NULL) { f = fp; }
 	~Auto_fclose() { if (NULL != f) ::fclose(f); }
+	void close() { if (NULL != f) { ::fclose(f); f = NULL; } }
 	void operator=(FILE* f0) { f = f0; } // disable chained assign
 	FILE* self_or(FILE* f2) const { return f ? f : f2; }
 };
@@ -49,6 +50,14 @@ public:
 	#else
 		if (f >= 0) ::close(f);
 	#endif
+	}
+	void close() {
+	#ifdef _MSC_VER
+		if (f >= 0) ::_close(f);
+	#else
+		if (f >= 0) ::close(f);
+	#endif
+		f = -1;
 	}
 	void operator=(int f0) { f = f0; } // disable chained assign
 	int self_or(int f2) const { return f >= 0 ? f : f2; }
