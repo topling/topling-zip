@@ -230,8 +230,8 @@ bool parseBooleanRelaxed(const char* str, bool Default) noexcept {
 	while (isspace((unsigned char)*str)) {
 		++str;
 	}
-	if (isdigit(str[0])) {
-		return atoi(str) != 0;
+	if (isdigit((unsigned char)str[0])) {
+		return str[0] != '0';
 	}
 	size_t len = 0;
 	while (str[len] && isalpha((unsigned char)str[len])) {
@@ -253,6 +253,37 @@ bool parseBooleanRelaxed(const char* str, bool Default) noexcept {
 	fprintf(stderr
 		, "WARN: terark::parseBooleanRelaxed(\"%s\") fail, use Default = %s\n"
 		, str, Default?"true":"false"
+	);
+	return Default;
+}
+
+bool parseBooleanRelaxed(fstring str, bool Default) noexcept {
+	if (str.empty()) {
+		return Default;
+	}
+	while (isspace((unsigned char)str[0])) {
+		str.p++;
+		str.n--;
+	}
+	if (isdigit(str[0])) {
+		return str[0] != '0';
+	}
+	auto strcasecmp = [str](const char* s2) {
+		if (strlen(s2) != str.size())
+			return 1; // not equal, don't care greater or less
+		return strncasecmp(str.data(), s2, str.size());
+	};
+	if (strcasecmp("true") == 0)
+		return true;
+	if (strcasecmp("false") == 0)
+		return false;
+	if (strcasecmp("on" ) == 0) return true;
+	if (strcasecmp("off") == 0) return false;
+	if (strcasecmp("yes") == 0) return true;
+	if (strcasecmp("no" ) == 0) return false;
+	fprintf(stderr
+		, "WARN: terark::parseBooleanRelaxed(\"%.*s\") fail, use Default = %s\n"
+		, str.ilen(), str.data(), Default?"true":"false"
 	);
 	return Default;
 }
