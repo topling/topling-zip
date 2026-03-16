@@ -65,6 +65,9 @@ namespace terark {
 	using std::remove_reference;
 #endif
 
+    template<class T> reference_wrapper<T> rvref(T&& x) { return ref(x); }
+    template<class T> reference_wrapper<const T> rvref(const T&& x) { return cref(x); }
+
     namespace detail_adl {
         using std::begin;
         using std::end  ;
