@@ -68,6 +68,16 @@ namespace terark {
     template<class T> reference_wrapper<T> rvref(T&& x) { return ref(x); }
     template<class T> reference_wrapper<const T> rvref(const T&& x) { return cref(x); }
 
+    struct rvref_cvt {
+        template<class T> reference_wrapper<T> operator*(T&& x) const { return ref(x); }
+        template<class T>
+        reference_wrapper<const T> operator*(const T&& x) const { return cref(x); }
+    };
+    // usage:
+    //   void foo(std::function<...>); // declare
+    //   foo(_rvref * [&](...) { });
+    static constexpr rvref_cvt _rvref;
+
     namespace detail_adl {
         using std::begin;
         using std::end  ;
