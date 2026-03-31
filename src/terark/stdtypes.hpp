@@ -47,6 +47,7 @@ class EmptyClass{};
 template<class SizeT, class AlignT>
 inline SizeT align_up(SizeT size, AlignT align_size)
 {
+	assert(align_size != 0);
 	size = (size + align_size - 1);
 	return size - size % align_size;
 }
@@ -54,12 +55,14 @@ inline SizeT align_up(SizeT size, AlignT align_size)
 template<class SizeT, class AlignT>
 inline SizeT align_down(SizeT size, AlignT align_size)
 {
+	assert(align_size != 0);
 	return size - size % align_size;
 }
 
 template<class SizeT, class AlignT>
 inline SizeT remain_on_align(SizeT n, AlignT align)
 {
+	assert(align != 0);
 /*  if (size % align == 0)
         return 0;
     else
@@ -70,12 +73,14 @@ inline SizeT remain_on_align(SizeT n, AlignT align)
 
 template<class SizeT, class AlignT>
 inline SizeT pow2_align_up(SizeT size, AlignT align) {
+	assert(align != 0);
     assert(((align-1) & align) == 0);
 	return (size + align-1) & ~SizeT(align-1);
 }
 
 template<class SizeT, class AlignT>
 inline SizeT pow2_align_down(SizeT size, AlignT align) {
+	assert(align != 0);
     assert(((align-1) & align) == 0);
 	return size & ~SizeT(align-1);
 }
