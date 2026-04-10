@@ -789,9 +789,9 @@ decltype(minimal_sso<32>::join(std::forward<Args>(args)...))
 
 namespace std {
 
-template <size_t SizeSSO, bool WithEOS>
-void swap(terark::minimal_sso<SizeSSO, WithEOS>& x,
-          terark::minimal_sso<SizeSSO, WithEOS>& y) { x.swap(y); }
+template <size_t SizeSSO, bool WithEOS, size_t Align>
+void swap(terark::minimal_sso<SizeSSO, WithEOS, Align>& x,
+          terark::minimal_sso<SizeSSO, WithEOS, Align>& y) { x.swap(y); }
 
 template<size_t SizeSSO, bool WithEOS, size_t Align>
 struct hash<terark::minimal_sso<SizeSSO, WithEOS, Align> > : terark::fstring_func::hash {
