@@ -85,6 +85,19 @@ SOFTWARE.
 
 #include <cstddef> // size_t
 
+#include "json_fwd.hpp"
+
+#if defined(TOPLING_JSON_SSO_STRING_CAP) && TOPLING_JSON_SSO_STRING_CAP
+namespace std {
+    template<class T>
+    inline json_sso_string to_json_sso_string(const T& x) {
+        return to_string(x);
+    }
+    #define to_string to_json_sso_string
+    #define string json_sso_string
+}
+#endif
+
 namespace topling
 {
 namespace detail
@@ -2704,8 +2717,6 @@ using is_detected_convertible =
     std::is_convertible<detected_t<Op, Args...>, To>;
 }  // namespace detail
 }  // namespace topling
-
-#include "json_fwd.hpp"
 
 namespace topling
 {
@@ -24650,3 +24661,8 @@ inline topling::json::json_pointer operator""_json_pointer(const char* s, std::s
 #undef JSON_HEDLEY_WARN_UNUSED_RESULT
 #undef JSON_HEDLEY_WARN_UNUSED_RESULT_MSG
 #undef JSON_HEDLEY_FALL_THROUGH
+
+#if defined(TOPLING_JSON_SSO_STRING_CAP) && TOPLING_JSON_SSO_STRING_CAP
+   #undef to_string
+   #undef string
+#endif

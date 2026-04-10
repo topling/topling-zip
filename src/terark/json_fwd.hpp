@@ -8,6 +8,19 @@
 #ifndef SIDE_PLUGIN_JSON_USE_STD_MAP
 #include <terark/gold_hash_map.hpp>
 
+typedef std::string json_org_std_string;
+#if defined(TOPLING_JSON_SSO_STRING_CAP) && TOPLING_JSON_SSO_STRING_CAP
+static_assert(TOPLING_JSON_SSO_STRING_CAP == 32 || TOPLING_JSON_SSO_STRING_CAP == 64);
+#include <terark/sso.hpp>
+namespace std {
+    using json_sso_string = terark::minimal_sso<TOPLING_JSON_SSO_STRING_CAP>;
+}
+#else
+namespace std {
+    using json_sso_string = string;
+}
+#endif
+
 namespace terark {
 
 #define JsonStrMap_Base gold_hash_map<Key, Val \
@@ -51,7 +64,7 @@ template<template<typename U, typename V, typename... Args> class ObjectType =
          terark::JsonStrMap,
 #endif
          template<typename U, typename... Args> class ArrayType = std::vector,
-         class StringType = std::string, class BooleanType = bool,
+         class StringType = std::json_sso_string, class BooleanType = bool,
          class NumberIntegerType = std::int64_t,
          class NumberUnsignedType = std::uint64_t,
          class NumberFloatType = double,
