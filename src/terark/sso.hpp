@@ -145,6 +145,7 @@ public:
   using value_type = char;
   using iterator = char*;
   using const_iterator = const char*;
+  static constexpr size_t npos = SIZE_MAX;
   ~minimal_sso() {
     if (m_local.m_unused_len != 255) { // local
       TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
@@ -657,6 +658,62 @@ public:
   int         operator~() const { return int(size()); } // for %.*s
   int         ilen()      const { return int(size()); } // for %.*s
 
+  size_t find_first_of(char ch, size_t start = 0) const {
+    fstring s = this->to<fstring>();
+    return s.find(ch, start);
+  }
+  size_t find(char ch, size_t start = 0) const {
+    fstring s = this->to<fstring>();
+    return s.find(ch, start);
+  }
+  size_t find(const minimal_sso& needle, size_t start = 0) const {
+    fstring s = this->to<fstring>();
+    return s.find(needle.to<fstring>(), start);
+  }
+  minimal_sso replace(size_t pos, size_t len, const minimal_sso& new_content) {
+    TERARK_ASSERT_LE(len, size());
+    TERARK_ASSERT_LE(pos, size());
+    TERARK_ASSERT_LE(pos + len, size());
+    fstring New(new_content);
+    auto oldsize = size();
+    if (len < New.size()) {
+      this->resize(oldsize + New.size() - len);
+      auto base = data();
+      memmove(base + pos + New.size(), base + pos + len, oldsize - (pos + len));
+      memcpy(base + pos, New.data(), New.size());
+    } else {
+      auto base = data();
+      memmove(base + pos + New.size(), base + pos + len, oldsize - (pos + len));
+      memcpy(base + pos, New.data(), New.size());
+      this->resize(oldsize + New.size() - len);
+    }
+    return *this;
+  }
+  const char& operator[](size_t i) const {
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(i, local_size());
+      return m_local.m_space[i];
+    } else {
+      TERARK_ASSERT_LE(i, m_alloc.m_len);
+      return m_alloc.m_ptr[i];
+    }
+  }
+  char& operator[](size_t i) {
+    if (m_local.m_unused_len != 255) {
+      TERARK_ASSERT_LE(m_local.m_unused_len, sizeof(m_local.m_space));
+      TERARK_ASSERT_LE(i, local_size());
+      return m_local.m_space[i];
+    } else {
+      TERARK_ASSERT_LE(i, m_alloc.m_len);
+      return m_alloc.m_ptr[i];
+    }
+  }
+  const char& front() const { assert(!empty()); return (*this)[0]; }
+        char& front()       { assert(!empty()); return (*this)[0]; }
+  const char& back () const { assert(!empty()); return end()[-1]; }
+        char& back ()       { assert(!empty()); return end()[-1]; }
+
   template <class Tstring>
   auto operator+=(const Tstring& y) -> std::enable_if_t
   <std::is_same_v<decltype(y.data()), const char*>, minimal_sso&>
@@ -785,6 +842,42 @@ inline auto ssojoin(Args&&... args) ->
 decltype(minimal_sso<32>::join(std::forward<Args>(args)...))
 { return minimal_sso<32>::join(std::forward<Args>(args)...);}
 
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+int stoi(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+         size_t* pos = nullptr, int base = 10) {
+    return std::stoi(s.str(), pos, base);
+}
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+long stol(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+          size_t* pos = nullptr, int base = 10) {
+    return std::stol(s.str(), pos, base);
+}
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+unsigned long stoul(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+                    size_t* pos = nullptr, int base = 10) {
+    return std::stoul(s.str(), pos, base);
+}
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+long long stoll(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+                size_t* pos = nullptr, int base = 10) {
+    return std::stoll(s.str(), pos, base);
+}
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+unsigned long long stoull(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+                          size_t* pos = nullptr, int base = 10) {
+    return std::stoull(s.str(), pos, base);
+}
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+float stof(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+           size_t* pos = nullptr) {
+    return std::stof(s.str(), pos);
+}
+template<size_t SizeSSO, bool WithEOS, size_t Align>
+double stod(const minimal_sso<SizeSSO, WithEOS, Align>& s,
+            size_t* pos = nullptr) {
+    return std::stod(s.str(), pos);
+}
+
 } // namespace terark
 
 namespace std {
@@ -799,5 +892,13 @@ struct hash<terark::minimal_sso<SizeSSO, WithEOS, Align> > : terark::fstring_fun
     return terark::fstring_func::hash::operator()(s.template to<terark::fstring>());
   }
 };
+
+using terark::stoi;
+using terark::stol;
+using terark::stoul;
+using terark::stoll;
+using terark::stoull;
+using terark::stof;
+using terark::stod;
 
 } // namespace std
