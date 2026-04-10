@@ -296,15 +296,15 @@ struct TERARK_DLL_EXPORT basic_fstring {
 	}
 
 	const Char* strchr(uc_t ch) const { return terark_fstrchr(p, n, ch); }
-	const Char* strchr(size_t pos, uc_t ch) const {
+	const Char* strchr(uc_t ch, size_t pos) const {
 		TERARK_ASSERT_LE(pos, size());
 		return terark_fstrchr(p + pos, n - pos, ch);
 	}
 	const Char* strstr(basic_fstring needle) const {
 		assert(needle.n > 0);
-		return this->strstr(0, needle);
+		return this->strstr(needle, 0);
 	}
-	const Char* strstr(ptrdiff_t pos, basic_fstring needle) const {
+	const Char* strstr(basic_fstring needle, ptrdiff_t pos) const {
 		assert(pos >= 0);
 		assert(pos <= n);
 		assert(needle.n > 0);
@@ -312,7 +312,7 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		return terark_fstrstr(p + pos, n - pos, needle.p, needle.n);
 	}
 
-	size_t find(ptrdiff_t pos, basic_fstring needle) const {
+	size_t find(basic_fstring needle, ptrdiff_t pos) const {
 		assert(pos >= 0);
 		assert(pos <= n);
 		assert(needle.n > 0);
@@ -321,10 +321,10 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		return hit ? hit - p : npos;
 	}
 	size_t find(basic_fstring needle) const {
-		return find(0, needle);
+		return find(needle, 0);
 	}
 
-	size_t find_i(ptrdiff_t pos, basic_fstring needle) const {
+	size_t find_i(basic_fstring needle, ptrdiff_t pos) const {
 		assert(pos >= 0);
 		assert(pos <= n);
 		assert(needle.n > 0);
@@ -335,11 +335,11 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		else
 			return size();
 	}
-	size_t find_i(basic_fstring needle) const { return find(0, needle); }
+	size_t find_i(basic_fstring needle) const { return find(needle, 0); }
 
-	size_t find(size_t pos, uc_t ch) const {
+	size_t find(uc_t ch, size_t pos) const {
 		TERARK_ASSERT_LE(pos, size());
-		const Char* hit = strchr(pos, ch);
+		const Char* hit = strchr(ch, pos);
 		if (hit)
 			TOPLING_ASSUME_RETURN(size_t(hit - p), != npos);
 		else
@@ -353,9 +353,9 @@ struct TERARK_DLL_EXPORT basic_fstring {
 			return npos;
 	}
 
-	size_t find_i(size_t pos, uc_t ch) const {
+	size_t find_i(uc_t ch, size_t pos) const {
 		TERARK_ASSERT_LE(pos, size());
-		const Char* hit = strchr(pos, ch);
+		const Char* hit = strchr(ch, pos);
 		if (hit)
 			TOPLING_ASSUME_RETURN(size_t(hit - p), != size());
 		else
@@ -431,7 +431,7 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		assert(!this->empty());
 		TERARK_ASSERT_LT(field_iter, this->size());
 		size_t beg = field_iter;
-		const Char* hit = this->strchr(beg, delim);
+		const Char* hit = this->strchr(delim, beg);
 		if (hit) {
 			size_t End = hit - this->p;
 			field_iter = End + 1;
@@ -447,7 +447,7 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		assert(!this->empty());
 		TERARK_ASSERT_LT(field_iter, this->size());
 		size_t beg = field_iter;
-		const Char* hit = this->strstr(beg, delim);
+		const Char* hit = this->strstr(delim, beg);
 		if (hit) {
 			size_t End = hit - this->p;
 			field_iter = End + delim.size();

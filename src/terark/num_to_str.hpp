@@ -199,12 +199,12 @@ struct ReplaceSubStr {
 	template<class OutputStream>
 	OutputStream& operator()(OutputStream& os) const {
 		auto text_data = text.data();
-		auto search_pos = size_t(0), hit_pos = text.find(search_pos, match);
+		auto search_pos = size_t(0), hit_pos = text.find(match, search_pos);
 		while (hit_pos != StringView::npos) {
 			os.write(text_data + search_pos, hit_pos - search_pos);
 			os.write(replace.data(), replace.size());
 			search_pos = hit_pos + match.size();
-			hit_pos = text.find(search_pos, match);
+			hit_pos = text.find(match, search_pos);
 		}
 		TERARK_ASSERT_LE(search_pos, text.size());
 		os.write(text_data + search_pos, text.size() - search_pos);
