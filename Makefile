@@ -455,8 +455,13 @@ alldep = $(addprefix ${rdir}/, $(addsuffix .d, $(basename ${allsrc}))) \
          $(addprefix ${ddir}/, $(addsuffix .d, $(basename ${allsrc})))
 
 ifeq ($(USE_LTO),1)
+ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
+  RLS_FLAGS += -flto=thin
+  LTO_LDFLAGS := -flto=thin -fuse-linker-plugin -fuse-ld=lld -Wl,--thinlto-jobs=all
+else
   RLS_FLAGS += -flto
   LTO_LDFLAGS := -flto=auto -fuse-linker-plugin
+endif
 ${RLS_TARGETS}: LDFLAGS := ${LDFLAGS} ${LTO_LDFLAGS}
 endif
 
