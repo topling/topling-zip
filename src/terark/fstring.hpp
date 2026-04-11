@@ -331,7 +331,7 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		if (pos + needle.n > n) return npos;
 		const Char* hit = terark_fstrstr(p + pos, n - pos, needle.p, needle.n);
 		if (hit)
-			TOPLING_ASSUME_RETURN(size_t(hit - p), != size());
+			TOPLING_ASSUME_RETURN(size_t(hit - p), != size_t(n));
 		else
 			return size();
 	}
@@ -357,14 +357,14 @@ struct TERARK_DLL_EXPORT basic_fstring {
 		TERARK_ASSERT_LE(pos, size());
 		const Char* hit = strchr(ch, pos);
 		if (hit)
-			TOPLING_ASSUME_RETURN(size_t(hit - p), != size());
+			TOPLING_ASSUME_RETURN(size_t(hit - p), != size_t(n));
 		else
 			return size();
 	}
 	size_t find_i(uc_t ch) const {
 		const Char* hit = strchr(ch);
 		if (hit)
-			TOPLING_ASSUME_RETURN(size_t(hit - p), != size());
+			TOPLING_ASSUME_RETURN(size_t(hit - p), != size_t(n));
 		else
 			return size();
 	}
