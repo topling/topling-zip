@@ -878,6 +878,89 @@ double stod(const minimal_sso<SizeSSO, WithEOS, Align>& s,
     return std::stod(s.str(), pos);
 }
 
+// Usage example:
+//   std::string decimal_str = "1234";
+//   decrement_as_bignum(decimal_str, '0', '9'); // return true
+//   increment_as_bignum(decimal_str, '0', '9'); // return true
+//   decimal_str = "999";
+//   increment_as_bignum(decimal_str, '0', '9'); // return false
+//   decimal_str = "000";
+//   decrement_as_bignum(decimal_str, '0', '9'); // return false
+//   std::string binary_str = "1000100";
+//   decrement_as_bignum(binary_str, '0', '1'); // return true
+//   increment_as_bignum(binary_str, '0', '1'); // return true
+
+template<class String>
+bool decrement_as_bignum(String& str, typename String::value_type min,
+                                      typename String::value_type max) {
+  TERARK_ASSERT_GT(max , min);
+  TERARK_ASSERT_GE(max - min, 1);
+  for (size_t len = str.size(), i = len; i > 0; ) {
+    auto& ch = str[--i];
+    TERARK_ASSERT_GE(ch, min);
+    TERARK_ASSERT_LE(ch, max);
+    if (ch > min) {
+      ch--;
+      while (++i < len) {
+        str[i] = max;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+template<class String>
+bool increment_as_bignum(String& str, typename String::value_type min,
+                                      typename String::value_type max) {
+  TERARK_ASSERT_GT(max , min);
+  TERARK_ASSERT_GE(max - min, 1);
+  for (size_t len = str.size(), i = len; i > 0; ) {
+    auto& ch = str[--i];
+    TERARK_ASSERT_GE(ch, min);
+    TERARK_ASSERT_LE(ch, max);
+    if (ch < max) {
+      ch++;
+      while (++i < len) {
+        str[i] = min;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+template<class String>
+void increment_as_bignum_allow_carry(String& str,
+                                     typename String::value_type min,
+                                     typename String::value_type max) {
+  if (!increment_as_bignum(str, min, max)) {
+    size_t len = str.size();
+    str.clear();
+    str.resize(len + 1, min);
+    str[0] = min + 1;
+  }
+}
+
+// min act as zero, such '0'/'a'/'A'/...
+template<class String>
+size_t
+remove_leading_zero_as_bignum(String& str, typename String::value_type min) {
+  size_t i = 0, len = str.size();
+  while (i < len && str[i] == min) {
+    i++;
+  }
+  if (i > 0 && len > 1) {
+    if (i == len) { // "000" should be changed to "0", not ""
+      str.resize(1);
+      return len - 1;
+    }
+    std::copy_n(str.begin() + i, len - i, str.begin());
+    str.resize(len - i);
+  }
+  return i;
+}
+
 } // namespace terark
 
 namespace std {
