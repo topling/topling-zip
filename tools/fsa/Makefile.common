@@ -77,12 +77,7 @@ endif
 #RLS_ASAN ?=
 AFR_FLAGS = -Og ${AFR_ASAN}
 DBG_FLAGS = -O0 ${DBG_ASAN}
-RLS_FLAGS = -Ofast -DNDEBUG ${RLS_ASAN}
-
-ifeq ($(USE_LTO),1)
-  RLS_FLAGS += -flto
-  LTO_LDFLAGS := -flto=auto -fuse-linker-plugin
-endif
+RLS_FLAGS = -O3 -DNDEBUG ${RLS_ASAN}
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
@@ -98,6 +93,10 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
   COMMON_C_FLAGS += -fcolor-diagnostics
   #LDFLAGS += -latomic
   #$(error LDFLAGS = ${LDFLAGS})
+  ifeq ($(USE_LTO),1)
+    RLS_FLAGS += -flto=thin
+    LTO_LDFLAGS := -flto=thin -fuse-linker-plugin -fuse-ld=lld -Wl,--thinlto-jobs=all
+  endif
 endif
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
@@ -110,6 +109,10 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   endif
 #  override CXXFLAGS += -fmax-errors=5
   #override CXXFLAGS += -fmax-errors=2
+  ifeq ($(USE_LTO),1)
+    RLS_FLAGS += -flto
+    LTO_LDFLAGS := -flto=auto -fuse-linker-plugin
+  endif
 endif
 
 # icc or icpc
