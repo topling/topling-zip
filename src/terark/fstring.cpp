@@ -642,6 +642,7 @@ TERARK_DLL_EXPORT
 int decimal_strcmp(fstring a, bool a_neg, fstring b, bool b_neg) {
 	if (a_neg && !b_neg) return -1; // 负 < 正
 	if (!a_neg && b_neg) return +1; // 正 > 负
+	if (a.size() != b.size()) return a.size() < b.size() ? -1 : +1;
 	int cmp = a.compare(b);
 	if (cmp)
 		cmp = cmp < 0 ? -1 : +1;
