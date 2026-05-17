@@ -861,6 +861,8 @@ public:
 		size_t  n = nElem;
 		size_t  erased = 0;
 		NodeLayout nl = m_nl;
+		bool old_auto_gc = m_enable_auto_gc;
+		m_enable_auto_gc = false; // prevent revoke_deleted from changing nElem
 		if (0 == freelist_size) {
 			TERARK_VERIFY_EQ(freelist_head, tail);
 			for (size_t i = 0; i != n; ++i)
@@ -872,6 +874,10 @@ public:
 			for (size_t i = 0; i != n; ++i)
 				if (delmark != nl.link(i) && pred(nl.data(i)))
 					erase_i(i), ++erased;
+		}
+		m_enable_auto_gc = old_auto_gc;
+		if (old_auto_gc && freelist_size > nElem/2) {
+			revoke_deleted();
 		}
 		return erased;
 	}
@@ -1470,7 +1476,7 @@ protected:
 			if ((size_t*)(hash_cache_disabled) != pHash) {
 				TERARK_VERIFY(nullptr != pHash);
 				for (size_t j = 0; j < n; ++j)
-					pHash[j] = HashEqual::hash(MyKeyExtractor(nl.data(i)));
+					pHash[j] = HashEqual::hash(MyKeyExtractor(nl.data(j)));
 			}
 		  #endif
 			nElem = LinkTp(size.t);
@@ -1515,7 +1521,7 @@ protected:
 		dio << typename DataIO::my_var_uint64_t(this->size());
 		if (this->freelist_size) {
 			for (size_t i = 0, n = this->end_i(); i < n; ++i)
-				if (this->is_deleted(i))
+				if (!this->is_deleted(i))
 					dio << m_nl.data(i);
 		} else {
 			for (size_t i = 0, n = this->end_i(); i < n; ++i)
