@@ -577,7 +577,7 @@ size_t rank_select_mixed_se_512::select0_dx(size_t Rank0) const noexcept {
     __m512i arr3 = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
     __m512i arr = _mm512_sub_epi64(arr0, arr3);
     __m512i key = _mm512_set1_epi64(Rank0 - hit);
-    __mmask8 cmp = _mm512_cmpgt_epi64_mask(arr, key);
+    __mmask8 cmp = _mm512_cmpgt_epu64_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 8)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 8);
@@ -664,7 +664,7 @@ size_t rank_select_mixed_se_512::select1_dx(size_t Rank1) const noexcept {
     __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
     __m512i arr = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
     __m512i key = _mm512_set1_epi64(Rank1 - hit);
-    __mmask8 cmp = _mm512_cmpgt_epi64_mask(arr, key);
+    __mmask8 cmp = _mm512_cmpgt_epu64_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 8)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 8);

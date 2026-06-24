@@ -178,7 +178,7 @@ noexcept {
         __m512i vec1 = _mm512_maskz_loadu_epi64(k1, &rankCache[lo + 6]); // 8 cycles
         __m512i vec2 = _mm512_permutex2var_epi64(vec0, permute_index, vec1); // 3 cycles
         __m512i vec3 = _mm512_sub_epi64(vecs, vec2); // 1 cycles
-        auto cmp = _mm512_mask_cmpgt_epi64_mask(msk, vec3, key); // 3 cycles
+        auto cmp = _mm512_mask_cmpgt_epu64_mask(msk, vec3, key); // 3 cycles
         auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
         lo += tz;
         TERARK_ASSERT_LT(Rank0, LineBits * lo - rankCache[lo].base);
@@ -196,7 +196,7 @@ noexcept {
             _mm512_set_epi32(45,42,39,36,33,30,27,24,21,18,15,12,9,6,3,0), rankCache+lo, 4);
       #endif
         __m512i vec3 = _mm512_sub_epi32(vecs, vec2); // 1 cycles
-        auto cmp = _mm512_mask_cmpgt_epi32_mask(msk, vec3, key);
+        auto cmp = _mm512_mask_cmpgt_epu32_mask(msk, vec3, key);
         auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
         lo += tz;
         TERARK_ASSERT_LT(Rank0, LineBits * lo - rankCache[lo].base);
@@ -243,7 +243,7 @@ noexcept {
     __m512i arr3 = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
     __m512i arr = _mm512_sub_epi64(arr0, arr3);
     __m512i key = _mm512_set1_epi64(Rank0 - hit);
-    __mmask8 cmp = _mm512_cmpgt_epi64_mask(arr, key);
+    __mmask8 cmp = _mm512_cmpgt_epu64_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 8)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 8);
@@ -308,7 +308,7 @@ noexcept {
         __m512i vec0 = _mm512_maskz_loadu_epi64(k0, &rankCache[lo + 0]); // 8 cycles
         __m512i vec1 = _mm512_maskz_loadu_epi64(k1, &rankCache[lo + 6]); // 8 cycles
         __m512i vec2 = _mm512_permutex2var_epi64(vec0, permute_index, vec1); // 3 cycles
-        __mmask8 cmp = _mm512_mask_cmpgt_epi64_mask(msk, vec2, key); // 3 cycles
+        __mmask8 cmp = _mm512_mask_cmpgt_epu64_mask(msk, vec2, key); // 3 cycles
         auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
         lo += tz;
         TERARK_ASSERT_LT(Rank1, rankCache[lo].base);
@@ -325,7 +325,7 @@ noexcept {
         __m512i vec2 = _mm512_mask_i32gather_epi32(_mm512_setzero_epi32(), msk,
             _mm512_set_epi32(45,42,39,36,33,30,27,24,21,18,15,12,9,6,3,0), rankCache+lo, 4);
       #endif
-        __mmask8 cmp = _mm512_mask_cmpgt_epi32_mask(msk, vec2, key);
+        __mmask8 cmp = _mm512_mask_cmpgt_epu32_mask(msk, vec2, key);
         auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
         lo += tz;
         TERARK_ASSERT_LT(Rank1, rankCache[lo].base);
@@ -373,7 +373,7 @@ noexcept {
     __m512i arr2 = _mm512_srlv_epi64(arr1, shift);
     __m512i arr = _mm512_and_epi64(arr2, _mm512_set1_epi64(0x1FF));
     __m512i key = _mm512_set1_epi64(Rank1 - hit);
-    __mmask8 cmp = _mm512_cmpgt_epi64_mask(arr, key);
+    __mmask8 cmp = _mm512_cmpgt_epu64_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 8)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 8);

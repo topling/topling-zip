@@ -246,7 +246,7 @@ const noexcept {
     __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
     __m256i vec3 = _mm256_sub_epi32(vec0, vec2);
     __m256i key = _mm256_set1_epi32(Rank0);
-    __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec3, key);
+    __mmask8 cmp = _mm256_mask_cmpgt_epu32_mask(k, vec3, key);
     auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
     lo += tz;
     TERARK_ASSERT_LT(Rank0, LineBits * lo - rank_cache[lo].lev1);
@@ -279,7 +279,7 @@ size_t rank_select_se::select0(size_t Rank0) const noexcept {
     __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
     __m128i arr = _mm_sub_epi32(arr1, arr2); // rc.lev2[0] is always 0
     __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
-    __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
+    __mmask8 cmp = _mm_cmpgt_epu32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);
@@ -332,7 +332,7 @@ const noexcept {
     __m512i vec1 = _mm512_maskz_loadu_epi64(k, &rank_cache[lo]);
     __m256i vec2 = _mm512_cvtepi64_epi32(vec1); // keep lev1(low32)
     __m256i key = _mm256_set1_epi32(Rank1);
-    __mmask8 cmp = _mm256_mask_cmpgt_epi32_mask(k, vec2, key);
+    __mmask8 cmp = _mm256_mask_cmpgt_epu32_mask(k, vec2, key);
     auto tz = _tzcnt_u32(cmp | (1u << veclen)); // upper bound
     lo += tz;
     TERARK_ASSERT_LT(Rank1, rank_cache[lo].lev1);
@@ -364,7 +364,7 @@ size_t rank_select_se::select1(size_t Rank1) const noexcept {
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)rc.lev2));
     __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
-    __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
+    __mmask8 cmp = _mm_cmpgt_epu32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);

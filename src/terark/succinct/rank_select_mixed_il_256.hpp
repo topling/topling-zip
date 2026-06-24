@@ -259,7 +259,7 @@ noexcept {
     __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.rlev));
     __m128i arr = _mm_sub_epi32(arr1, arr2); // rlev[0] is always 0
     __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
-    __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
+    __mmask8 cmp = _mm_cmpgt_epu32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);
@@ -312,7 +312,7 @@ noexcept {
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.rlev));
     __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
-    __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
+    __mmask8 cmp = _mm_cmpgt_epu32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);

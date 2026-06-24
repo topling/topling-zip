@@ -369,7 +369,7 @@ inline size_t rank_select_il::select0_q(size_t Rank0) const {
     __m128i arr2 = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.rlev2));
     __m128i arr = _mm_sub_epi32(arr1, arr2); // xx.rlev2[0] is always 0
     __m128i key = _mm_set1_epi32(uint32_t(Rank0 - hit));
-    __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
+    __mmask8 cmp = _mm_cmpgt_epu32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);
@@ -433,7 +433,7 @@ inline size_t rank_select_il::select1_q(size_t Rank1) const {
   #if defined(__AVX512VL__) && defined(__AVX512BW__)
     __m128i arr = _mm_cvtepu8_epi32(_mm_cvtsi32_si128(*(uint32_t*)xx.rlev2));
     __m128i key = _mm_set1_epi32(uint32_t(Rank1 - hit));
-    __mmask8 cmp = _mm_cmpgt_epi32_mask(arr, key);
+    __mmask8 cmp = _mm_cmpgt_epu32_mask(arr, key);
     auto tz = _tzcnt_u32(cmp | (1u << 4)); // upper bound
     TERARK_ASSERT_GE(tz, 1);
     TERARK_ASSERT_LE(tz, 4);
