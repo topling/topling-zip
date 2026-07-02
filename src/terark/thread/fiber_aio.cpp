@@ -355,8 +355,6 @@ class io_fiber_uring : public io_fiber_base {
         }
         else { // error
           io_ret->err = -cqe->res;
-          if (cqe->res != -EAGAIN)
-            TERARK_DIE("cqe failed: %s\n", strerror(-cqe->res));
         }
         io_uring_cqe_seen(&ring, cqe);
         io_reqnum--;
