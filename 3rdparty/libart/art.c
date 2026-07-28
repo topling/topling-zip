@@ -416,7 +416,7 @@ static void add_child16(art_node16 *n, art_node **ref, unsigned char c, void *ch
             __m128i cmp;
 
             // Compare the key to all 16 stored keys
-            cmp = _mm_cmplt_epu8(_mm_set1_epi8(c),
+            cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
                     _mm_loadu_si128((__m128i*)n->keys));
 
             // Use a mask to ignore children that don't exist
@@ -426,7 +426,7 @@ static void add_child16(art_node16 *n, art_node **ref, unsigned char c, void *ch
             __m128i cmp;
 
             // Compare the key to all 16 stored keys
-            cmp = _mm_cmplt_epu8(_mm_set1_epi8(c),
+            cmp = _mm_cmplt_epi8(_mm_set1_epi8(c),
                     _mm_loadu_si128((__m128i*)n->keys));
 
             // Use a mask to ignore children that don't exist
