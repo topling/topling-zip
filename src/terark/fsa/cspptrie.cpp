@@ -2075,16 +2075,24 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     PatriciaNode parent_unlock, parent_locked;
     PatriciaNode curr_unlock, curr_locked;
-    parent_unlock = as_atomic(a[parent]).load(std::memory_order_relaxed);
-    parent_locked = parent_unlock;
-    parent_unlock.meta.b_lazy_free = 0;
-    parent_unlock.meta.b_lock = 0;
-    parent_locked.meta.b_lock = 1;
-    if (!cas_weak(a[parent], parent_unlock, parent_locked, std::memory_order_acquire)) {
-        lzf->m_race.lfl_parent.add_count(a[parent]);
-        goto RaceCondition2;
+    // Fast parent(type=15): child slot is a single CAS word; node identity is
+    // stable (no whole-node replace). Skip parent meta lock/unlock so we do not
+    // clobber concurrent FLAG_set_final / FLAG_final with a snapshot store.
+    const bool parent_is_fast = (15 == a[parent].meta.n_cnt_type);
+    if (parent_is_fast) {
+        // fast node need not lock
+    } else {
+        parent_unlock = as_atomic(a[parent]).load(std::memory_order_relaxed);
+        parent_locked = parent_unlock;
+        parent_unlock.meta.b_lazy_free = 0;
+        parent_unlock.meta.b_lock = 0;
+        parent_locked.meta.b_lock = 1;
+        if (!cas_weak(a[parent], parent_unlock, parent_locked, std::memory_order_acquire)) {
+            lzf->m_race.lfl_parent.add_count(a[parent]);
+            goto RaceCondition2;
+        }
+        // now a[parent] is locked, try lock curr:
     }
-    // now a[parent] is locked, try lock curr:
     curr_unlock = as_atomic(a[curr]).load(std::memory_order_relaxed);
     curr_locked = curr_unlock;
     curr_unlock.meta.b_lock = 0;
@@ -2102,7 +2110,8 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         goto RaceCondition0;
     }
     if (cas_weak(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
-        as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
+        if (!parent_is_fast)
+            as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
         ullong   age = token->m_verseq;
         TERARK_ASSERT_GE(age, m_dummy.m_min_verseq);
         maximize(lzf->m_max_word_len, key.size());
@@ -2121,7 +2130,8 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     else { // parent has been lazy freed or updated by other threads
         lzf->m_race.n_curr_slot_cas++;
       RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
-      RaceCondition1: as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
+      RaceCondition1: if (!parent_is_fast)
+                        as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
       RaceCondition2:
         size_t min_verseq = (size_t)token->m_min_verseq;
         size_t age = (size_t)token->m_verseq;
