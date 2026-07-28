@@ -1877,7 +1877,7 @@ TERARK_ASSERT_LE(pos, key.size());
         }
         m_n_nodes += 1;
         m_n_words += 1;
-        m_adfa_total_words_len += key.size() - pos - 1;
+        m_adfa_total_words_len += key.size();
         a[curr+2+ch].child = suffix_node;
         a[curr+1].big.n_children++;
         maximize(m_max_word_len, key.size());
