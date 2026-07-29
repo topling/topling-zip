@@ -366,7 +366,8 @@ GetoptDone:
         }
         long long tt1 = pf.now();
         as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
-        token.release();
+        if (token.trie())
+            token.release();
     };
     auto patricia_lb = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
         thread_bind_cpu();
