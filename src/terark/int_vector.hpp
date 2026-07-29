@@ -95,12 +95,11 @@ public:
 	}
 
     static size_t compute_uintbits(size_t value) {
-        size_t bits = 0;
-        while (value) {
-            bits++;
-            value >>= 1;
+        // floor(log2(value))+1; 0 → 0. Prefer terark_bsr (x86 BSR / clz fallback).
+        if (terark_likely(0 != value)) {
+            return size_t(TERARK_IF_WORD_BITS_64(terark_bsr_u64, terark_bsr_u32)(value)) + 1;
         }
-        return bits;
+        return 0;
     }
 
     static size_t compute_mem_size_by_max_val(size_t max_val, size_t num) {
