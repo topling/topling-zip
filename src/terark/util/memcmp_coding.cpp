@@ -1,7 +1,6 @@
 #include <terark/io/DataIO_Basic.hpp>
 #include <terark/node_layout.hpp> // for bytes2uint
 #include "memcmp_coding.hpp"
-#include <float.h>
 
 namespace terark {
 
@@ -91,29 +90,20 @@ const char* end_of_01_00(const char* encoded, const char* end) {
   return end;
 }
 
-static const int FLT_EXP_DIG = (sizeof(float )*8-FLT_MANT_DIG);
-static const int DBL_EXP_DIG = (sizeof(double)*8-DBL_MANT_DIG);
-
 template<class Real>
 TERARK_DLL_EXPORT
 unsigned char* encode_memcmp_real(Real nr, unsigned char* dst) {
-  const int ExpDigit = sizeof(Real) == 4 ? FLT_EXP_DIG : DBL_EXP_DIG;
-  if (nr == 0.0) { /* Change to zero string */
-    memset(dst, 0, sizeof(Real));
-    dst[0] = (unsigned char)128;
-  }
-  else {
-    typedef typename bytes2uint<sizeof(Real)>::type Uint;
-    static const int Bits = sizeof(Real)*8;
-    Uint ui = aligned_load<Uint>(&nr);
-    if (ui & Uint(1) << (Bits - 1)) {
-      ui = ~ui;
-    } else { /* Set high and move exponent one up */
-      ui |= Uint(1) << (Bits - 1);
-      ui += Uint(1) << (Bits - 1 - ExpDigit);
-    }
-    unaligned_save(dst, BIG_ENDIAN_OF(ui));
-  }
+  typedef typename bytes2uint<sizeof(Real)>::type Uint;
+  static const int Bits = sizeof(Real)*8;
+  static const Uint SignBit = Uint(1) << (Bits - 1);
+  Uint ui = aligned_load<Uint>(&nr);
+
+  // FoundationDB tuple-layer float encoding: negative values have every bit
+  // inverted; non-negative values have only the sign bit inverted. Writing the
+  // result in big-endian order makes bytewise comparison match IEEE 754
+  // totalOrder, including signed zero, infinities, and NaNs.
+  ui = ui & SignBit ? ~ui : ui ^ SignBit;
+  unaligned_save(dst, BIG_ENDIAN_OF(ui));
   return dst + sizeof(Real);
 }
 
@@ -121,31 +111,15 @@ template<class Real>
 TERARK_DLL_EXPORT
 const unsigned char*
 decode_memcmp_real(const unsigned char* src, Real* dst) {
-  const int ExpDigit = sizeof(Real) == 4 ? FLT_EXP_DIG : DBL_EXP_DIG;
-  const static Real zero_val = 0.0;
-  const static unsigned char zero_pattern[sizeof(Real)] = {128, 0};
+  typedef typename bytes2uint<sizeof(Real)>::type Uint;
+  static const int Bits = sizeof(Real)*8;
+  static const Uint SignBit = Uint(1) << (Bits - 1);
+  Uint ui = unaligned_load<Uint>(src);
+  BYTE_SWAP_IF_LITTLE_ENDIAN(ui);
 
-  /* Check to see if the value is zero */
-  if (memcmp(src, zero_pattern, sizeof(Real)) == 0) {
-    *dst = zero_val;
-  }
-  else {
-    typedef typename bytes2uint<sizeof(Real)>::type Uint;
-    static const int Bits = sizeof(Real)*8;
-    Uint ui = unaligned_load<Uint>(src);
-    BYTE_SWAP_IF_LITTLE_ENDIAN(ui);
-    if (ui & Uint(1) << (Bits - 1)) {
-      // If the high bit is set the original value was positive so
-      // remove the high bit and subtract one from the exponent.
-      ui -=  Uint(1) << (Bits - 1 - ExpDigit); // subtract from exponent
-      ui &= ~Uint(0) >> 1;
-    } else {
-      // Otherwise the original value was negative and all bytes have been
-      // negated.
-      ui = ~ui;
-    }
-    aligned_save(dst, ui);
-  }
+  // The encoded sign bit is set for original non-negative values.
+  ui = ui & SignBit ? ui ^ SignBit : ~ui;
+  aligned_save(dst, ui);
   return src + sizeof(Real);
 }
 
