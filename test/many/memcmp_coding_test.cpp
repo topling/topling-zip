@@ -1,14 +1,444 @@
-#include <cmath>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits>
+#include <string>
+#include <utility>
+#include <vector>
+#include <terark/io/DataInput.hpp>
+#include <terark/io/DataOutput.hpp>
+#include <terark/io/MemStream.hpp>
 #include <terark/util/memcmp_coding.hpp>
 #include <terark/util/function.hpp>
 #include <terark/stdtypes.hpp>
 #include <terark/fstring.hpp>
 
 using namespace terark;
+
+static_assert(std::is_same<
+                  decltype(as_memcmp(std::declval<int32_t&>())),
+                  pass_by_value<as_memcmp_signed_ref<int32_t> >
+              >::value,
+              "signed integers must use the signed memcmp proxy");
+static_assert(std::is_same<
+                  decltype(as_memcmp(std::declval<uint32_t&>())),
+                  decltype(as_big_endian(std::declval<uint32_t&>()))
+              >::value,
+              "unsigned integers must use as_big_endian");
+#if BOOST_ENDIAN_BIG_BYTE
+static_assert(std::is_same<
+                  decltype(as_big_endian(std::declval<uint32_t&>())),
+                  uint32_t&
+              >::value,
+              "as_big_endian must return its argument on big-endian hosts");
+#else
+static_assert(std::is_same<
+                  decltype(as_big_endian(std::declval<uint32_t&>())),
+                  pass_by_value<as_big_endian_ref<uint32_t> >
+              >::value,
+              "as_big_endian must use a byte-swapping proxy on little-endian hosts");
+#endif
+static_assert(std::is_same<
+                  decltype(as_memcmp(std::declval<float&>())),
+                  pass_by_value<as_memcmp_real_ref<float> >
+              >::value,
+              "real numbers must use the real memcmp proxy");
+static_assert(std::is_same<
+                  decltype(as_memcmp(std::declval<std::string&>())),
+                  pass_by_value<as_memcmp_string_ref<std::string> >
+              >::value,
+              "strings must use the string memcmp proxy");
+static_assert(std::is_same<
+                  decltype(as_memcmp(std::declval<bool&>())),
+                  pass_by_value<as_memcmp_bool_ref<bool> >
+              >::value,
+              "bool must use the bool memcmp proxy");
+
+class MemcmpTestOutput {
+public:
+    std::vector<unsigned char> data;
+    size_t ensure_write_calls;
+    size_t write_byte_calls;
+
+    MemcmpTestOutput() : ensure_write_calls(0), write_byte_calls(0) {}
+
+    void ensureWrite(const void* source, size_t size) {
+        ++ensure_write_calls;
+        const unsigned char* bytes =
+            static_cast<const unsigned char*>(source);
+        data.insert(data.end(), bytes, bytes + size);
+    }
+
+    void writeByte(unsigned char byte) {
+        ++write_byte_calls;
+        data.push_back(byte);
+    }
+
+    template<class T>
+    MemcmpTestOutput& operator<<(pass_by_value<T> value) {
+        DataIO_saveObject(*this, value.val);
+        return *this;
+    }
+
+    template<class T>
+    typename std::enable_if<
+        std::is_integral<T>::value && std::is_unsigned<T>::value &&
+        !std::is_same<T, bool>::value,
+        MemcmpTestOutput&
+    >::type
+    operator<<(const T& value) {
+        ensureWrite(&value, sizeof(value));
+        return *this;
+    }
+};
+
+class MemcmpTestInput {
+    const std::vector<unsigned char>& data;
+    size_t position;
+
+public:
+    explicit MemcmpTestInput(const std::vector<unsigned char>& data)
+      : data(data), position(0) {}
+
+    void ensureRead(void* destination, size_t size) {
+        TERARK_VERIFY_F(size <= data.size() - position,
+                        "read past end: pos=%zd size=%zd available=%zd",
+                        position, size, data.size());
+        memcpy(destination, data.data() + position, size);
+        position += size;
+    }
+
+    unsigned char readByte() {
+        TERARK_VERIFY_F(position < data.size(),
+                        "read past end: pos=%zd available=%zd",
+                        position, data.size());
+        return data[position++];
+    }
+
+    size_t tell() const {
+        return position;
+    }
+
+    template<class T>
+    MemcmpTestInput& operator>>(pass_by_value<T> value) {
+        DataIO_loadObject(*this, value.val);
+        return *this;
+    }
+
+    template<class T>
+    typename std::enable_if<
+        std::is_integral<T>::value && std::is_unsigned<T>::value &&
+        !std::is_same<T, bool>::value,
+        MemcmpTestInput&
+    >::type
+    operator>>(T& value) {
+        ensureRead(&value, sizeof(value));
+        return *this;
+    }
+};
+
+class TruncatedMemcmpTestInput {
+    const std::vector<unsigned char>& data;
+    size_t position;
+
+public:
+    explicit TruncatedMemcmpTestInput(
+        const std::vector<unsigned char>& data)
+      : data(data), position(0) {}
+
+    unsigned char readByte() {
+        if (position == data.size()) {
+            throw DataFormatException("truncated as_memcmp string");
+        }
+        return data[position++];
+    }
+
+    template<class T>
+    TruncatedMemcmpTestInput& operator>>(pass_by_value<T> value) {
+        DataIO_loadObject(*this, value.val);
+        return *this;
+    }
+};
+
+template<class T>
+std::vector<unsigned char> encode_with_as_memcmp(const T& value) {
+    MemcmpTestOutput output;
+    output << as_memcmp(value);
+    return output.data;
+}
+
+template<class T, size_t Size>
+void verify_as_memcmp_numeric_order(const T (&values)[Size]) {
+    std::vector<unsigned char> previous;
+    for (size_t i = 0; i < Size; ++i) {
+        const std::vector<unsigned char> encoded =
+            encode_with_as_memcmp(values[i]);
+        TERARK_VERIFY_EQ(encoded.size(), sizeof(T));
+        if (i != 0) {
+            TERARK_VERIFY_F(memcmp(previous.data(), encoded.data(),
+                                   sizeof(T)) < 0,
+                            "as_memcmp numeric order mismatch at %zd", i);
+        }
+
+        T decoded = T();
+        MemcmpTestInput input(encoded);
+        input >> as_memcmp(decoded);
+        TERARK_VERIFY_EQ(input.tell(), encoded.size());
+        TERARK_VERIFY_F(memcmp(&decoded, &values[i], sizeof(T)) == 0,
+                        "as_memcmp numeric round trip mismatch at %zd", i);
+        previous = encoded;
+    }
+}
+
+template<class T, size_t Size>
+void verify_as_memcmp_bytes(
+    const T& value,
+    const unsigned char (&expected)[Size]) {
+    const std::vector<unsigned char> encoded = encode_with_as_memcmp(value);
+    TERARK_VERIFY_EQ(encoded.size(), Size);
+    TERARK_VERIFY_F(memcmp(encoded.data(), expected, Size) == 0,
+                    "as_memcmp encoded bytes mismatch");
+}
+
+void test_as_memcmp_numbers() {
+    const int8_t signed8[] = {
+        std::numeric_limits<int8_t>::min(), -1, 0, 1,
+        std::numeric_limits<int8_t>::max(),
+    };
+    const uint8_t unsigned8[] = {
+        0, 1, 2, 127, 128, std::numeric_limits<uint8_t>::max(),
+    };
+    const int16_t signed16[] = {
+        std::numeric_limits<int16_t>::min(), -123, -1, 0, 1, 123,
+        std::numeric_limits<int16_t>::max(),
+    };
+    const uint16_t unsigned16[] = {
+        0, 1, 255, 256, 32768, std::numeric_limits<uint16_t>::max(),
+    };
+    const char16_t chars16[] = {
+        0, 1, 0x1234, std::numeric_limits<char16_t>::max(),
+    };
+    const int32_t signed32[] = {
+        std::numeric_limits<int32_t>::min(), -1234567, -1, 0, 1, 1234567,
+        std::numeric_limits<int32_t>::max(),
+    };
+    const uint32_t unsigned32[] = {
+        0, 1, 65535, 65536, UINT32_C(0x80000000), UINT32_MAX,
+    };
+    const int64_t signed64[] = {
+        std::numeric_limits<int64_t>::min(), INT64_C(-1234567890123), -1, 0,
+        1, INT64_C(1234567890123), std::numeric_limits<int64_t>::max(),
+    };
+    const uint64_t unsigned64[] = {
+        0, 1, UINT64_C(0xFFFFFFFF), UINT64_C(0x100000000),
+        UINT64_C(0x8000000000000000), UINT64_MAX,
+    };
+    const float floats[] = {
+        -std::numeric_limits<float>::infinity(), -123.5F, -0.0F, +0.0F,
+        +123.5F, +std::numeric_limits<float>::infinity(),
+    };
+    const double doubles[] = {
+        -std::numeric_limits<double>::infinity(), -123.5, -0.0, +0.0,
+        +123.5, +std::numeric_limits<double>::infinity(),
+    };
+    const bool booleans[] = {false, true};
+
+    verify_as_memcmp_numeric_order(signed8);
+    verify_as_memcmp_numeric_order(unsigned8);
+    verify_as_memcmp_numeric_order(signed16);
+    verify_as_memcmp_numeric_order(unsigned16);
+    verify_as_memcmp_numeric_order(chars16);
+    verify_as_memcmp_numeric_order(signed32);
+    verify_as_memcmp_numeric_order(unsigned32);
+    verify_as_memcmp_numeric_order(signed64);
+    verify_as_memcmp_numeric_order(unsigned64);
+    verify_as_memcmp_numeric_order(floats);
+    verify_as_memcmp_numeric_order(doubles);
+    verify_as_memcmp_numeric_order(booleans);
+
+    const unsigned char int32_min[] = {0x00, 0x00, 0x00, 0x00};
+    const unsigned char int32_minus_one[] = {0x7F, 0xFF, 0xFF, 0xFF};
+    const unsigned char int32_zero[] = {0x80, 0x00, 0x00, 0x00};
+    const unsigned char int32_max[] = {0xFF, 0xFF, 0xFF, 0xFF};
+    const unsigned char uint32_value[] = {0x12, 0x34, 0x56, 0x78};
+    const unsigned char char16_value[] = {0x12, 0x34};
+    verify_as_memcmp_bytes(std::numeric_limits<int32_t>::min(), int32_min);
+    verify_as_memcmp_bytes(int32_t(-1), int32_minus_one);
+    verify_as_memcmp_bytes(int32_t(0), int32_zero);
+    verify_as_memcmp_bytes(std::numeric_limits<int32_t>::max(), int32_max);
+    verify_as_memcmp_bytes(UINT32_C(0x12345678), uint32_value);
+    verify_as_memcmp_bytes(char16_t(0x1234), char16_value);
+
+#if BOOST_ENDIAN_LITTLE_BYTE
+    uint32_t big_endian_value = UINT32_C(0x12345678);
+    MemcmpTestOutput big_endian_output;
+    big_endian_output << as_big_endian(big_endian_value);
+    TERARK_VERIFY_EQ(big_endian_output.data.size(), sizeof(uint32_t));
+    TERARK_VERIFY_F(
+        memcmp(big_endian_output.data.data(), uint32_value,
+               sizeof(uint32_t)) == 0,
+        "as_big_endian encoded bytes mismatch");
+#endif
+
+    const std::vector<unsigned char> malformed_bool = {2};
+    MemcmpTestInput malformed_input(malformed_bool);
+    bool decoded_bool = false;
+    bool rejected = false;
+    try {
+        malformed_input >> as_memcmp(decoded_bool);
+    }
+    catch (const DataFormatException&) {
+        rejected = true;
+    }
+    TERARK_VERIFY(rejected);
+}
+
+void test_as_memcmp_strings() {
+    const std::string values[] = {
+        std::string(),
+        std::string("\0", 1),
+        std::string("\0\0", 2),
+        std::string("\0a", 2),
+        std::string("a", 1),
+        std::string("a\0", 2),
+        std::string("aa", 2),
+        std::string("\x7F", 1),
+        std::string("\x80", 1),
+        std::string("\xFF", 1),
+    };
+
+    std::vector<unsigned char> previous;
+    for (size_t i = 0; i < sizeof(values) / sizeof(values[0]); ++i) {
+        const std::vector<unsigned char> encoded =
+            encode_with_as_memcmp(values[i]);
+        if (i != 0) {
+            const size_t common = previous.size() < encoded.size()
+                                ? previous.size() : encoded.size();
+            const int prefix_order = memcmp(previous.data(), encoded.data(), common);
+            TERARK_VERIFY_F(prefix_order < 0 ||
+                            (prefix_order == 0 && previous.size() < encoded.size()),
+                            "as_memcmp string order mismatch at %zd", i);
+        }
+
+        std::string decoded;
+        MemcmpTestInput input(encoded);
+        input >> as_memcmp(decoded);
+        TERARK_VERIFY_EQ(input.tell(), encoded.size());
+        TERARK_VERIFY_S_EQ(decoded, values[i]);
+        previous = encoded;
+    }
+
+    const std::string embedded_zero("a\0b", 3);
+    const unsigned char expected[] = {'a', 0, 1, 'b', 0, 0};
+    verify_as_memcmp_bytes(embedded_zero, expected);
+
+    const std::string long_plain_string(4096, 'x');
+    MemcmpTestOutput batched_output;
+    batched_output << as_memcmp(long_plain_string);
+    TERARK_VERIFY_EQ(batched_output.write_byte_calls, 0);
+    TERARK_VERIFY_EQ(batched_output.ensure_write_calls, 2);
+    std::string decoded_long_plain_string;
+    MemcmpTestInput long_plain_input(batched_output.data);
+    long_plain_input >> as_memcmp(decoded_long_plain_string);
+    TERARK_VERIFY_S_EQ(decoded_long_plain_string, long_plain_string);
+
+    std::string long_escaped_string(600, 'x');
+    long_escaped_string[255] = '\0';
+    long_escaped_string[511] = '\0';
+    const auto long_escaped_encoding = encode_with_as_memcmp(long_escaped_string);
+    std::string decoded_long_escaped_string;
+    MemcmpTestInput long_escaped_input(long_escaped_encoding);
+    long_escaped_input >> as_memcmp(decoded_long_escaped_string);
+    TERARK_VERIFY_S_EQ(decoded_long_escaped_string, long_escaped_string);
+
+    std::string reused_string(15, 'X');
+    const auto reused_string_encoding = encode_with_as_memcmp(std::string("a"));
+    MemcmpTestInput reused_string_input(reused_string_encoding);
+    reused_string_input >> as_memcmp(reused_string);
+    TERARK_VERIFY_S_EQ(reused_string, "a");
+    TERARK_VERIFY_EQ(reused_string.data()[reused_string.size()], '\0');
+
+    const int32_t number = -7;
+    const double real = 42.5;
+    MemcmpTestOutput output;
+    output << as_memcmp(number) << as_memcmp(embedded_zero) << as_memcmp(real);
+
+    int32_t decoded_number = 0;
+    std::string decoded_string;
+    double decoded_real = 0;
+    MemcmpTestInput input(output.data);
+    input >> as_memcmp(decoded_number)
+          >> as_memcmp(decoded_string)
+          >> as_memcmp(decoded_real);
+    TERARK_VERIFY_EQ(decoded_number, number);
+    TERARK_VERIFY_S_EQ(decoded_string, embedded_zero);
+    TERARK_VERIFY_F(memcmp(&decoded_real, &real, sizeof(real)) == 0,
+                    "as_memcmp composite double mismatch");
+    TERARK_VERIFY_EQ(input.tell(), output.data.size());
+
+    const std::vector<unsigned char> malformed = {'a', 0, 2};
+    MemcmpTestInput malformed_input(malformed);
+    decoded_string.assign(15, 'X');
+    bool rejected = false;
+    try {
+        malformed_input >> as_memcmp(decoded_string);
+    }
+    catch (const DataFormatException&) {
+        rejected = true;
+    }
+    TERARK_VERIFY(rejected);
+    TERARK_VERIFY_S_EQ(decoded_string, "a");
+    TERARK_VERIFY_EQ(decoded_string.data()[decoded_string.size()], '\0');
+
+    const std::vector<unsigned char> truncated_values[] = {
+        std::vector<unsigned char>(),
+        std::vector<unsigned char>(1, 0),
+        std::vector<unsigned char>(1, 'a'),
+    };
+    const std::string truncated_prefixes[] = {"", "", "a"};
+    for (size_t i = 0; i < 3; ++i) {
+        std::string truncated_string(15, 'X');
+        TruncatedMemcmpTestInput truncated_input(truncated_values[i]);
+        rejected = false;
+        try {
+            truncated_input >> as_memcmp(truncated_string);
+        }
+        catch (const DataFormatException&) {
+            rejected = true;
+        }
+        TERARK_VERIFY(rejected);
+        TERARK_VERIFY_S_EQ(truncated_string, truncated_prefixes[i]);
+        TERARK_VERIFY_EQ(
+            truncated_string.data()[truncated_string.size()], '\0');
+    }
+}
+
+void test_as_memcmp_dataio_integration() {
+    unsigned char buffer[128];
+    const int32_t number = -123456;
+    const std::string string("a\0b", 3);
+    const double real = -0.0;
+
+    NativeDataOutput<MinMemIO> output(buffer);
+    output << as_memcmp(number) << as_memcmp(string) << as_memcmp(real);
+    const size_t encoded_size = output.current() - buffer;
+
+    int32_t decoded_number = 0;
+    std::string decoded_string;
+    double decoded_real = 0;
+    NativeDataInput<MinMemIO> input(buffer);
+    input >> as_memcmp(decoded_number)
+          >> as_memcmp(decoded_string)
+          >> as_memcmp(decoded_real);
+
+    TERARK_VERIFY_EQ(decoded_number, number);
+    TERARK_VERIFY_S_EQ(decoded_string, string);
+    TERARK_VERIFY_F(memcmp(&decoded_real, &real, sizeof(real)) == 0,
+                    "as_memcmp DataIO double mismatch");
+    TERARK_VERIFY_EQ(size_t(input.current() - buffer), encoded_size);
+}
 
 template<class Real, class Uint>
 Real real_from_bits(Uint bits) {
@@ -135,7 +565,7 @@ void test_random_round_trip_and_finite_order(uint64_t seed) {
         TERARK_VERIFY_EQ((real_to_bits<Real, Uint>(a_output)), a_bits);
         TERARK_VERIFY_EQ((real_to_bits<Real, Uint>(b_output)), b_bits);
 
-        if (std::isnan(a) || std::isnan(b)) {
+        if (isnan(a) || isnan(b)) {
             continue;
         }
 
@@ -295,6 +725,9 @@ int main(int, char* argv[]) {
     test_scaled_finite_values<double>();
     test_foundationdb_float_encoding();
     test_foundationdb_double_encoding();
+    test_as_memcmp_numbers();
+    test_as_memcmp_strings();
+    test_as_memcmp_dataio_integration();
     printf("%s passed\n", argv[0]);
 	return 0;
 }
