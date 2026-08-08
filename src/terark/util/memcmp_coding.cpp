@@ -1,5 +1,4 @@
 #include <terark/io/DataIO_Basic.hpp>
-#include <terark/node_layout.hpp> // for bytes2uint
 #include "memcmp_coding.hpp"
 
 namespace terark {
@@ -88,69 +87,6 @@ const char* end_of_01_00(const char* encoded, const char* end) {
       return end + 1; // error, 0n where n is out of bound
   }
   return end;
-}
-
-template<class Real>
-TERARK_DLL_EXPORT
-unsigned char* encode_memcmp_real(Real nr, unsigned char* dst) {
-  typedef typename bytes2uint<sizeof(Real)>::type Uint;
-  static const int Bits = sizeof(Real)*8;
-  static const Uint SignBit = Uint(1) << (Bits - 1);
-  Uint ui = aligned_load<Uint>(&nr);
-
-  // FoundationDB tuple-layer float encoding: negative values have every bit
-  // inverted; non-negative values have only the sign bit inverted. Writing the
-  // result in big-endian order makes bytewise comparison match IEEE 754
-  // totalOrder, including signed zero, infinities, and NaNs.
-  ui = ui & SignBit ? ~ui : ui ^ SignBit;
-  unaligned_save(dst, BIG_ENDIAN_OF(ui));
-  return dst + sizeof(Real);
-}
-
-template<class Real>
-TERARK_DLL_EXPORT
-const unsigned char*
-decode_memcmp_real(const unsigned char* src, Real* dst) {
-  typedef typename bytes2uint<sizeof(Real)>::type Uint;
-  static const int Bits = sizeof(Real)*8;
-  static const Uint SignBit = Uint(1) << (Bits - 1);
-  Uint ui = unaligned_load<Uint>(src);
-  BYTE_SWAP_IF_LITTLE_ENDIAN(ui);
-
-  // The encoded sign bit is set for original non-negative values.
-  ui = ui & SignBit ? ui ^ SignBit : ~ui;
-  aligned_save(dst, ui);
-  return src + sizeof(Real);
-}
-
-TERARK_DLL_EXPORT template
-unsigned char* encode_memcmp_real<float>(float nr, unsigned char* dst);
-TERARK_DLL_EXPORT template
-unsigned char* encode_memcmp_real<double>(double nr, unsigned char* dst);
-
-TERARK_DLL_EXPORT unsigned char*
-encode_memcmp_float(float src, unsigned char* dst) {
-  return encode_memcmp_real<float>(src, dst);
-}
-TERARK_DLL_EXPORT unsigned char*
-encode_memcmp_double(double src, unsigned char* dst) {
-  return encode_memcmp_real<double>(src, dst);
-}
-
-TERARK_DLL_EXPORT template
-const unsigned char*
-decode_memcmp_real<float>(const unsigned char* src, float* dst);
-TERARK_DLL_EXPORT template
-const unsigned char*
-decode_memcmp_real<double>(const unsigned char* src, double* dst);
-
-TERARK_DLL_EXPORT const unsigned char*
-decode_memcmp_float(const unsigned char* src, float* dst) {
-  return decode_memcmp_real<float>(src, dst);
-}
-TERARK_DLL_EXPORT const unsigned char*
-decode_memcmp_double(const unsigned char* src, double* dst) {
-  return decode_memcmp_real<double>(src, dst);
 }
 
 } // namespace
