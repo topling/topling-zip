@@ -19,7 +19,13 @@ TERARK_DLL_EXPORT
 char* encode_0_01_00(const char* ibeg, const char* iend, char* obeg, char* oend);
 
 TERARK_DLL_EXPORT
+void encode_0_01_00_append(fstring input, std::string* output);
+
+TERARK_DLL_EXPORT
 char* decode_01_00(const char* ibeg, const char**ires, char* obeg, char* oend);
+
+TERARK_DLL_EXPORT
+size_t decode_01_00(fstring encoded, std::string* decoded);
 
 TERARK_DLL_EXPORT
 const char* end_of_01_00(const char* encoded);

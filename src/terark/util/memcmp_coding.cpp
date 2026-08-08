@@ -26,6 +26,19 @@ char* encode_0_01_00(const char* ibeg, const char* iend, char* obeg, char* oend)
   return obeg + 2;
 }
 
+TERARK_DLL_EXPORT
+void encode_0_01_00_append(fstring input, std::string* output) {
+  const size_t old_size = output->size();
+  const size_t max_encoded_size = input.size() * 2 + 2;
+  string_resize_no_touch_memory(output, old_size + max_encoded_size);
+  const char* input_begin = input.empty() ? "" : input.begin();
+  char* output_begin = &(*output)[0] + old_size;
+  char* output_end = encode_0_01_00(
+      input_begin, input_begin + input.size(),
+      output_begin, output_begin + max_encoded_size);
+  output->resize(old_size + (output_end - output_begin));
+}
+
 ///@param ires (*ires)+1 point to next byte after ending 00,
 ///             this is different to return value
 ///@returns returns output end pos
@@ -57,6 +70,43 @@ char* decode_01_00(const char* ibeg, const char** ires, char* obeg, char* oend) 
   // if (*ires)[-1] is n, it is error, where n >= 2
   *ires = icur + 2;
   return obeg;
+}
+
+TERARK_DLL_EXPORT
+size_t decode_01_00(fstring encoded, std::string* decoded) {
+  if (encoded.empty()) {
+    throw DataFormatException("missing 0/1/0 string terminator");
+  }
+
+  std::string result;
+  string_resize_no_touch_memory(&result, encoded.size());
+  char* const output_begin = &result[0];
+  char* output = output_begin;
+  const char* current = encoded.begin();
+  const char* const end = encoded.end();
+  while (current != end) {
+    const char ch = *current++;
+    if (terark_likely(ch != 0)) {
+      *output++ = ch;
+      continue;
+    }
+    if (current == end) {
+      throw DataFormatException("truncated 0/1/0 string escape");
+    }
+    const unsigned char escape = *current++;
+    if (escape == 1) {
+      *output++ = 0;
+      continue;
+    }
+    if (escape != 0) {
+      throw DataFormatException("invalid 0/1/0 string escape");
+    }
+    const size_t consumed = current - encoded.begin();
+    result.resize(output - output_begin);
+    decoded->swap(result);
+    return consumed;
+  }
+  throw DataFormatException("missing 0/1/0 string terminator");
 }
 
 ///@returns next byte pos after ending 0n

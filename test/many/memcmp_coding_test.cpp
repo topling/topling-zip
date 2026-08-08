@@ -707,20 +707,69 @@ void test_str_coding(fstring str, fstring enc) {
     char* e_ptr = encode_0_01_00(str.begin(), str.end(), e_buf, e_end);
     TERARK_VERIFY_EQ(enc.n, e_ptr - e_buf);
     TERARK_VERIFY_S_EQ(enc, fstring(e_buf, e_ptr));
+
+    std::string appended = "prefix";
+    encode_0_01_00_append(str, &appended);
+    TERARK_VERIFY_S_EQ("prefix", fstring(appended.data(), 6));
+    TERARK_VERIFY_S_EQ(enc, fstring(appended.data() + 6, appended.size() - 6));
     TERARK_VERIFY_EQ(end_of_01_00(e_buf) - e_buf, enc.n);
     const char* e_ptr2 = nullptr;
     char* d_ptr = decode_01_00(e_buf, &e_ptr2, d_buf, d_buf + enc.n);
     TERARK_VERIFY_EQ(e_ptr2 - e_buf, enc.n);
     TERARK_VERIFY_S_EQ(str, fstring(d_buf, d_ptr));
+
+    std::string decoded_to = "old value";
+    const size_t consumed = decode_01_00(
+        fstring(e_buf, e_ptr), &decoded_to);
+    TERARK_VERIFY_EQ(consumed, enc.size());
+    TERARK_VERIFY_S_EQ(str, decoded_to);
+
+    std::string encoded_with_suffix(e_buf, e_ptr);
+    encoded_with_suffix.append("suffix");
+    std::string decoded_with_suffix;
+    const size_t consumed_with_suffix = decode_01_00(
+        encoded_with_suffix, &decoded_with_suffix);
+    TERARK_VERIFY_EQ(consumed_with_suffix, enc.size());
+    TERARK_VERIFY_S_EQ(str, decoded_with_suffix);
+
+    std::string decoded_in_place(e_buf, e_ptr);
+    const size_t consumed_in_place = decode_01_00(
+        decoded_in_place, &decoded_in_place);
+    TERARK_VERIFY_EQ(consumed_in_place, enc.size());
+    TERARK_VERIFY_S_EQ(str, decoded_in_place);
+}
+
+void test_bounded_str_decode_errors() {
+    const fstring malformed[] = {
+        fstring(),
+        fstring("abc", 3),
+        fstring("\0", 1),
+        fstring("\0\1", 2),
+        fstring("\0\2", 2),
+    };
+    for (size_t i = 0; i < sizeof(malformed) / sizeof(malformed[0]); ++i) {
+        std::string decoded = "unchanged";
+        bool rejected = false;
+        try {
+            (void)decode_01_00(malformed[i], &decoded);
+        }
+        catch (const DataFormatException&) {
+            rejected = true;
+        }
+        TERARK_VERIFY(rejected);
+        TERARK_VERIFY_S_EQ(decoded, "unchanged");
+    }
 }
 
 int main(int, char* argv[]) {
     static_assert(sizeof(float) == sizeof(uint32_t), "requires IEEE binary32");
     static_assert(sizeof(double) == sizeof(uint64_t), "requires IEEE binary64");
 
+    test_str_coding("", {"\0\0", 2});
     test_str_coding("a", {"a\0\0", 3});
     test_str_coding({"a\0", 2}, {"a\0\1\0\0", 5});
     test_str_coding({"\0a\0", 3}, {"\0\1a\0\1\0\0", 7});
+    test_bounded_str_decode_errors();
     test_scaled_finite_values<float>();
     test_scaled_finite_values<double>();
     test_foundationdb_float_encoding();
