@@ -2338,19 +2338,43 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
             TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length));
         }
       #endif
-        sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
-        size_t strIncSize = prefixLen - (FastLabel ? ceiled_div(prefixLen, MAX_FRAG) : 0);
+        // The in-place build_subkeys path sorts by offset only. With
+        // FastLabel=false, a normal fragment and the zero-length prefix
+        // placeholders can all have offset 0, so std::sort may interleave them.
+        // Removing prefix placeholders through reverse iterators compacts the
+        // normal entries toward the physical end, leaving prefixNum slots at
+        // the front. Their old contents are immaterial: seq_id is rebuilt here
+        // and offset/length are overwritten below.
+        TERARK_VERIFY_LE(prefixNum, nestStrVecSize);
+        // seq_id is a bit-field on 64-bit non-MSVC builds. +0 forces a
+        // prvalue; TERARK_GET(.seq_id) would return a dangling const reference.
+        // std::all_of checks only the very small prefixNum range, not the whole
+        // vector, so there is no need to over-optimize by checking whether
+        // build_subkeys uses sort.
+        if (!FastLabel && !std::all_of(nestStrVec.m_index.begin(),
+                                       nestStrVec.m_index.begin() + prefixNum,
+                                       TERARK_GET(.seq_id+0) < prefixNum)) {
+            auto iter_rend = std::remove_if(nestStrVec.m_index.rbegin(),
+                                            nestStrVec.m_index.rend(),
+                                            TERARK_GET(.seq_id+0) < prefixNum);
+            TERARK_VERIFY_EQ(size_t(nestStrVec.m_index.rend() - iter_rend), prefixNum);
+        }
+        // With FastLabel=false, a final one-byte fragment is stored only in
+        // label and has no nestStrVec entry.
+        size_t strIncSize = FastLabel
+                          ? prefixLen - ceiled_div(prefixLen, MAX_FRAG)
+                          : prefixLen - size_t(prefixLen % MAX_FRAG == 1);
         byte_t* data = nestStrVec.m_strpool.make_space_no_init(0, strIncSize);
         fstring pref = conf.commonPrefix;
         size_t offset = 0;
         for (size_t i = 0; i < prefixNum; ++i) {
-            TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i);
             size_t cut = std::min(MAX_FRAG, pref.size());
             size_t len = cut - (FastLabel ? 1 : 0);
             memcpy(data + offset, pref.p + (FastLabel?1:0), len);
             auto& x = nestStrVec.m_index[i];
             x.offset = offset;
             x.length = len;
+            x.seq_id = i;
             offset += len;
             pref = pref.substr(cut);
         }
@@ -3070,4 +3094,3 @@ template class NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_xl_2
 */
 
 } // namespace terark
-
