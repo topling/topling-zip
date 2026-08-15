@@ -60,9 +60,38 @@ rank_select_il::rank_select_il(size_t bits, valvec_reserve) {
     m_size = 0;
 }
 
-rank_select_il::rank_select_il(const rank_select_il& y) = default;
+rank_select_il::rank_select_il(const rank_select_il& y) {
+    assert(this != &y);
+    // the capacity area of m_lines holds the sentinel Line and the sel0/sel1
+    // cache(see build_cache_q), the compiler generated copy cons lost them
+    // and left m_fast_select0/1 dangling into y's memory
+    m_fast_select0 = NULL;
+    m_fast_select1 = NULL;
+    if (size_t cap = y.m_lines.capacity()) {
+        m_lines.reserve(cap);
+        m_lines.risk_set_size(y.m_lines.size());
+        memcpy(m_lines.data(), y.m_lines.data(), sizeof(Line) * cap);
+        if (y.m_fast_select0) {
+            m_fast_select0 = (uint32_t*)m_lines.data()
+                           + (y.m_fast_select0 - (uint32_t*)y.m_lines.data());
+        }
+        if (y.m_fast_select1) {
+            m_fast_select1 = (uint32_t*)m_lines.data()
+                           + (y.m_fast_select1 - (uint32_t*)y.m_lines.data());
+        }
+    }
+    m_max_rank0 = y.m_max_rank0;
+    m_max_rank1 = y.m_max_rank1;
+    m_size = y.m_size;
+}
 rank_select_il&
-rank_select_il::operator=(const rank_select_il& y) = default;
+rank_select_il::operator=(const rank_select_il& y) {
+    if (this != &y) {
+        this->clear(); // basic guarantee: avoid holding two copies of memory
+        rank_select_il(y).swap(*this);
+    }
+    return *this;
+}
 
 rank_select_il::rank_select_il(rank_select_il&& y) noexcept {
     memcpy(this, &y, sizeof(*this));

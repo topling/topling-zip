@@ -45,11 +45,19 @@ rank_select_mixed_il_256::rank_select_mixed_il_256(size_t n, valvec_reserve) {
 }
 
 rank_select_mixed_il_256::rank_select_mixed_il_256(const rank_select_mixed_il_256& y)
-    : rank_select_mixed_il_256(y.m_capacity, valvec_reserve())
 {
     assert(this != &y);
     assert(y.m_capacity % sizeof(bm_uint_t) == 0);
     assert(y.m_size[0] == y.m_size[1]);
+    // must not delegate to (n, valvec_reserve): m_capacity is in bytes(not
+    // bits) and also covers the sel cache area after build_cache, the old
+    // delegation under-allocated, then memcpy below overflowed heap block
+    m_capacity = y.m_capacity;
+    m_lines = (RankCacheMixed*)malloc(m_capacity);
+    if (NULL == m_lines)
+        throw std::bad_alloc();
+    nullize_cache();
+    m_flags = y.m_flags;
     m_size[0] = y.m_size[0];
     m_size[1] = y.m_size[1];
     memcpy(this->m_lines, y.m_lines, y.m_capacity);

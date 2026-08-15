@@ -45,11 +45,19 @@ rank_select_mixed_se_512::rank_select_mixed_se_512(size_t n, valvec_reserve) {
 }
 
 rank_select_mixed_se_512::rank_select_mixed_se_512(const rank_select_mixed_se_512& y)
-    : rank_select_mixed_se_512(y.m_capacity, valvec_reserve())
 {
     assert(this != &y);
     assert(y.m_capacity % WordBits == 0);
     assert(y.m_size[0] == y.m_size[1]);
+    // must not delegate to (n, valvec_reserve): y.m_capacity is the exact
+    // bits capacity(covering the rank/sel cache area after build_cache),
+    // the old delegation re-aligned and doubled it
+    m_capacity = y.m_capacity;
+    m_words = (bm_uint_t*)malloc(m_capacity / 8);
+    if (NULL == m_words)
+        throw std::bad_alloc();
+    nullize_cache();
+    m_flags = y.m_flags;
     m_size[0] = y.m_size[0];
     m_size[1] = y.m_size[1];
     std::copy_n(y.m_words, y.m_capacity / WordBits, this->m_words);
