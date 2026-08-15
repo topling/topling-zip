@@ -74,6 +74,8 @@ template<class NestTrie, class DawgType>
 void NestTrieDAWG<NestTrie, DawgType>::swap(NestTrieDAWG& y) noexcept {
 	BaseDFA::risk_swap(y);
 	std::swap(n_words, y.n_words);
+	std::swap(m_zpNestLevel, y.m_zpNestLevel);
+	std::swap(m_cache, y.m_cache);
 	IsTermRep::swap(y);
 }
 
@@ -602,6 +604,8 @@ build_fsa_cache(double cacheRatio, const char* walkMethod) {
 	if (cacheRatio > 1e-8) {
 		size_t cacheStates = size_t(m_trie->total_states() * cacheRatio);
 		if (cacheStates > 100) {
+			delete m_cache;
+			m_cache = NULL; // keep valid if new cache cons throws
 			m_cache = new NTD_CacheTrie(this, cacheStates, walkMethod);
 			return true;
 		}

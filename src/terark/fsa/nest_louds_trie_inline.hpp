@@ -1208,7 +1208,7 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class Dawg>
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 Iterator<Dawg>::~Iterator() {
-    TERARK_VERIFY("Should not goes here, must use dispose() or destruct()");
+    TERARK_DIE("Should not goes here, must use dispose() or destruct()");
 }
 
 template<class RankSelect, class RankSelect2, bool FastLabel>

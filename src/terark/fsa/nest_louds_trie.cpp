@@ -372,8 +372,23 @@ NestLoudsTrieTpl(const NestLoudsTrieTpl& y)
 {
 	m_core_size = y.m_core_size;
 	AutoFree<byte_t> label_data(total_states() + m_core_size, y.m_label_data);
+	// all throwing operations must happen before label_data.release() and
+	// the m_next_trie copy, so that on exception nothing leaks(label_data
+	// by AutoFree, layers by member dtor)
+	if (size_t layer_num = y.m_layer_id_rank.size()) {
+		// same layout as init_for_term: layer_ref array is in the capacity
+		// area of m_layer_id_rank, and must be at m_layer_id_rank.end()
+		m_layer_id_rank.assign(y.m_layer_id_rank.data(), layer_num);
+		auto layer_ref = (layer_ref_t*)m_layer_id_rank.grow_capacity(
+			(layer_num + 1) * sizeof(layer_ref_t) / sizeof(layer_id_rank_t));
+		memcpy(layer_ref, y.m_layer_ref, sizeof(layer_ref_t) * layer_num);
+		m_layer_ref = layer_ref;
+	}
 	if (y.m_next_trie) {
 		m_next_trie = new NestLoudsTrieTpl<RankSelect>(*y.m_next_trie);
+	}
+	else {
+		m_next_trie = NULL;
 	}
 	m_label_data = label_data.release();
 	if (y.m_core_data) {
@@ -398,7 +413,7 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 operator=(const NestLoudsTrieTpl& y) {
 	if (&y != this) {
 		this->~NestLoudsTrieTpl();
-		this->risk_release_ownership();
+		new(this)NestLoudsTrieTpl();
 		NestLoudsTrieTpl(y).swap(*this);
 	}
 	return *this;
@@ -467,7 +482,9 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::mem_size() const noexcept 
 		 + m_is_link.mem_size()
 		 + m_next_link.mem_size()
 		 + total_states() // m_label_data
-		 + (m_next_trie ? m_next_trie->mem_size() : m_core_size)
+		 // a mixed trie(useMixedCoreLink) has both core and nested trie
+		 + m_core_size
+		 + (m_next_trie ? m_next_trie->mem_size() : 0)
 		 ;
 }
 
