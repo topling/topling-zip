@@ -47,7 +47,7 @@ GetoptDone:
 	}
 	NestLoudsTrie_SE trie;
 	SortableStrVec strVec2 = strVec1;
-	valvec<uint32_t> linkVec(strVec2.size(), UINT32_MAX);
+	valvec<size_t> linkVec(strVec2.size(), size_t(-1));
 	trie.build_strpool(strVec2, linkVec, conf);
 	if (b_write_dot_file)
 		trie.write_dot_file((std::string(fname) + ".dot").c_str());
