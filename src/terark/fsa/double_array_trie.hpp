@@ -297,6 +297,10 @@ private:
 			walker.putRoot(root);
 			map_y2x[root] = root;
 			map_x2y[root] = root;
+			// term bits are set in the children loop below, in which a root
+			// never occurs, it must be set here, e.g. for the empty word
+			if (y_au.is_term(root))
+				states[root].set_term_bit();
 		}
 		size_t curr_slot = numRoots;
 		size_t real_size = numRoots;

@@ -581,6 +581,15 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
         }
     };
     if (cache && 0 == curr) {
+        if (HasDictRank) {
+            // count the root's term(the empty word) in, same as the
+            // non-cache branch below, without it the rank is off by one
+            // when the empty word exists. the expression is equivalent to
+            // `is_term.rank1(1) - m_layer_id_rank[0].rank`, in which rank1(1)
+            // is just bit0 and m_layer_id_rank[0].rank is always 0(see
+            // init_for_term), reading the bit directly is faster
+            rank += is_term[0] ? 1 : 0;
+        }
         auto da = cache->get_double_array();
         auto zpBase = cache->get_zpath_data_base();
         while (true) {
@@ -637,7 +646,7 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
     }
     else {
         if (HasDictRank)
-            rank += is_term.rank1(1) - m_layer_id_rank[0].rank;
+            rank += is_term[0] ? 1 : 0;
     }
     assert(nil_state != curr);
     while(true) {
