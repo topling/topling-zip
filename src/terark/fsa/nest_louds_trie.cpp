@@ -2781,6 +2781,13 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 			size_t(next_link_min_val),
 			nextLinkBits);
 		TERARK_VERIFY_EQ(trie->m_next_link.size(), trie->m_is_link.max_rank1());
+		// mem_size() derives from the recomputed nextLinkBits and aligns to
+		// 16, old writers may align next_link_mem_size to 8, so allow slack.
+		// if the "nextState=nextNodeNum-1 must be a linked node" invariant
+		// was broken by the writer, nextLinkBits mismatch and we die here,
+		// instead of silently mis-decoding all link values
+		size_t alignedLinkMemSize = (size_t(next_link_mem_size) + 15) & ~size_t(15);
+		TERARK_VERIFY_LE(trie->m_next_link.mem_size(), alignedLinkMemSize);
 		trie->m_label_data = mem.skip((node_num + core_size + 7) & ~7);
 		trie->m_core_data = trie->m_label_data + node_num;
 		if (version == 1) {
@@ -2813,6 +2820,9 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 					trie->m_is_link.max_rank1(),
 					size_t(next_link_min_val),
 					nextLinkBits);
+				// see the comment of same check in the core+nested branch
+				size_t alignedLinkMemSize = (size_t(next_link_mem_size) + 15) & ~size_t(15);
+				TERARK_VERIFY_LE(trie->m_next_link.mem_size(), alignedLinkMemSize);
 			}
 			TERARK_VERIFY_EQ(trie->m_next_link.size(), trie->m_is_link.max_rank1());
 			trie->m_label_data = mem.skip((node_num + 7) & ~7);
