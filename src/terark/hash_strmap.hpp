@@ -160,6 +160,9 @@ protected:
 				, terark::ValueOut \
 			>::type
 
+#define HashStrMapDefaultArg1234567(Value) \
+        HashStrMapDefaultArg1234(Value), terark::FastCopy, unsigned int, terark::HSM_HashTp
+
 //
 // hash_strmap<> hset; // just a set, can be used as a string pool
 //
@@ -3446,12 +3449,13 @@ template< class Key // dummy for compatible with unordered_map<string,Value>
 		, class CopyStrategy = FastCopy
 		, class LinkTp = unsigned int // could be unsigned short for small map
 		, class HashTp = HSM_HashTp
+		, bool WithFreeList = !CopyStrategy::is_fast_copy || std::is_same_v<ValuePlace, ValueOut>
 		>
 class fast_hash_strmap : public
-	hash_strmap<Value,KeyHash,KeyEqual,ValuePlace,CopyStrategy,LinkTp,HashTp>
+	hash_strmap<Value,KeyHash,KeyEqual,ValuePlace,CopyStrategy,LinkTp,HashTp,WithFreeList>
 {
 	typedef
-	hash_strmap<Value,KeyHash,KeyEqual,ValuePlace,CopyStrategy,LinkTp,HashTp>
+	hash_strmap<Value,KeyHash,KeyEqual,ValuePlace,CopyStrategy,LinkTp,HashTp,WithFreeList>
 	super;
 	BOOST_STATIC_ASSERT((boost::is_same<Key, std::string>::value));
 public:
@@ -3486,10 +3490,11 @@ template< class Value
 		, class CopyStrategy
 		, class LinkTp
 		, class HashTp
+		, bool WithFreeList
 		>
 void
-swap(terark::hash_strmap<Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp> &x,
-	 terark::hash_strmap<Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp> &y)
+swap(terark::hash_strmap<Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp, WithFreeList> &x,
+	 terark::hash_strmap<Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp, WithFreeList> &y)
 {
 	x.swap(y);
 }
@@ -3504,10 +3509,11 @@ template< class Key
 		, class CopyStrategy
 		, class LinkTp
 		, class HashTp
+		, bool WithFreeList
 		>
 void
-swap(terark::fast_hash_strmap<Key, Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp> &x,
-	 terark::fast_hash_strmap<Key, Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp> &y)
+swap(terark::fast_hash_strmap<Key, Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp, WithFreeList> &x,
+	 terark::fast_hash_strmap<Key, Value, HashFunc, KeyEqual, ValuePlace, CopyStrategy, LinkTp, HashTp, WithFreeList> &y)
 {
 	x.swap(y);
 }
