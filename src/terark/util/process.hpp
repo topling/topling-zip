@@ -9,6 +9,7 @@
 #include <terark/io/FileStream.hpp>
 #include <terark/util/function.hpp>
 #include <thread>
+#include <atomic>
 #include <memory>
 #include <utility>
 #include <future>
@@ -18,6 +19,17 @@ namespace terark {
 
 TERARK_DLL_EXPORT int system_vfork(const char*);
 inline int system_vfork(fstring cmd) { return system_vfork(cmd.c_str()); }
+// sig == 0 disables parent-death notification. On Linux, a nonzero sig is
+// delivered when the creating thread exits. Only SIGKILL guarantees termination.
+// This applies to the directly executed process, not its forked descendants.
+// The sig overload returns -1 with errno on startup failure; successful startup
+// returns the waitpid status. The old overload retains positive startup errno.
+// Non-Linux platforms reject nonzero sig with ENOTSUP. On Linux, nonzero sig
+// selects vfork when SubProcHowSpawn=posix, because spawn has no prctl action.
+TERARK_DLL_EXPORT int system_vfork(const char* cmd, int sig);
+inline int system_vfork(fstring cmd, int sig) {
+    return system_vfork(cmd.c_str(), sig);
+}
 
 TERARK_DLL_EXPORT
 void vfork_cmd(fstring cmd, fstring stdinData,
@@ -39,6 +51,11 @@ vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
 ///   3. stderr redirect such as 2>&1 or 1>&2 in @param cmd is not allowed
 ///   4. If redirect rules are violated, the behavior is undefined
 ///   5. If you needs redirect, write a wrapping shell script
+/// Commands without shell syntax are split on spaces/tabs and executed via PATH.
+/// Quotes, expansions and other shell syntax keep the Bash execution path;
+/// parent-death notification then applies to Bash, not its forked descendants.
+/// xopen returns false with errno for startup errors. A successfully started
+/// command's nonzero exit is reported by err_code/xclose, not by xopen.
 class TERARK_DLL_EXPORT ProcPipeStream : public FileStream {
     using FileStream::dopen;
     using FileStream::size;
@@ -55,12 +72,21 @@ class TERARK_DLL_EXPORT ProcPipeStream : public FileStream {
     int m_pipe[2];
     int m_err;
     bool m_mode_is_read;
-    volatile int m_child_step;
+    static_assert(2 * sizeof(std::atomic<short>) == sizeof(int), "keep old ABI size");
+    alignas(int) std::atomic<short> m_child_step;
+    std::atomic<short> m_pipe_closed;
     intptr_t m_childpid;
     std::string m_cmd;
     std::unique_ptr<std::thread> m_thr;
 
+    struct Exec;
+    friend struct VforkCmdImpl;
+    // Keep the original exported entry point and the object layout for old ABI.
     void vfork_exec_wait() noexcept;
+    void vfork_exec_wait(Exec&) noexcept;
+    bool xopen_impl(fstring cmd, fstring mode,
+                    function<void(ProcPipeStream*)> onFinish,
+                    int sig, int stdout_fd, int stderr_fd) noexcept;
     void close_pipe() noexcept;
     void wait_proc() noexcept;
 
@@ -78,6 +104,17 @@ public:
     ProcPipeStream(fstring cmd, fstring mode, function<void(ProcPipeStream*)> onFinish);
     void open(fstring cmd, fstring mode, function<void(ProcPipeStream*)> onFinish);
     bool xopen(fstring cmd, fstring mode, function<void(ProcPipeStream*)> onFinish) noexcept;
+    // The new overloads preserve all existing exported signatures. sig has no
+    // default argument, so existing calls continue to select the old overloads.
+    ProcPipeStream(fstring cmd, fstring mode, int sig);
+    ProcPipeStream(fstring cmd, fstring mode,
+                   function<void(ProcPipeStream*)> onFinish, int sig);
+    void open(fstring cmd, fstring mode, int sig);
+    bool xopen(fstring cmd, fstring mode, int sig) noexcept;
+    void open(fstring cmd, fstring mode,
+              function<void(ProcPipeStream*)> onFinish, int sig);
+    bool xopen(fstring cmd, fstring mode,
+               function<void(ProcPipeStream*)> onFinish, int sig) noexcept;
     void wait_finish() noexcept;
     ///@}
 
@@ -104,6 +141,34 @@ TERARK_DLL_EXPORT
 std::future<std::string>
 vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
           fstring tmpFilePrefix = "");
+
+// The sig overloads use the same arguments as the old overloads, followed by
+// the parent-death signal. Pass an empty tmpFilePrefix to use the default path.
+// The array-output overload throws on execution failure, and the future
+// overloads deliver failures through future::get().
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd, fstring stdinData,
+               function<void(std::string&&, const std::exception*)> onFinish,
+               fstring tmpFilePrefix, int sig);
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd, fstring stdinData, std::string std_out_err[2],
+               fstring tmpFilePrefix, int sig);
+TERARK_DLL_EXPORT
+std::future<std::string>
+vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix, int sig);
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
+               function<void(std::string&&, const std::exception*)> onFinish,
+               fstring tmpFilePrefix, int sig);
+TERARK_DLL_EXPORT
+void vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
+               function<void(std::string&&, std::string&&,
+                             const std::exception*)> onFinish,
+               fstring tmpFilePrefix, int sig);
+TERARK_DLL_EXPORT
+std::future<std::string>
+vfork_cmd(fstring cmd, function<void(ProcPipeStream&)> write,
+          fstring tmpFilePrefix, int sig);
 
 //
 // these functions are for easy use, so the return value are narrowed to bool
