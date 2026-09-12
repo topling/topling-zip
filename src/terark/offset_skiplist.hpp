@@ -286,6 +286,7 @@ class OffsetSkipList {
     // Optional leading_len sits at the allocation start (varint+value), then
     // [higher nexts][Node][key]. Dup-fail sfree can drop the contiguous top.
     char* AllocateKey(size_t key_size, size_t leading_len = 0) {
+        TERARK_ASSERT_EQ(m_readonly, false);
         Node* x = AllocateNode(key_size, RandomHeight(), leading_len);
         if (terark_unlikely(x == nullptr)) {
             return nullptr;
@@ -621,12 +622,14 @@ class OffsetSkipList {
     }
 
 
-    // nullptr: inserted. Non-null: already present, that node's key.
+    // Sequential only: shared m_seq_splice (InlineSkipList::seq_splice_).
+    // token is acquire-state only; concurrent callers use InsertConcurrently.
     const char* Insert(const char* key, Token* token) {
         TERARK_ASSERT_EQ(token->state(), AcquireDone);
         return Insert<false>(key, &m_seq_splice, false);
     }
 
+    // Sequential only; see Insert(). Concurrent: InsertWithHintConcurrently.
     const char* InsertWithHint(const char* key, Token* token) {
         TERARK_ASSERT_EQ(token->state(), AcquireDone);
         Splice* hint = token->m_splice_hint;
@@ -665,6 +668,7 @@ class OffsetSkipList {
     template<bool UseCAS>
     const char* Insert(const char* key, Splice* splice,
                        bool allow_partial_splice_fix) {
+        TERARK_ASSERT_EQ(m_readonly, false);
         Node* x = reinterpret_cast<Node*>(const_cast<char*>(key)) - 1;
         const DecodedKey key_decoded = m_compare.decode_key(key);
         int height = x->UnstashHeight();
@@ -682,8 +686,20 @@ class OffsetSkipList {
     }
 
   public:
+    // Node [len][ukey] -> DecodedKey. Search APIs take DecodedKey only;
+    // a raw node pointer must not be passed (Slice(const char*) is a C string).
+    DecodedKey DecodeKey(const char* key) const {
+        return m_compare.decode_key(key);
+    }
+    const char* Get(const char*, Token*) const = delete;
+    bool Contains(const char*, Token*) const = delete;
+    uint64_t EstimateCount(const char*, Token*) const = delete;
+    uint64_t EstimateCount(const char*) const = delete;
+    std::pair<Node*, int> FindGreaterOrEqual(const char*, Token*) const = delete;
+    std::pair<Node*, int> FindGreaterOrEqual(const char*) const = delete;
+
     // nullptr: absent. Non-null: that node's key (equal).
-    const char* Get(const char* key, Token* token) const {
+    const char* Get(const DecodedKey& key, Token* token) const {
         TERARK_ASSERT_EQ(token->state(), AcquireDone);
         auto found = FindGreaterOrEqual(key, token);
         if (found.first != nullptr && found.second == 0) {
@@ -692,20 +708,19 @@ class OffsetSkipList {
         return nullptr;
     }
 
-    bool Contains(const char* key, Token* token) const {
+    bool Contains(const DecodedKey& key, Token* token) const {
         return Get(key, token) != nullptr;
     }
 
-    uint64_t EstimateCount(const char* key, Token* token) const {
+    uint64_t EstimateCount(const DecodedKey& key, Token* token) const {
         TERARK_ASSERT_EQ(token->state(), AcquireDone);
         return EstimateCount(key);
     }
-    uint64_t EstimateCount(const char* key) const {
+    uint64_t EstimateCount(const DecodedKey& key_decoded) const {
         uint64_t count = 0;
         byte_t* b = base();
         Node* x = m_head;
         int level = GetMaxHeight() - 1;
-        const DecodedKey key_decoded = m_compare.decode_key(key);
         while (true) {
             if (x != m_head) {
                 TERARK_ASSERT_LT(m_compare(x->Key(), key_decoded), 0);
@@ -730,16 +745,16 @@ class OffsetSkipList {
 
     // second is this hop's compare, or +1 when next is nullptr / last_bigger
     // (already known greater; not the raw Comparator result).
-    std::pair<Node*, int> FindGreaterOrEqual(const char* key, Token* token) const {
+    std::pair<Node*, int> FindGreaterOrEqual(const DecodedKey& key,
+                                             Token* token) const {
         TERARK_ASSERT_EQ(token->state(), AcquireDone);
         return FindGreaterOrEqual(key);
     }
-    std::pair<Node*, int> FindGreaterOrEqual(const char* key) const {
+    std::pair<Node*, int> FindGreaterOrEqual(const DecodedKey& key_decoded) const {
         byte_t* b = base();
         Node* x = m_head;
         int level = GetMaxHeight() - 1;
         Node* last_bigger = nullptr;
-        const DecodedKey key_decoded = m_compare.decode_key(key);
         while (true) {
             Node* next = x->Next(level, b);
             if (next != nullptr) {
@@ -1005,7 +1020,8 @@ class OffsetSkipList {
 
         void Prev() {
             TERARK_ASSERT_NE(m_node, nullptr);
-            m_node = this->skiplist()->FindLessThan(m_node->Key());
+            m_node = this->skiplist()->FindLessThan(
+                this->skiplist()->DecodeKey(m_node->Key()));
             if (m_node == this->skiplist()->m_head) {
                 m_node = nullptr;
             }
@@ -1014,19 +1030,22 @@ class OffsetSkipList {
             }
         }
 
-        void Seek(const char* target) {
+        void Seek(const char*) = delete;
+        void SeekForPrev(const char*) = delete;
+
+        void Seek(const DecodedKey& target) {
             if constexpr (NeedToken) {
                 this->UpdateToken();
             }
             m_node = this->skiplist()->FindGreaterOrEqual(target).first;
         }
 
-        void SeekForPrev(const char* target) {
+        void SeekForPrev(const DecodedKey& target) {
             Seek(target);
             if (!Valid()) {
                 SeekToLast();
             }
-            while (Valid() && this->skiplist()->LessThan(target, key())) {
+            while (Valid() && this->skiplist()->m_compare(key(), target) > 0) {
                 Prev();
             }
         }
@@ -1127,36 +1146,23 @@ class OffsetSkipList {
         return x;
     }
 
-    bool Equal(const char* a, const char* b) const {
-        return m_compare.equal(a, b);
-    }
-    bool LessThan(const char* a, const char* b) const {
-        return m_compare(a, b) < 0;
-    }
-
-    bool KeyIsAfterNode(const char* key, Node* n) const {
-        TERARK_ASSERT_NE(n, m_head);
-        return (n != nullptr) && (m_compare(n->Key(), key) < 0);
-    }
-
     bool KeyIsAfterNode(const DecodedKey& key, Node* n) const {
         TERARK_ASSERT_NE(n, m_head);
         return (n != nullptr) && (m_compare(n->Key(), key) < 0);
     }
 
 
-    Node* FindLessThan(const char* key, Node** prev = nullptr) const {
-        return FindLessThan(key, prev, m_head, GetMaxHeight(), 0);
+    Node* FindLessThan(const DecodedKey& key_decoded, Node** prev = nullptr) const {
+        return FindLessThan(key_decoded, prev, m_head, GetMaxHeight(), 0);
     }
 
-    Node* FindLessThan(const char* key, Node** prev, Node* root,
+    Node* FindLessThan(const DecodedKey& key_decoded, Node** prev, Node* root,
                        int top_level, int bottom_level) const {
         TERARK_ASSERT_GT(top_level, bottom_level);
         byte_t* b = base();
         int level = top_level - 1;
         Node* x = root;
         Node* last_not_after = nullptr;
-        const DecodedKey key_decoded = m_compare.decode_key(key);
         while (true) {
             TERARK_ASSERT_NE(x, nullptr);
             Node* next = x->Next(level, b);
@@ -1591,12 +1597,6 @@ class OffsetSkipList {
             lzf.q.pop_front();
         }
         lzf.mem_size = 0;
-    }
-
-    void ReleaseIdleTlsTokens() {
-        m_mem.for_each_tls([](TCMemPoolOneThread<AlignSize>* tc) {
-            static_cast<LazyFreeListTLS*>(tc)->ReleaseIdleTokens();
-        });
     }
 
     void ReleaseTlsTokensForDestroy() {
