@@ -119,6 +119,11 @@ class OffsetSkipList {
         typename std::conditional<AlignSize == 4, uint32_t, uint64_t>::type;
     using Node = OffsetSkipListNode<AlignSize, Value>;
 
+    class Token;
+  private:
+    struct LazyFreeListTLS;
+  public:
+    using MemTls = LazyFreeListTLS;
     struct Splice {
         int height = 0;
         link_t* prev;
@@ -163,6 +168,8 @@ class OffsetSkipList {
     static const uint16_t kMaxPossibleHeight = 20;
     static const uint32_t kIterTokenUpdateStride = 200;
     static const link_t nil = link_t(-1);
+    static constexpr uint8_t kFlagGc = 1;
+    static constexpr uint8_t kFlagReadonly = 2;
 
     explicit OffsetSkipList(Comparator cmp, size_t mem_cap,
                             int max_height = 14,
@@ -214,7 +221,7 @@ class OffsetSkipList {
         InitSplice();
         m_head_loc = head_loc;
         m_num_nodes = num_nodes;
-        m_readonly = true;
+        m_flag |= kFlagReadonly;
     }
 
     // File-backed mmap pool (CSPP Patricia file_path). Allocates head.
@@ -257,7 +264,7 @@ class OffsetSkipList {
     OffsetSkipList(const OffsetSkipList&) = delete;
     OffsetSkipList& operator=(const OffsetSkipList&) = delete;
     ~OffsetSkipList() {
-        if (!m_readonly) {
+        if (!is_readonly()) {
             SyncNumNodes();
         }
         if (m_own_mem || is_mmap()) {
@@ -280,14 +287,19 @@ class OffsetSkipList {
         return Node::NodeAt(base(), loc)->Key();
     }
     int max_height() const { return GetMaxHeight(); }
+    bool is_gc_enabled() const { return m_flag & kFlagGc; }
+    void set_gc_enabled(bool v) {
+        m_flag = uint8_t((m_flag & ~kFlagGc) | (v ? kFlagGc : 0));
+    }
+    terark_forceinline bool need_pin() const { return m_flag == kFlagGc; }
     int k_max_height() const { return m_max_height_limit; }
     int k_branching() const { return m_branching; }
 
     // Optional leading_len sits at the allocation start (varint+value), then
     // [higher nexts][Node][key]. Dup-fail sfree can drop the contiguous top.
-    char* AllocateKey(size_t key_size, size_t leading_len = 0) {
-        TERARK_ASSERT_EQ(m_readonly, false);
-        Node* x = AllocateNode(key_size, RandomHeight(), leading_len);
+    char* AllocateKey(size_t key_size, MemTls* tc, size_t leading_len = 0) {
+        TERARK_ASSERT_EQ(is_readonly(), false);
+        Node* x = AllocateNode(key_size, RandomHeight(), tc, leading_len);
         if (terark_unlikely(x == nullptr)) {
             return nullptr;
         }
@@ -297,18 +309,19 @@ class OffsetSkipList {
     // Insert() returned an existing key: this node was never linked. Height
     // is still stashed in m_next[0]. key_size / leading_len must match
     // AllocateKey().
-    void FreeUnusedKey(const char* key, size_t key_size, size_t leading_len = 0) {
+    void FreeUnusedKey(const char* key, size_t key_size, MemTls* tc,
+                       size_t leading_len = 0) {
         const size_t pos = KeyAllocPos(key, leading_len);
         Node* x = reinterpret_cast<Node*>(const_cast<char*>(key)) - 1;
         const int height = x->UnstashHeight();
         const size_t prefix = sizeof(link_t) * size_t(height - 1);
-        m_mem.sfree(pos, leading_len + prefix + sizeof(Node) + key_size);
+        tls_sfree(pos, leading_len + prefix + sizeof(Node) + key_size, tc);
     }
 
     // Keep the leading_len bytes, sfree Node+key (the top). Returns
     // leading pos (same as KeyAllocPos).
     size_t FreeUnusedKeyKeepLeading(const char* key, size_t key_size,
-                                    size_t leading_len) {
+                                    size_t leading_len, MemTls* tc) {
         TERARK_ASSERT_GT(leading_len, 0);
         TERARK_ASSERT_AL(leading_len, AlignSize);
         const size_t pos = KeyAllocPos(key, leading_len);
@@ -317,7 +330,7 @@ class OffsetSkipList {
         const size_t prefix = sizeof(link_t) * size_t(height - 1);
         const size_t drop = prefix + sizeof(Node) + key_size;
         TERARK_ASSERT_GE(drop, sizeof(link_t));
-        m_mem.sfree(pos + leading_len, drop);
+        tls_sfree(pos + leading_len, drop, tc);
         return pos;
     }
 
@@ -360,8 +373,8 @@ class OffsetSkipList {
             m_list = list;
             // Writable, or leftover queue after set_readonly: join/rotate.
             // Readonly and qlen==0: just flip state (CSPP TokenBase::acquire).
-            if (!list->m_readonly || list->m_token_qlen) {
-                if (terark_unlikely(m_tls == nullptr) && !list->m_readonly) {
+            if (!list->is_readonly() || list->m_token_qlen) {
+                if (terark_unlikely(m_tls == nullptr) && !list->is_readonly()) {
                     init_tls();
                 }
                 mt_acquire();
@@ -382,7 +395,7 @@ class OffsetSkipList {
         }
 
         void release() {
-            if (!m_list->m_readonly || m_list->m_token_qlen) {
+            if (!m_list->is_readonly() || m_list->m_token_qlen) {
                 mt_release();
             } else {
                 switch (m_flags.state) {
@@ -402,7 +415,7 @@ class OffsetSkipList {
 
         void idle() {
             TERARK_ASSERT_EQ(m_flags.state, AcquireDone);
-            if (!m_list->m_readonly) {
+            if (!m_list->is_readonly()) {
                 maybe_rotate(AcquireIdle);
             } else if (m_list->m_token_qlen == 0) {
                 m_flags.state = AcquireIdle;
@@ -423,7 +436,7 @@ class OffsetSkipList {
 
         void update() {
             TERARK_ASSERT_EQ(m_flags.state, AcquireDone);
-            if (!m_list->m_readonly) {
+            if (!m_list->is_readonly()) {
                 maybe_rotate(AcquireDone);
             }
         }
@@ -449,14 +462,8 @@ class OffsetSkipList {
 
         TokenState state() const { return m_flags.state; }
 
-        Splice* m_splice_hint = nullptr;
-
       protected:
         virtual ~Token() {
-            if (m_splice_hint != nullptr) {
-                delete[] reinterpret_cast<char*>(m_splice_hint);
-                m_splice_hint = nullptr;
-            }
             // Dummy is a queue sentinel (InitDummy sets AcquireIdle). Ctor
             // unwind never reaches ~OffsetSkipList, which is the only place
             // that would set ReleaseDone on m_dummy.
@@ -475,6 +482,7 @@ class OffsetSkipList {
 
       private:
         friend class OffsetSkipList;
+        friend struct LazyFreeListTLS;
         OffsetSkipList* m_list = nullptr;
         void* m_tls = nullptr;
         size_t m_thread_id = size_t(-1);
@@ -571,16 +579,16 @@ class OffsetSkipList {
         }
     };
 
-    template<class TokenType = Token>
-    TokenType* tls_token_nn() const {
+    terark_forceinline MemTls* tls_get() const {
         auto* mp = const_cast<ThreadCacheMemPool<AlignSize>*>(&m_mem);
-        auto* lzf = static_cast<LazyFreeListTLS*>(mp->get_tls());
-        if (lzf->writer == nullptr) {
-            lzf->writer = new TokenType();
-        } else {
-            TERARK_ASSERT_NE(dynamic_cast<TokenType*>(lzf->writer), nullptr);
-        }
-        return static_cast<TokenType*>(lzf->writer);
+        auto* lzf = static_cast<MemTls*>(mp->get_tls());
+        TERARK_VERIFY_NE(lzf, nullptr);
+        return lzf;
+    }
+
+    template<class TokenType = Token>
+    terark_forceinline TokenType* tls_token_nn() const {
+        return tls_get()->template get_token<TokenType>();
     }
 
     Token* tls_token() const { return tls_token_nn<Token>(); }
@@ -617,7 +625,7 @@ class OffsetSkipList {
 
     uint64_t num_nodes() const { return m_num_nodes; }
     uint64_t slow_exact_num_nodes() const {
-        if (m_readonly) {
+        if (is_readonly()) {
             return m_num_nodes;
         }
         uint64_t n = as_atomic(m_num_nodes).load(std::memory_order_relaxed);
@@ -635,53 +643,58 @@ class OffsetSkipList {
 
 
     // Sequential only: shared m_seq_splice (InlineSkipList::seq_splice_).
-    // token is acquire-state only; concurrent callers use InsertConcurrently.
-    const char* Insert(const char* key, Token* token) {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
-        return Insert<false>(key, &m_seq_splice, false, token);
+    // Concurrent callers use InsertConcurrently. Caller passes the TLS
+    // already obtained for alloc; this does not get_tls again.
+    char* Insert(char* key, MemTls* tc) {
+        return Insert<false>(key, &m_seq_splice, false, tc);
     }
 
-    // Sequential only; see Insert(). Concurrent: InsertWithHintConcurrently.
-    const char* InsertWithHint(const char* key, Token* token) {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
-        Splice* hint = token->m_splice_hint;
-        if (terark_unlikely(hint == nullptr)) {
-            hint = token->m_splice_hint = AllocateSpliceOnHeap();
-        }
-        return Insert<false>(key, hint, true, token);
+    char* InsertWithHint(char* key, MemTls* tc) {
+        TERARK_ASSERT_NE(tc, nullptr);
+        return Insert<false>(key, tc->get_splice(), true, tc);
     }
 
-    // Reset height. Splice stays on the token until ~Token.
-    void FinishHint(Token* token) {
-        TERARK_ASSERT_NE(token->m_splice_hint, nullptr);
-        token->m_splice_hint->height = 0;
+    // Reset height. Splice stays on TLS until ~LazyFreeListTLS.
+    void FinishHint(MemTls* tc) {
+        TERARK_ASSERT_NE(tc, nullptr);
+        tc->assert_current_thread();
+        Splice* splice = tc->peek_splice();
+        TERARK_ASSERT_NE(splice, nullptr);
+        splice->height = 0;
     }
 
-    const char* InsertConcurrently(const char* key, Token* token) {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
+    char* InsertConcurrently(char* key, MemTls* tc) {
         link_t prev[kMaxPossibleHeight + 1];
         link_t next[kMaxPossibleHeight + 1];
         Splice splice;
         splice.prev = prev;
         splice.next = next;
-        return Insert<true>(key, &splice, false, token);
+        return Insert<true>(key, &splice, false, tc);
     }
 
-    const char* InsertWithHintConcurrently(const char* key, Token* token) {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
-        Splice* hint = token->m_splice_hint;
-        if (terark_unlikely(hint == nullptr)) {
-            hint = token->m_splice_hint = AllocateSpliceOnHeap();
-        }
-        return Insert<true>(key, hint, true, token);
+    char* InsertWithHintConcurrently(char* key, MemTls* tc) {
+        TERARK_ASSERT_NE(tc, nullptr);
+        return Insert<true>(key, tc->get_splice(), true, tc);
     }
 
   private:
+    void AccountNewNode(MemTls* tc) {
+        if (is_gc_enabled()) {
+            TERARK_ASSERT_NE(tc, nullptr);
+            TERARK_ASSERT_NE(tc->writer, nullptr);
+            tc->writer->m_num_nodes++;
+        } else {
+            as_atomic(m_num_nodes).fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+
     template<bool UseCAS>
-    const char* Insert(const char* key, Splice* splice,
-                       bool allow_partial_splice_fix, Token* token) {
-        TERARK_ASSERT_EQ(m_readonly, false);
-        Node* x = reinterpret_cast<Node*>(const_cast<char*>(key)) - 1;
+    char* Insert(char* key, Splice* splice,
+                 bool allow_partial_splice_fix, MemTls* tc) {
+        TERARK_ASSERT_EQ(is_readonly(), false);
+        TERARK_ASSERT_NE(tc, nullptr);
+        tc->assert_current_thread();
+        Node* x = reinterpret_cast<Node*>(key) - 1;
         const DecodedKey key_decoded = m_compare.decode_key(key);
         int height = x->UnstashHeight();
         TERARK_ASSERT_BE(height, 1, m_max_height_limit);
@@ -690,10 +703,10 @@ class OffsetSkipList {
         int recompute_height =
             PrepareSplice(key_decoded, splice, allow_partial_splice_fix,
                           max_height);
-        const char* exist = LinkFromSplice<UseCAS>(
+        char* exist = LinkFromSplice<UseCAS>(
             x, key_decoded, height, splice, recompute_height);
         if (exist == nullptr) {
-            token->m_num_nodes++;
+            AccountNewNode(tc);
         }
         return exist;
     }
@@ -704,30 +717,22 @@ class OffsetSkipList {
     DecodedKey DecodeKey(const char* key) const {
         return m_compare.decode_key(key);
     }
-    const char* Get(const char*, Token*) const = delete;
-    bool Contains(const char*, Token*) const = delete;
-    uint64_t EstimateCount(const char*, Token*) const = delete;
+    const char* Get(const char*) const = delete;
+    bool Contains(const char*) const = delete;
     uint64_t EstimateCount(const char*) const = delete;
-    std::pair<link_t, int> FindGreaterOrEqual(const char*, Token*) const = delete;
     std::pair<link_t, int> FindGreaterOrEqual(const char*) const = delete;
 
     // nullptr: absent. Non-null: that node's key (equal).
-    const char* Get(const DecodedKey& key, Token* token) const {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
-        auto found = FindGreaterOrEqual(key, token);
+    const char* Get(const DecodedKey& key) const {
+        auto found = FindGreaterOrEqual(key);
         if (found.first != nil && found.second == 0) {
             return KeyOf(found.first);
         }
         return nullptr;
     }
 
-    bool Contains(const DecodedKey& key, Token* token) const {
-        return Get(key, token) != nullptr;
-    }
-
-    uint64_t EstimateCount(const DecodedKey& key, Token* token) const {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
-        return EstimateCount(key);
+    bool Contains(const DecodedKey& key) const {
+        return Get(key) != nullptr;
     }
     uint64_t EstimateCount(const DecodedKey& key_decoded) const {
         uint64_t count = 0;
@@ -760,11 +765,6 @@ class OffsetSkipList {
 
     // second is this hop's compare, or +1 when next_loc is nil / last_bigger
     // (already known greater; not the raw Comparator result).
-    std::pair<link_t, int> FindGreaterOrEqual(const DecodedKey& key,
-                                             Token* token) const {
-        TERARK_ASSERT_EQ(token->state(), AcquireDone);
-        return FindGreaterOrEqual(key);
-    }
     std::pair<link_t, int> FindGreaterOrEqual(const DecodedKey& key_decoded) const {
         byte_t* b = base();
         link_t xloc = m_head_loc;
@@ -838,17 +838,13 @@ class OffsetSkipList {
         }
     }
 
-    void TEST_AllocHint(Token* token) {
-        if (token->m_splice_hint == nullptr) {
-            token->m_splice_hint = AllocateSpliceOnHeap();
-        }
-    }
+    Splice* TEST_AllocHint() { return tls_get()->get_splice(); }
 
-    char* TEST_AllocateKeyWithHeight(size_t key_size, int height,
+    char* TEST_AllocateKeyWithHeight(size_t key_size, int height, MemTls* tc,
                                      size_t leading_len = 0) {
         TERARK_VERIFY_GE(height, 1);
         TERARK_VERIFY_LE(height, m_max_height_limit);
-        Node* x = AllocateNode(key_size, height, leading_len);
+        Node* x = AllocateNode(key_size, height, tc, leading_len);
         return x ? const_cast<char*>(x->Key()) : nullptr;
     }
 
@@ -864,17 +860,17 @@ class OffsetSkipList {
     }
 
     // Bypass PrepareSplice so a deliberately stale Splice reaches LinkFromSplice.
-    const char* TEST_InsertSkipPrepare(const char* key, Splice* splice,
-                                       Token* token) {
+    char* TEST_InsertSkipPrepare(char* key, Splice* splice, MemTls* tc) {
         TERARK_VERIFY(splice != nullptr);
-        Node* x = reinterpret_cast<Node*>(const_cast<char*>(key)) - 1;
+        TERARK_ASSERT_NE(tc, nullptr);
+        Node* x = reinterpret_cast<Node*>(key) - 1;
         const DecodedKey key_decoded = m_compare.decode_key(key);
         int height = x->UnstashHeight();
         GrowMaxHeight(height);
-        const char* exist = LinkFromSplice<false, true>(
+        char* exist = LinkFromSplice<false, true>(
             x, key_decoded, height, splice, 0);
         if (exist == nullptr) {
-            token->m_num_nodes++;
+            AccountNewNode(tc);
         }
         return exist;
     }
@@ -905,10 +901,10 @@ class OffsetSkipList {
     // Pre-fix LinkFromSplice (non-CAS, skip Prepare): treat splice locs as
     // stable. Only next-equal is duplicate; prev > key / next < key
     // are asserted then linked anyway (release) or abort (debug).
-    const char* TEST_InsertSkipPrepareLegacy(const char* key, Splice* splice,
-                                             Token* token) {
+    char* TEST_InsertSkipPrepareLegacy(char* key, Splice* splice, MemTls* tc) {
         TERARK_VERIFY(splice != nullptr);
-        Node* x = reinterpret_cast<Node*>(const_cast<char*>(key)) - 1;
+        TERARK_ASSERT_NE(tc, nullptr);
+        Node* x = reinterpret_cast<Node*>(key) - 1;
         const DecodedKey key_decoded = m_compare.decode_key(key);
         int height = x->UnstashHeight();
         GrowMaxHeight(height);
@@ -919,12 +915,12 @@ class OffsetSkipList {
             if (i == 0 && next_loc != nil &&
                 m_compare.equal(KeyOf(next_loc), key_decoded)) {
                 x->StashHeight(height);
-                return KeyOf(next_loc);
+                return const_cast<char*>(KeyOf(next_loc));
             }
             x->NoBarrier_SetNextLoc(i, next_loc);
             NodeAt(b, splice->prev[i])->SetNextLoc(i, xloc);
         }
-        token->m_num_nodes++;
+        AccountNewNode(tc);
         return nullptr;
     }
 
@@ -936,10 +932,19 @@ class OffsetSkipList {
     ThreadCacheMemPool<AlignSize>& mempool() { return m_mem; }
     const ThreadCacheMemPool<AlignSize>& mempool() const { return m_mem; }
 
+    size_t tls_alloc(size_t n, MemTls* tc) {
+        TERARK_VERIFY_NE(tc, nullptr);
+        return m_mem.alloc(n, tc);
+    }
+    void tls_sfree(size_t pos, size_t len, MemTls* tc) {
+        TERARK_VERIFY_NE(tc, nullptr);
+        m_mem.sfree(pos, len, tc);
+    }
+
     intptr_t mmap_fd() const { return m_mmap_fd; }
     const std::string& mmap_fpath() const { return m_mmap_fpath; }
     bool is_mmap() const { return m_mmap_fd >= 0; }
-    bool is_readonly() const { return m_readonly; }
+    bool is_readonly() const { return m_flag & kFlagReadonly; }
     uint32_t token_qlen() const { return m_token_qlen; }
     fstring get_mmap() const {
         return is_mmap() ? fstring(reinterpret_cast<const char*>(m_mem.data()),
@@ -949,7 +954,7 @@ class OffsetSkipList {
     // File mmap: drop unused tail pages and ftruncate to used size
     // (Patricia mempool_set_readonly, MWMR only).
     void set_readonly() {
-        if (m_readonly) {
+        if (m_flag & kFlagReadonly) {
             return;
         }
         if (m_mmap_fd >= 0) {
@@ -979,7 +984,7 @@ class OffsetSkipList {
 #endif
         }
         SyncNumNodes();
-        m_readonly = true;
+        m_flag |= kFlagReadonly;
     }
 
 
@@ -1003,17 +1008,17 @@ class OffsetSkipList {
         }
     };
 
-    template<bool ReadOnly>
-    class IteratorTpl : public std::conditional_t<ReadOnly, IteratorReadonlyBase, IteratorWritableBase> {
-        static constexpr bool NeedToken = !ReadOnly;
+    template<bool NoPin>
+    class IteratorTpl : public std::conditional_t<NoPin, IteratorReadonlyBase, IteratorWritableBase> {
+        static constexpr bool NeedToken = !NoPin;
       public:
         IteratorTpl(const IteratorTpl&) = delete;
         IteratorTpl& operator=(const IteratorTpl&) = delete;
 
         explicit IteratorTpl(const OffsetSkipList* list) {
             TERARK_ASSERT_NE(list, nullptr);
-            if constexpr (ReadOnly) {
-                TERARK_VERIFY(list->is_readonly());
+            if constexpr (NoPin) {
+                TERARK_VERIFY(!list->need_pin());
                 this->m_list = const_cast<OffsetSkipList*>(list);
             } else {
                 this->acquire(const_cast<OffsetSkipList*>(list));
@@ -1067,12 +1072,30 @@ class OffsetSkipList {
         }
 
         void SeekForPrev(const DecodedKey& target) {
-            Seek(target);
-            if (!Valid()) {
-                SeekToLast();
+            if constexpr (NeedToken) {
+                this->UpdateToken();
             }
-            while (Valid() && this->skiplist()->m_compare(key(), target) > 0) {
-                Prev();
+            OffsetSkipList* sl = this->skiplist();
+            link_t pred = sl->FindLessThan(target);
+            link_t succ = NodeAt(sl->base(), pred)->NextLoc(0);
+            // FindLessThan's pred can be stale: a node may already sit in
+            // (pred, target]. Testing succ == target missed those and fell
+            // back to pred. Accept succ <= target and walk L0 to the last
+            // key <= target. Do not return the stale pred in that case.
+            if (succ != nil && sl->m_compare(sl->KeyOf(succ), target) <= 0) {
+                m_loc = succ;
+                byte_t* b = sl->base();
+                while (true) {
+                    link_t n = NodeAt(b, m_loc)->NextLoc(0);
+                    if (n == nil || sl->m_compare(sl->KeyOf(n), target) > 0) {
+                        break;
+                    }
+                    m_loc = n;
+                }
+            } else if (pred != sl->m_head_loc) {
+                m_loc = pred;
+            } else {
+                m_loc = nil;
             }
         }
 
@@ -1117,7 +1140,7 @@ class OffsetSkipList {
         link_t m_loc = nil;
     };
     using Iterator = IteratorTpl<false>;
-    using ReadonlyIterator = IteratorTpl<true>;
+    using NoPinIterator = IteratorTpl<true>;
 
   private:
     static link_t LocOf(const byte_t* base, const Node* n) {
@@ -1138,15 +1161,21 @@ class OffsetSkipList {
         return m_max_height.load(std::memory_order_relaxed);
     }
 
+    // Same Park–Miller reduction as rocksdb Random::Next(); avoid `% M`.
     static uint32_t NextRand() {
         thread_local uint32_t seed = 1;
-        seed = static_cast<uint32_t>((uint64_t(seed) * 16807u) % 2147483647u);
+        constexpr uint32_t M = 2147483647u;  // 2^31-1; 2^31 ≡ 1 (mod M)
+        const uint64_t product = uint64_t(seed) * 16807u;
+        seed = static_cast<uint32_t>((product >> 31) + (product & M));
+        if (seed > M) {
+            seed -= M;
+        }
         return seed;
     }
 
     int RandomHeight() {
         int height = 1;
-        while (height < m_max_height_limit && height < kMaxPossibleHeight &&
+        while (height < m_max_height_limit &&
                NextRand() < m_scaled_inverse_branching) {
             height++;
         }
@@ -1156,11 +1185,12 @@ class OffsetSkipList {
     }
 
 
-    Node* AllocateNode(size_t key_size, int height, size_t leading_len = 0) {
+    Node* AllocateNode(size_t key_size, int height, MemTls* tc,
+                       size_t leading_len = 0) {
         TERARK_ASSERT_AL(leading_len, AlignSize);
         const size_t prefix = sizeof(link_t) * size_t(height - 1);
         const size_t nbytes = leading_len + prefix + sizeof(Node) + key_size;
-        size_t pos = m_mem.alloc(nbytes);
+        size_t pos = tls_alloc(nbytes, tc);
         if (terark_unlikely(pos == size_t(-1))) {
             return nullptr;
         }
@@ -1376,17 +1406,17 @@ class OffsetSkipList {
     // PrepareSplice first; then this matches InlineSkipList (level-0
     // compare for dups, no per-level order rescan from head).
     template<bool UseCAS, bool RepairStale = false>
-    const char* LinkFromSplice(Node* x, const DecodedKey& key, int height,
-                               Splice* splice, [[maybe_unused]] int recompute_height) {
+    char* LinkFromSplice(Node* x, const DecodedKey& key, int height,
+                         Splice* splice, [[maybe_unused]] int recompute_height) {
         byte_t* b = base();
         const link_t xloc = LocOf(b, x);
         bool splice_is_valid = true;
-        auto fail_dup = [&](link_t found) {
+        auto fail_dup = [&](link_t found) -> char* {
             x->StashHeight(height);
-            return KeyOf(found);
+            return const_cast<char*>(KeyOf(found));
         };
         auto dup_at_level0 = [&](link_t prev_loc, link_t next_loc,
-                                 Node* prev) -> const char* {
+                                 Node* prev) -> char* {
             if (terark_unlikely(next_loc != nil &&
                                 m_compare(NodeAt(b, next_loc)->Key(), key) == 0)) {
                 return fail_dup(next_loc);
@@ -1418,7 +1448,7 @@ class OffsetSkipList {
                     link_t prev_loc = splice->prev[i];
                     Node* prev = NodeAt(b, prev_loc);
                     if (i == 0) {
-                        if (const char* d = dup_at_level0(prev_loc, next_loc, prev)) {
+                        if (char* d = dup_at_level0(prev_loc, next_loc, prev)) {
                             return d;
                         }
                     }
@@ -1458,7 +1488,7 @@ class OffsetSkipList {
                 }
                 link_t next_loc = splice->next[i];
                 if (i == 0) {
-                    if (const char* d = dup_at_level0(prev_loc, next_loc, prev)) {
+                    if (char* d = dup_at_level0(prev_loc, next_loc, prev)) {
                         return d;
                     }
                 }
@@ -1467,7 +1497,7 @@ class OffsetSkipList {
                     next_loc = splice->next[i];
                     prev = NodeAt(b, prev_loc);
                     if (i == 0) {
-                        if (const char* d = dup_at_level0(prev_loc, next_loc, prev)) {
+                        if (char* d = dup_at_level0(prev_loc, next_loc, prev)) {
                             return d;
                         }
                     }
@@ -1503,7 +1533,7 @@ class OffsetSkipList {
     intptr_t m_mmap_fd = -1;
     size_t m_mmap_size = 0;
     bool m_own_mem = true;
-    bool m_readonly = false;
+    uint8_t m_flag = kFlagGc;
     std::string m_mmap_fpath;
 
     // frequently updating
@@ -1524,17 +1554,46 @@ class OffsetSkipList {
         size_t len;
     };
     struct LazyFreeListTLS : TCMemPoolOneThread<AlignSize> {
-        Token* writer = nullptr;
-        OffsetSkipList* list = nullptr;
-        size_t mem_size = 0;
-        std::deque<LazyFreeItem> q;
+        friend class OffsetSkipList;
         explicit LazyFreeListTLS(OffsetSkipList* l)
             : TCMemPoolOneThread<AlignSize>(&l->m_mem), list(l) {}
+
+        template<class TokenType = Token>
+        terark_forceinline TokenType* get_token() {
+            if (terark_likely(writer != nullptr)) {
+                TERARK_ASSERT_NE(dynamic_cast<TokenType*>(writer), nullptr);
+                return static_cast<TokenType*>(writer);
+            }
+            auto* tok = new TokenType();
+            tok->m_tls = this;
+            writer = tok;
+            return tok;
+        }
+
+        void assert_current_thread() const {
+            if (writer != nullptr) {
+                TERARK_ASSERT_EQ(writer->m_thread_id, ThisThreadID());
+            }
+        }
+
+        terark_forceinline Splice* peek_splice() const { return splice_hint; }
+
+        // One heap splice per TLS. FinishHint only resets height.
+        terark_forceinline Splice* get_splice() {
+            if (splice_hint == nullptr) {
+                splice_hint = list->AllocateSpliceOnHeap();
+            }
+            return splice_hint;
+        }
 
         ~LazyFreeListTLS() override {
             if (writer != nullptr) {
                 writer->dispose();
                 writer = nullptr;
+            }
+            if (splice_hint != nullptr) {
+                delete[] reinterpret_cast<char*>(splice_hint);
+                splice_hint = nullptr;
             }
         }
 
@@ -1577,6 +1636,13 @@ class OffsetSkipList {
             };
             rel(writer);
         }
+
+      private:
+        Token* writer = nullptr;
+        OffsetSkipList* list = nullptr;
+        size_t mem_size = 0;
+        std::deque<LazyFreeItem> q;
+        Splice* splice_hint = nullptr;
     };
 
     void InitSplice() {
@@ -1586,7 +1652,7 @@ class OffsetSkipList {
     }
 
     void InitHead() {
-        Node* h = AllocateNode(0, m_max_height_limit);
+        Node* h = AllocateNode(0, m_max_height_limit, tls_get());
         TERARK_VERIFY_F(h != nullptr, "OffsetSkipList head alloc failed, cap=%zd",
                         m_mem.capacity());
         m_head_loc = LocOf(base(), h);
@@ -1644,7 +1710,7 @@ class OffsetSkipList {
     void DrainList(LazyFreeListTLS& lzf) {
         while (!lzf.q.empty()) {
             const LazyFreeItem& x = lzf.q.front();
-            m_mem.sfree(x.pos, x.len);
+            m_mem.sfree(x.pos, x.len, &lzf);
             lzf.q.pop_front();
         }
         lzf.mem_size = 0;
@@ -1662,7 +1728,7 @@ class OffsetSkipList {
         for (size_t i = 0; i < n; ++i) {
             const LazyFreeItem& head = lzf.q.front();
             if (head.age < min_verseq) {
-                m_mem.sfree(head.pos, head.len);
+                m_mem.sfree(head.pos, head.len, &lzf);
                 revoked += head.len;
                 lzf.q.pop_front();
             } else {
