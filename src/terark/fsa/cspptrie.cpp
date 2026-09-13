@@ -3606,6 +3606,50 @@ terark_flatten Patricia::WriterToken::~WriterToken() {
     TERARK_VERIFY(ReleaseDone == m_flags.state);
 }
 
+size_t Patricia::WriterToken::tls_mem_alloc(size_t size) {
+    TERARK_ASSERT_NE(nullptr, m_tls);
+    TERARK_ASSERT_EQ(MultiWriteMultiRead, m_trie->m_writing_concurrent_level);
+    TERARK_ASSERT_EQ(4, m_trie->mem_align_size());
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto lzf = reinterpret_cast<MainPatricia::LazyFreeListTLS*>(m_tls);
+    size_t pos = trie->alloc_raw<MultiWriteMultiRead>(size, lzf);
+    return pos / MainPatricia::AlignSize;
+}
+
+void Patricia::WriterToken::tls_mem_free(size_t loc, size_t size) {
+    TERARK_ASSERT_NE(nullptr, m_tls);
+    TERARK_ASSERT_EQ(MultiWriteMultiRead, m_trie->m_writing_concurrent_level);
+    TERARK_ASSERT_EQ(4, m_trie->mem_align_size());
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto lzf = reinterpret_cast<MainPatricia::LazyFreeListTLS*>(m_tls);
+    trie->free_raw<MultiWriteMultiRead>(loc * MainPatricia::AlignSize, size, lzf);
+}
+
+size_t Patricia::WriterToken::tls_mem_gc() {
+    TERARK_ASSERT_NE(nullptr, m_tls);
+    TERARK_ASSERT_EQ(MultiWriteMultiRead, m_trie->m_writing_concurrent_level);
+    TERARK_ASSERT_EQ(4, m_trie->mem_align_size());
+    if (forceLeakMem) {
+        return 0;
+    }
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto lzf = reinterpret_cast<MainPatricia::LazyFreeListTLS*>(m_tls);
+    return trie->revoke_expired_nodes<MultiWriteMultiRead>(*lzf, this);
+}
+
+void Patricia::WriterToken::tls_mem_lazy_free(size_t loc, size_t size) {
+    TERARK_ASSERT_NE(nullptr, m_tls);
+    TERARK_ASSERT_EQ(MultiWriteMultiRead, m_trie->m_writing_concurrent_level);
+    TERARK_ASSERT_EQ(4, m_trie->mem_align_size());
+    if (forceLeakMem) {
+        return;
+    }
+    auto& lzf = *reinterpret_cast<MainPatricia::LazyFreeListTLS*>(m_tls);
+    lzf.push_back({ m_verseq, uint32_t(loc), uint32_t(size) });
+    lzf.m_mem_size += size;
+    CheckLazyFreeListSize(lzf, SMART_FUNC);
+}
+
 terark_flatten Patricia::SingleWriterToken::~SingleWriterToken() {
     this->m_flags.state = ReleaseDone;
 }

@@ -140,6 +140,11 @@ public:
     public:
         WriterToken();
         bool insert(fstring key, void* value, size_t root = initial_state);
+        // MWMR only, token must have init_tls()
+        size_t tls_mem_alloc(size_t size);
+        void   tls_mem_free(size_t loc, size_t size);
+        size_t tls_mem_gc();
+        void   tls_mem_lazy_free(size_t loc, size_t size);
     };
     using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
     class TERARK_DLL_EXPORT SingleWriterToken : public WriterToken {
