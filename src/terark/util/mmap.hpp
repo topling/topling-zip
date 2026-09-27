@@ -26,6 +26,15 @@ void* mmap_load(const String& fname, size_t* size,
 	return mmap_load(fname.c_str(), size, writable, populate);
 }
 
+/// mmap_write works as follows:
+///
+/// 1. *fsize == 0 and the file is empty: grow it to 4096, then map it.
+/// 2. *fsize == 0 and the file already has content: map the whole file,
+///    do not truncate.
+/// 3. *fsize != 0: resize to *fsize, then map it.
+///
+/// When *fsize == 0 and the file is empty, 4096 is a fixed value, not the
+/// host page size.
 TERARK_DLL_EXPORT
 void* mmap_write(const char* fname, size_t* fsize, intptr_t* pfd);
 

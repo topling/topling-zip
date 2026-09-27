@@ -182,17 +182,6 @@ void* mmap_write(const char* fname, size_t* fsize, intptr_t* pfd) {
 		THROW_STD(logic_error, "CreateFile(fname=%s).Err=%d(%X)"
 			, fname, err, err);
 	}
-//	bool isNewFile = GetLastError() != ERROR_ALREADY_EXISTS;
-	bool isNewFile = GetLastError() == 0;
-	if (isNewFile) {
-		// truncate file...
-		size_t fsize2 = std::max(size_t(4*1024), *fsize);
-		LONG loSize = LONG(fsize2);
-		LONG hiSize = LONG(fsize2 >> 32);
-		SetFilePointer(hFile, loSize, &hiSize, SEEK_SET);
-		SetEndOfFile(hFile);
-		SetFilePointer(hFile, 0, NULL, SEEK_SET);
-	}
 	if (!GetFileSizeEx(hFile, &lsize)) {
 		DWORD err = GetLastError();
 		CloseHandle(hFile);
@@ -204,7 +193,32 @@ void* mmap_write(const char* fname, size_t* fsize, intptr_t* pfd) {
 		THROW_STD(logic_error, "fname=%s fsize=%I64u(%I64X) too large"
 			, fname, lsize.QuadPart, lsize.QuadPart);
 	}
-	*fsize = size_t(lsize.QuadPart);
+	// 1. *fsize == 0 and the file is empty: grow it to 4096, then map it.
+	// 2. *fsize == 0 and the file already has content: map the whole file,
+	//    do not truncate.
+	// 3. *fsize != 0: resize to *fsize, then map it.
+	// When *fsize == 0 and the file is empty, 4096 is a fixed value,
+	// not the host page size.
+	size_t cur = size_t(lsize.QuadPart);
+	size_t target = cur;
+	if (0 == *fsize && 0 == cur) {
+		target = 4096;
+	} else if (*fsize) {
+		target = *fsize;
+	}
+	if (target != cur) {
+		LONG loSize = LONG(target);
+		LONG hiSize = LONG(target >> 32);
+		SetFilePointer(hFile, loSize, &hiSize, SEEK_SET);
+		if (!SetEndOfFile(hFile)) {
+			DWORD err = GetLastError();
+			CloseHandle(hFile);
+			THROW_STD(logic_error, "SetEndOfFile(fname=%s, len=%zd).Err=%d(%X)"
+				, fname, target, err, err);
+		}
+		SetFilePointer(hFile, 0, NULL, SEEK_SET);
+	}
+	*fsize = target;
 	DWORD flProtect = PAGE_READWRITE;
 	if (getEnvBool("mmap_load_huge_pages")) {
 		flProtect |= SEC_LARGE_PAGES;
@@ -239,11 +253,23 @@ void* mmap_write(const char* fname, size_t* fsize, intptr_t* pfd) {
 		close(fd);
 		THROW_STD(logic_error, "stat(fname=%s) = %s", fname, strerror(errno));
 	}
-	//fprintf(stderr, "st.st_size = %zd\n", st.st_size);
-	// st_size of new file is not zero
-	// if (0 == st.st_size) //< delete the condition
-	{
-		st.st_size = std::max(size_t(4*1024), *fsize);
+	// mmap_write works as follows:
+	// 1. *fsize == 0 and the file is empty: grow it to 4096, then map it.
+	// 2. *fsize == 0 and the file already has content: map the whole file,
+	//    do not truncate.
+	// 3. *fsize != 0: resize to *fsize, then map it.
+	// When *fsize == 0 and the file is empty, 4096 is a fixed value,
+	// not the host page size.
+	if (0 == *fsize && 0 == st.st_size) {
+		st.st_size = 4096;
+		int err = ftruncate(fd, st.st_size);
+		if (err) {
+			close(fd);
+			THROW_STD(logic_error, "ftruncate(fname=%s, len=%zd) = %s"
+				, fname, size_t(st.st_size), strerror(errno));
+		}
+	} else if (*fsize && size_t(st.st_size) != *fsize) {
+		st.st_size = *fsize;
 		int err = ftruncate(fd, st.st_size);
 		if (err) {
 			close(fd);
