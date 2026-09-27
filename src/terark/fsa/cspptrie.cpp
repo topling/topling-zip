@@ -980,6 +980,14 @@ try
             m_is_virtual_alloc = true;
             mmap.base = nullptr; // release ownership
             m_mmap_fpath = fpath.str();
+            if (MultiWriteMultiRead == concurrentLevel) {
+                auto* h = const_cast<DFA_MmapHeader*>(mmap_base);
+                m_mempool_lock_free.m_on_chunk_alloc = [h](uint64_t new_n) {
+                    atomic_maximize(h->file_size, sizeof(DFA_MmapHeader) + new_n);
+                    atomic_maximize(h->total_states, new_n / AlignSize);
+                    atomic_maximize(h->blocks[0].length, new_n);
+                };
+            }
         }
         size_t root = new_root();
         TERARK_VERIFY_F(0 == root, "real root = %zd", root);
