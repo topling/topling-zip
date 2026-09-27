@@ -40,6 +40,46 @@
 
 namespace terark {
 
+// magic_len and magic[19] match DFA_MmapHeaderBase, so class_name also
+// starts at offset 20. class_name is the instantiation typedef, supplied
+// by the caller. The text is the old OSLMemTb stamp.
+static constexpr char kOSLMmapHeaderMagic[] = "OSLMemTb";
+static constexpr uint32_t kOSLMmapHeaderVersion = 1;
+static constexpr size_t kOSLMmapHeaderSize = 1024;
+
+struct OSL_MmapHeader {
+  uint8_t magic_len;
+  char magic[19];
+  char class_name[40];
+  uint32_t version;
+  uint64_t mem_used;
+  uint32_t head_loc;
+  uint8_t max_height;
+  uint8_t k_max_height;
+  uint8_t k_branching;
+  uint8_t pad_height;
+  uint64_t reserve1[22];
+  char reserved[1024 - 256];
+};
+static_assert(offsetof(OSL_MmapHeader, magic) == 1);
+static_assert(offsetof(OSL_MmapHeader, class_name) == 20);
+static_assert(sizeof(OSL_MmapHeader::magic) == 19);
+static_assert(sizeof(OSL_MmapHeader::class_name) == 40);
+static_assert(offsetof(OSL_MmapHeader, reserve1) == 80);
+static_assert(offsetof(OSL_MmapHeader, reserved) == 256);
+static_assert(offsetof(OSL_MmapHeader, reserved) % 64 == 0);
+static_assert(sizeof(OSL_MmapHeader) == 1024);
+static_assert(sizeof(OSL_MmapHeader) % 512 == 0);
+
+inline void InitOSLMmapHeaderIdentity(OSL_MmapHeader* h, const char* class_name) {
+  h->magic_len = uint8_t(sizeof(kOSLMmapHeaderMagic) - 1);
+  memcpy(h->magic, kOSLMmapHeaderMagic, sizeof(kOSLMmapHeaderMagic));
+  const size_t n = strlen(class_name);
+  TERARK_VERIFY_LT(n, sizeof(h->class_name));
+  memcpy(h->class_name, class_name, n + 1);
+  h->version = kOSLMmapHeaderVersion;
+}
+
 template<int AlignSize, class Node>
 class OffsetSkipListNodeBase {
     static_assert(AlignSize == 4 || AlignSize == 8, "AlignSize must be 4 or 8");
@@ -194,24 +234,28 @@ class OffsetSkipList {
     }
 
     // Wrap existing mempool bytes (SST mmap). Does not allocate a head.
-    OffsetSkipList(Comparator cmp, fstring mem, link_t head_loc, int max_height,
-                   int branching, uint64_t num_nodes)
-        : m_max_height_limit(static_cast<uint16_t>(max_height)),
+    // height_limit is the head's link count. current_height is the live height.
+    OffsetSkipList(Comparator cmp, fstring mem, link_t head_loc,
+                   int height_limit, int current_height, int branching,
+                   uint64_t num_nodes)
+        : m_max_height_limit(static_cast<uint16_t>(height_limit)),
           m_branching(static_cast<uint16_t>(branching)),
           m_scaled_inverse_branching(2147483648u / m_branching),
           m_mem(64),
           m_compare(cmp),
           m_own_mem(false),
-          m_max_height(max_height),
+          m_max_height(current_height),
           m_head_loc(nil) {
         TERARK_VERIFY_GT(branching, 1);
         TERARK_VERIFY(mem.data() != nullptr);
         TERARK_VERIFY_GT(mem.size(), 0);
-        TERARK_VERIFY_GT(max_height, 0);
-        TERARK_VERIFY_LE(max_height, kMaxPossibleHeight);
+        TERARK_VERIFY_GT(height_limit, 0);
+        TERARK_VERIFY_LE(height_limit, kMaxPossibleHeight);
+        TERARK_VERIFY_GT(current_height, 0);
+        TERARK_VERIFY_LE(current_height, height_limit);
         TERARK_VERIFY_NE(head_loc, nil);
         TERARK_VERIFY_LT(size_t(head_loc) * AlignSize, mem.size());
-        const size_t prefix = sizeof(link_t) * size_t(max_height - 1);
+        const size_t prefix = sizeof(link_t) * size_t(height_limit - 1);
         TERARK_VERIFY_GE(size_t(head_loc) * AlignSize, prefix);
         TERARK_VERIFY_LE(size_t(head_loc) * AlignSize + sizeof(Node), mem.size());
         InitDummy();
@@ -226,7 +270,8 @@ class OffsetSkipList {
 
     // File-backed mmap pool (CSPP Patricia file_path). Allocates head.
     OffsetSkipList(Comparator cmp, size_t mem_cap, fstring file_path,
-                   int max_height = 14, int branching_factor = 4)
+                   const char* class_name, int max_height = 14,
+                   int branching_factor = 4)
         : m_max_height_limit(static_cast<uint16_t>(max_height)),
           m_branching(static_cast<uint16_t>(branching_factor)),
           m_scaled_inverse_branching(2147483648u / m_branching),
@@ -239,8 +284,11 @@ class OffsetSkipList {
         TERARK_VERIFY_LE(max_height, kMaxPossibleHeight);
         TERARK_VERIFY_EQ(m_max_height_limit, static_cast<uint16_t>(max_height));
         TERARK_VERIFY_GT(branching_factor, 1);
+        TERARK_VERIFY_LE(branching_factor, 255);
         TERARK_VERIFY_GT(mem_cap, 0);
         TERARK_VERIFY(!file_path.empty());
+        TERARK_VERIFY(class_name != nullptr && class_name[0] != '\0');
+        m_class_name = class_name;
         InitDummy();
         InstallMempoolTls();
         try {
@@ -251,7 +299,22 @@ class OffsetSkipList {
             m_mem.risk_set_data(static_cast<byte_t*>(p), 0);
             m_mem.risk_set_capacity(sz);
             InitSplice();
+            m_mem.m_on_chunk_alloc = [this](size_t new_n) {
+              if (auto* h = mmap_header()) {
+                atomic_maximize(h->mem_used, uint64_t(new_n));
+              }
+            };
+            size_t pos = tls_alloc(kOSLMmapHeaderSize, tls_get());
+            TERARK_VERIFY_EQ(pos, 0);
+            auto* h = mmap_header();
+            memset(h, 0, sizeof(*h));
+            InitOSLMmapHeaderIdentity(h, m_class_name);
+            h->k_max_height = static_cast<uint8_t>(m_max_height_limit);
+            h->k_branching = static_cast<uint8_t>(m_branching);
+            h->max_height = 1;
             InitHead();
+            h->head_loc = m_head_loc;
+            h->mem_used = m_mem.size();
         } catch (...) {
             CloseFileMmap();
             if (!m_mmap_fpath.empty()) {
@@ -943,6 +1006,23 @@ class OffsetSkipList {
 
     intptr_t mmap_fd() const { return m_mmap_fd; }
     const std::string& mmap_fpath() const { return m_mmap_fpath; }
+    const char* class_name() const { return m_class_name; }
+    void risk_bind_mmap(intptr_t fd, std::string path, size_t mmap_size) {
+      m_mmap_fd = fd;
+      m_mmap_fpath = std::move(path);
+      m_mmap_size = mmap_size;
+    }
+    OSL_MmapHeader* mmap_header() {
+      return is_mmap() && m_mem.data() != nullptr
+                 ? reinterpret_cast<OSL_MmapHeader*>(
+                       const_cast<byte_t*>(m_mem.data()))
+                 : nullptr;
+    }
+    const OSL_MmapHeader* mmap_header() const {
+      return is_mmap() && m_mem.data() != nullptr
+                 ? reinterpret_cast<const OSL_MmapHeader*>(m_mem.data())
+                 : nullptr;
+    }
     bool is_mmap() const { return m_mmap_fd >= 0; }
     bool is_readonly() const { return m_flag & kFlagReadonly; }
     uint32_t token_qlen() const { return m_token_qlen; }
@@ -1349,6 +1429,9 @@ class OffsetSkipList {
         while (height > max_height) {
             if (m_max_height.compare_exchange_weak(max_height, height)) {
                 max_height = height;
+                if (auto* h = mmap_header()) {
+                  h->max_height = static_cast<uint8_t>(height);
+                }
                 break;
             }
         }
@@ -1535,6 +1618,7 @@ class OffsetSkipList {
     bool m_own_mem = true;
     uint8_t m_flag = kFlagGc;
     std::string m_mmap_fpath;
+    const char* m_class_name = nullptr;
 
     // frequently updating
     mutable Token m_dummy;
