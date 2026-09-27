@@ -126,6 +126,7 @@ public:
     valvec<unsigned char>* get_valvec() { return this; }
 
     std::function<TCMemPoolOneThread<AlignSize>*(ThreadCacheMemPool*)> m_new_tc;
+    std::function<void(size_t)> m_on_chunk_alloc;
 
     bool m_vm_explicit_commit = false;
     size_t m_vm_commit_fail_cnt = 0;

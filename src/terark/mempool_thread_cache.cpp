@@ -658,6 +658,9 @@ chunk_alloc(TCMemPoolOneThread<AlignSize>* tc, size_t request) {
   #endif
 
     tc->set_hot_area(base, oldn, chunk_len);
+    if (m_on_chunk_alloc) {
+      m_on_chunk_alloc(mem::n);
+    }
     return true;
 }
 
