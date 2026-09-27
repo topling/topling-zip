@@ -115,6 +115,7 @@ public:
 
     intptr_t mmap_fd() const { return m_fd; }
     const std::string& mmap_fpath() const { return m_mmap_fpath; }
+    void risk_set_mmap_fpath(std::string p) { m_mmap_fpath = std::move(p); }
 
 protected:
     struct LazyFreeItem;
