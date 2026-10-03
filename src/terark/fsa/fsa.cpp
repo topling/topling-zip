@@ -742,36 +742,76 @@ BaseDFA* BaseDFA::load_mmap(int fd) {
 	return load_mmap(fd, mmapPopulate);
 }
 
-static const DFA_MmapHeader* dfa_open_mmap(int fd, bool mmapPopulate) {
+static const DFA_MmapHeader*
+dfa_check_mmap_size(const void* base, size_t length, const char* fname) {
+	if (length < sizeof(DFA_MmapHeader)) {
+		THROW_STD(invalid_argument, "file=%s, length=%lld, header size=%zd"
+			, fname, (long long)length, sizeof(DFA_MmapHeader));
+	}
+	auto header = (const DFA_MmapHeader*)base;
+	if (header->file_size < sizeof(*header) || length < header->file_size) {
+		THROW_STD(invalid_argument, "file=%s, length=%lld, header.file_size=%lld"
+			, fname, (long long)length, (long long)header->file_size);
+	}
+	return header;
+}
+
+static const DFA_MmapHeader*
+dfa_prepare_mmap(MmapWholeFile& mmap, const char* fname) {
+	auto header = dfa_check_mmap_size(mmap.base, mmap.size, fname);
+#ifndef _MSC_VER
+	if (mmap.size > header->file_size) {
+		size_t page_size = getpagesize();
+		size_t padding = (page_size - header->file_size % page_size) % page_size;
+		if (mmap.size - header->file_size > padding) {
+			size_t keep = header->file_size + padding;
+			if (::munmap((byte_t*)mmap.base + keep, mmap.size - keep) != 0) {
+				THROW_STD(runtime_error, "file=%s, munmap tail: %s"
+					, fname, strerror(errno));
+			}
+			mmap.size = keep; // The released tail may be reused by another thread.
+		}
+	}
+#endif
+	return header;
+}
+
+static const DFA_MmapHeader*
+dfa_open_mmap(int fd, bool mmapPopulate, MmapWholeFile& mmap,
+              const char* fname = nullptr) {
 	if (fd < 0) {
 		THROW_STD(invalid_argument,	"fd=%d < 0", fd);
 	}
+	char fdname[32];
+	if (!fname) {
+		snprintf(fdname, sizeof(fdname), "fd=%d", fd);
+		fname = fdname;
+	}
 #ifdef _MSC_VER
 	HANDLE hFile = (HANDLE)::_get_osfhandle(fd);
-	HANDLE hMmap = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
-	if (NULL == hMmap) {
-		DWORD err = GetLastError();
-		THROW_STD(runtime_error, "CreateFileMapping().ErrCode=%d(0x%X)", err, err);
-	}
 	LARGE_INTEGER fsize_li;
 	if (!GetFileSizeEx((HANDLE)hFile, &fsize_li)) {
 		DWORD err = GetLastError();
-		THROW_STD(runtime_error, "GetFileSizeEx().ErrCode=%d(0x%X)", err, err);
+		THROW_STD(runtime_error, "GetFileSizeEx(file=%s).ErrCode=%d(0x%X)", fname, err, err);
 	}
-	ullong fsize = fsize_li.QuadPart;
-	auto base = (const DFA_MmapHeader*)MapViewOfFile(hMmap, FILE_MAP_READ, 0, 0, 0);
-	if (NULL == base) {
-		DWORD err = GetLastError();
-		CloseHandle(hMmap);
-		THROW_STD(runtime_error, "MapViewOfFile().ErrCode=%d(0x%X)", err, err);
+	if (ullong(fsize_li.QuadPart) > size_t(-1)) {
+		THROW_STD(invalid_argument, "file=%s, length=%lld is too large"
+			, fname, (long long)fsize_li.QuadPart);
 	}
-	if (mmapPopulate) {
-		WIN32_MEMORY_RANGE_ENTRY vm;
-		vm.VirtualAddress = (void*)base;
-		vm.NumberOfBytes  = base->file_size;
-		PrefetchVirtualMemory(GetCurrentProcess(), 1, &vm, 0);
+	mmap.size = size_t(fsize_li.QuadPart);
+	if (mmap.size) {
+		HANDLE hMmap = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+		if (NULL == hMmap) {
+			DWORD err = GetLastError();
+			THROW_STD(runtime_error, "CreateFileMapping(file=%s).ErrCode=%d(0x%X)", fname, err, err);
+		}
+		TERARK_SCOPE_EXIT(CloseHandle(hMmap));
+		mmap.base = MapViewOfFile(hMmap, FILE_MAP_READ, 0, 0, 0);
+		if (NULL == mmap.base) {
+			DWORD err = GetLastError();
+			THROW_STD(runtime_error, "MapViewOfFile(file=%s).ErrCode=%d(0x%X)", fname, err, err);
+		}
 	}
-	CloseHandle(hMmap);
 #else
 	struct stat st;
 	if (::fstat(fd, &st) < 0) {
@@ -780,10 +820,6 @@ static const DFA_MmapHeader* dfa_open_mmap(int fd, bool mmapPopulate) {
 	if (!S_ISREG(st.st_mode)) {
 		THROW_STD(invalid_argument, "Warning: st_mode=0x%lX is not a regular file",
 			(long)st.st_mode);
-	}
-	if (st.st_size <= (long)sizeof(DFA_MmapHeader)) {
-		THROW_STD(invalid_argument, "FileSize=%ld is less than HeaderSize=%ld",
-			(long)st.st_size, (long)sizeof(DFA_MmapHeader));
 	}
 	int flags = MAP_SHARED;
 	if (mmapPopulate) {
@@ -794,35 +830,38 @@ static const DFA_MmapHeader* dfa_open_mmap(int fd, bool mmapPopulate) {
 		flags |= MAP_LOCKED;
 	}
   #endif
-	const DFA_MmapHeader* base = (const DFA_MmapHeader*)
-		::mmap(NULL, st.st_size, PROT_READ, flags, fd, 0);
-	if (MAP_FAILED == base) {
-		THROW_STD(runtime_error, "mmap(PROT_READ, fd=%d) = %s", fd, strerror(errno));
+	mmap.size = st.st_size;
+	if (mmap.size) {
+		void* base = ::mmap(NULL, mmap.size, PROT_READ, flags, fd, 0);
+		if (MAP_FAILED == base) {
+			THROW_STD(runtime_error, "mmap(PROT_READ, fd=%d) = %s", fd, strerror(errno));
+		}
+		mmap.base = base;
 	}
-	ullong fsize = st.st_size;
 #endif
-	if (fsize < base->file_size) {
-		long long header_file_size = base->file_size;
-		mmap_close((void*)base, fsize);
-		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
-			, fsize, header_file_size);
+	auto header = dfa_prepare_mmap(mmap, fname);
+#ifdef _MSC_VER
+	if (mmapPopulate) {
+		WIN32_MEMORY_RANGE_ENTRY vm;
+		vm.VirtualAddress = mmap.base;
+		vm.NumberOfBytes  = header->file_size;
+		PrefetchVirtualMemory(GetCurrentProcess(), 1, &vm, 0);
 	}
-	return base;
+#endif
+	return header;
 }
 
 BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
-	const DFA_MmapHeader* base = dfa_open_mmap(fd, mmapPopulate);
+	MmapWholeFile mmap;
+	auto base = dfa_open_mmap(fd, mmapPopulate, mmap);
 	BaseDFA* dfa = load_mmap_fmt(base);
 	dfa->m_mmap_type = DFA_MmapType::is_mmap;
+	mmap.base = nullptr;
 	return dfa;
 }
 
 BaseDFA* BaseDFA::load_mmap_user_mem(const void* baseptr, size_t length) {
-	auto header = reinterpret_cast<const DFA_MmapHeader*>(baseptr);
-	if (length < header->file_size) {
-		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
-			, (long long)length, (long long)header->file_size);
-	}
+	auto header = dfa_check_mmap_size(baseptr, length, "user_mem");
 	BaseDFA* dfa = load_mmap_fmt(header);
 	dfa->m_mmap_type = DFA_MmapType::is_user_mem;
 	return dfa;
@@ -875,34 +914,25 @@ void BaseDFA::self_mmap(int fd) {
 	self_mmap(fd, mmapPopulate);
 }
 void BaseDFA::self_mmap(int fd, bool mmapPopulate) {
-	auto base = dfa_open_mmap(fd, mmapPopulate);
+	MmapWholeFile mmap;
+	auto base = dfa_open_mmap(fd, mmapPopulate, mmap);
 	fill_mmap_fmt(base, this);
 	m_mmap_type = DFA_MmapType::is_mmap;
+	mmap.base = nullptr;
 }
 void BaseDFA::self_mmap(fstring fname) {
 	bool populate = getEnvBool("DFA_MAP_POPULATE", false);
 	self_mmap(fname, populate);
 }
 void BaseDFA::self_mmap(fstring fname, bool mmapPopulate) {
-	bool writable = false;
-	size_t fsize = 0;
-	void* base = mmap_load(fname, &fsize, writable, mmapPopulate);
-	auto header = (const DFA_MmapHeader*)base;
-	if (fsize < header->file_size) {
-		long long header_file_size = header->file_size;
-		mmap_close(base, fsize);
-		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
-			, (long long)fsize, header_file_size);
-	}
+	MmapWholeFile mmap(fname, false, mmapPopulate);
+	auto header = dfa_prepare_mmap(mmap, fname.c_str());
 	fill_mmap_fmt(header, this);
 	m_mmap_type = DFA_MmapType::is_mmap;
+	mmap.base = nullptr;
 }
 void BaseDFA::self_mmap_user_mem(const void* baseptr, size_t length) {
-	auto header = reinterpret_cast<const DFA_MmapHeader*>(baseptr);
-	if (length < header->file_size) {
-		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
-			, (long long)length, (long long)header->file_size);
-	}
+	auto header = dfa_check_mmap_size(baseptr, length, "user_mem");
 	fill_mmap_fmt(header, this);
 	m_mmap_type = DFA_MmapType::is_user_mem;
 }
@@ -1024,22 +1054,23 @@ BaseDFA* BaseDFA::load_mmap(fstring fname) {
 }
 
 BaseDFA* BaseDFA::load_mmap(fstring fstrPathName, bool mmapPopulate) {
+	MmapWholeFile mmap;
 #if defined(_MSC_VER)
 	// for windows FILE_SHARE_DELETE
-	bool writable = false;
-	size_t fsize = 0;
-	void* base = mmap_load(fstrPathName, &fsize, writable, mmapPopulate);
-	BaseDFA* dfa = load_mmap_fmt((DFA_MmapHeader*)base);
-	dfa->m_mmap_type = DFA_MmapType::is_mmap;
-	return dfa;
+	mmap.base = mmap_load(fstrPathName, &mmap.size, false, mmapPopulate);
+	auto base = dfa_prepare_mmap(mmap, fstrPathName.c_str());
 #else
 	const char* fname = fstrPathName.c_str();
 	terark::Auto_close_fd fd(::open(fname, O_RDONLY));
 	if (fd < 0) {
 		THROW_STD(runtime_error, "error: open(%s, O_RDONLY) = %s", fname, strerror(errno));
 	}
-	return load_mmap(fd, mmapPopulate);
+	auto base = dfa_open_mmap(fd, mmapPopulate, mmap, fname);
 #endif
+	BaseDFA* dfa = load_mmap_fmt(base);
+	dfa->m_mmap_type = DFA_MmapType::is_mmap;
+	mmap.base = nullptr;
+	return dfa;
 }
 
 void BaseDFA::save_mmap(fstring fstrPathName) const {
