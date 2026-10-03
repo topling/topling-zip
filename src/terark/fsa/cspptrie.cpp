@@ -3271,7 +3271,10 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
                 size_t(m_valsize), valsize);
         }
     }
-    TERARK_VERIFY_EQ(base->num_blocks, 1);
+    if (base->num_blocks != 1) {
+        THROW_STD(invalid_argument, "num_blocks=%u, expected 1",
+                  unsigned(base->num_blocks));
+    }
     auto  blocks = base->blocks;
     if (AlignSize * base->total_states != blocks[0].length) {
         THROW_STD(out_of_range, "total_states=%lld  block[0].length = %lld, dont match"
