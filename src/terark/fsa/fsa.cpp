@@ -925,7 +925,10 @@ void BaseDFA::self_mmap(fstring fname) {
 	self_mmap(fname, populate);
 }
 void BaseDFA::self_mmap(fstring fname, bool mmapPopulate) {
-	MmapWholeFile mmap(fname, false, mmapPopulate);
+	self_mmap(fname, mmapPopulate, false);
+}
+void BaseDFA::self_mmap(fstring fname, bool mmapPopulate, bool writable) {
+	MmapWholeFile mmap(fname, writable, mmapPopulate);
 	auto header = dfa_prepare_mmap(mmap, fname.c_str());
 	fill_mmap_fmt(header, this);
 	m_mmap_type = DFA_MmapType::is_mmap;

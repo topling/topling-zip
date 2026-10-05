@@ -223,6 +223,7 @@ public:
 	void self_mmap(int fd, bool mmapPopulate);
 	void self_mmap(fstring fname);
 	void self_mmap(fstring fname, bool mmapPopulate);
+	void self_mmap(fstring fname, bool mmapPopulate, bool writable);
 	void self_mmap_user_mem(const void* baseptr, size_t length);
 	void self_mmap_user_mem(fstring mem) { self_mmap_user_mem(mem.p, mem.n); }
 
