@@ -1644,12 +1644,19 @@ class OffsetSkipList {
 
         template<class TokenType = Token>
         terark_forceinline TokenType* get_token() {
+            return get_token([] { return new TokenType(); });
+        }
+
+        template<class New>
+        terark_forceinline auto get_token(New create) -> decltype(create()) {
+            using TokenType = typename std::remove_pointer<decltype(create())>::type;
             if (terark_likely(writer != nullptr)) {
                 TERARK_ASSERT_NE(dynamic_cast<TokenType*>(writer), nullptr);
                 return static_cast<TokenType*>(writer);
             }
-            auto* tok = new TokenType();
+            auto* tok = create();
             tok->m_tls = this;
+            tok->m_list = list;
             writer = tok;
             return tok;
         }
