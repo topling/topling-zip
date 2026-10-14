@@ -174,6 +174,27 @@ namespace terark {
     std::unique_ptr<T, Deleter>
     UniquePtrOf(T* p, Deleter d) { return std::unique_ptr<T, Deleter>(p, d); }
 
+    template<class Ptr, class Val>
+    struct PtrWithRefTmpl {
+        Ptr  ptr;
+        Val& ref;
+        PtrWithRefTmpl(Ptr&& p) : ptr(std::move(p)), ref(*ptr) {}
+    };
+    template<class Ptr>
+    auto PtrWithRef(Ptr p) {
+        typedef decltype(*p) Val;
+        return PtrWithRefTmpl<Ptr, Val>(std::move(p));
+    }
+    struct PtrWithRefOP {
+        template<class Ptr>
+        auto operator=(Ptr p) const { return PtrWithRef(std::move(p)); }
+    };
+    // usage:
+    // TOPLING_PTR_WITH_REF(ref1) = std::make_shared<T>(...);
+    // TOPLING_PTR_WITH_REF(ref2) = std::make_unique<T>(...);
+    #define TOPLING_PTR_WITH_REF(refname) \
+      auto [TERARK_PP_CAT3(refname,_p_,__LINE__), refname] = terark::PtrWithRefOP()
+
     template<class T>
     inline
     std::enable_shared_from_this<T>* // for multi inheritance
