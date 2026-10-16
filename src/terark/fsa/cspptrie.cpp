@@ -3982,7 +3982,9 @@ void MainPatricia::IterImpl::reset1() {
     }
     auto trie = static_cast<const MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
-    if (NoWriteReadOnly == conLevel) {
+    // 0 = never saved (crash-recovered memtable): depth unknown, do not take
+    // the fast path below, it grows these stacks without checking capacity
+    if (NoWriteReadOnly == conLevel && trie->m_max_word_len > 0) {
         size_t cap = trie->m_max_word_len + 2;
         m_flag = 1;
         m_iter.reserve(cap);
@@ -4077,7 +4079,8 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
     }
     else {
         auto conLevel = trie->m_writing_concurrent_level;
-        if (conLevel <= SingleThreadShared) {
+        // m_max_word_len == 0: depth unknown, see IterImpl::reset()
+        if (conLevel <= SingleThreadShared && trie->m_max_word_len > 0) {
             // m_iter is very likely over allocated,
             // because trie depth can not be efficiently maintained
             size_t cap = trie->m_max_word_len + 2;
