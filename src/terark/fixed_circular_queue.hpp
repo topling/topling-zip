@@ -97,6 +97,24 @@ private:
 		return count > serial ? m_serial_limit - (count - serial) : serial - count;
 	}
 
+	template<bool Move, class Source>
+	void construct_from(Source& other)
+	{
+		m_head = m_tail = other.m_head;
+		try {
+			while (m_tail != other.m_tail) {
+				if constexpr (Move) {
+					emplace_back(std::move(other.m_vec[slot(m_tail)]));
+				} else {
+					emplace_back(other.m_vec[slot(m_tail)]);
+				}
+			}
+		} catch (...) {
+			clear();
+			throw;
+		}
+	}
+
 public:
 	template<bool IsConst>
 	class basic_iterator
@@ -236,6 +254,35 @@ public:
 	}
 	fixed_circular_queue() noexcept : m_head(0), m_tail(0) {}
 
+	fixed_circular_queue(const fixed_circular_queue& other) : m_head(0), m_tail(0)
+	{
+		construct_from<false>(other);
+	}
+	fixed_circular_queue(fixed_circular_queue&& other)
+		noexcept(std::is_nothrow_move_constructible<ElemT>::value) : m_head(0), m_tail(0)
+	{
+		construct_from<true>(other);
+		other.clear();
+	}
+	fixed_circular_queue& operator=(const fixed_circular_queue& other)
+	{
+		if (this != &other) {
+			clear();
+			construct_from<false>(other);
+		}
+		return *this;
+	}
+	fixed_circular_queue& operator=(fixed_circular_queue&& other)
+		noexcept(std::is_nothrow_move_constructible<ElemT>::value)
+	{
+		if (this != &other) {
+			clear();
+			construct_from<true>(other);
+			other.clear();
+		}
+		return *this;
+	}
+
 	void init(ptrdiff_t /*cap*/)
 	{
 		TERARK_VERIFY_EQ(m_head, m_tail);
@@ -262,7 +309,7 @@ public:
 	void emplace_back(Args&&... args)
 	{
 		assert(!full());
-		new(&m_vec[slot(m_tail)]) ElemT(std::forward<Args>(args)...);
+		new(static_cast<void*>(m_vec + slot(m_tail))) ElemT(std::forward<Args>(args)...);
 		m_tail = next(m_tail);
 	}
 
@@ -305,7 +352,7 @@ public:
 	{
 		assert(!full());
 		counter_type head = prev(m_head);
-		new(&m_vec[slot(head)]) ElemT(std::forward<Args>(args)...);
+		new(static_cast<void*>(m_vec + slot(head))) ElemT(std::forward<Args>(args)...);
 		m_head = head;
 	}
 	ElemT& back() noexcept

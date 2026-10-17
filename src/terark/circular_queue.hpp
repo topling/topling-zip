@@ -78,6 +78,20 @@ private:
     counter_type next(counter_type current) const noexcept { return next_n(current, 1); }
     counter_type prev(counter_type current) const noexcept { return prev_n(current, 1); }
 
+    static ElemT* allocate(counter_type capacity) {
+        TERARK_VERIFY_LE(capacity, size_t(-1) / sizeof(ElemT));
+        if (capacity == 0) {
+            return nullptr;
+        }
+        ElemT* memory = static_cast<ElemT*>(::malloc(sizeof(ElemT) * capacity));
+        TERARK_VERIFY(memory != nullptr);
+        return memory;
+    }
+
+    static void deallocate(ElemT* memory) noexcept {
+        ::free(memory);
+    }
+
 public:
 	typedef ElemT			value_type;
 
@@ -208,12 +222,54 @@ public:
             THROW_STD(logic_error, "invalid cap = %zd", cap);
         }
         m_nlen = counter_type(cap);
-        TERARK_VERIFY_LE(m_nlen, size_t(-1) / sizeof(ElemT));
-        m_vec = m_nlen ? static_cast<ElemT*>(malloc(sizeof(ElemT) * m_nlen)) : nullptr;
-        TERARK_VERIFY(m_nlen == 0 || m_vec != nullptr);
+        m_vec = allocate(m_nlen);
         m_head = m_tail = 0;
     }
     circular_queue() noexcept : m_vec(nullptr), m_head(0), m_tail(0), m_nlen(0) {}
+
+    circular_queue(const circular_queue& other)
+      : m_vec(allocate(other.m_nlen)), m_head(other.m_head),
+        m_tail(other.m_head), m_nlen(other.m_nlen) {
+        try {
+            while (m_tail != other.m_tail) {
+                emplace_back(other.m_vec[index(m_tail)]);
+            }
+        } catch (...) {
+            clear();
+            deallocate(m_vec);
+            throw;
+        }
+    }
+
+    circular_queue(circular_queue&& other) noexcept
+      : m_vec(other.m_vec), m_head(other.m_head),
+        m_tail(other.m_tail), m_nlen(other.m_nlen) {
+        other.m_vec = nullptr;
+        other.m_head = other.m_tail = other.m_nlen = 0;
+    }
+
+    circular_queue& operator=(const circular_queue& other) {
+        if (this != &other) {
+            circular_queue copy(other);
+            swap(copy);
+        }
+        return *this;
+    }
+
+    circular_queue& operator=(circular_queue&& other) noexcept {
+        if (this != &other) {
+            circular_queue moved(std::move(other));
+            swap(moved);
+        }
+        return *this;
+    }
+
+    void swap(circular_queue& other) noexcept {
+        std::swap(m_vec, other.m_vec);
+        std::swap(m_head, other.m_head);
+        std::swap(m_tail, other.m_tail);
+        std::swap(m_nlen, other.m_nlen);
+    }
 
 	void init(ptrdiff_t cap) {
 		assert(0 == m_nlen);
@@ -222,7 +278,7 @@ public:
 
 	~circular_queue() {
 		clear();
-		if (m_vec) ::free(m_vec);
+		deallocate(m_vec);
 	}
 
 	/**
@@ -279,14 +335,14 @@ public:
 	void push_back(const ElemT& val)
 	{
 		assert(!full());
-		new(&m_vec[index(m_tail)])ElemT(val);
+		new(static_cast<void*>(m_vec + index(m_tail)))ElemT(val);
 		m_tail = next(m_tail);
 	}
 
 	void push_back(ElemT&& val)
 	{
 		assert(!full());
-		new(&m_vec[index(m_tail)])ElemT(std::move(val));
+		new(static_cast<void*>(m_vec + index(m_tail)))ElemT(std::move(val));
 		m_tail = next(m_tail);
 	}
 
@@ -294,7 +350,7 @@ public:
 	void emplace_back(Args&&... args)
 	{
 		assert(!full());
-		new(&m_vec[index(m_tail)])ElemT(std::forward<Args>(args)...);
+		new(static_cast<void*>(m_vec + index(m_tail)))ElemT(std::forward<Args>(args)...);
 		m_tail = next(m_tail);
 	}
 
@@ -379,7 +435,7 @@ public:
 	{
 		assert(!full());
 		auto head = prev(m_head);
-		new(&m_vec[index(head)])ElemT(val);
+		new(static_cast<void*>(m_vec + index(head)))ElemT(val);
 		m_head = head;
 	}
 
@@ -387,7 +443,7 @@ public:
 	{
 		assert(!full());
 		auto head = prev(m_head);
-		new(&m_vec[index(head)])ElemT(std::move(val));
+		new(static_cast<void*>(m_vec + index(head)))ElemT(std::move(val));
 		m_head = head;
 	}
 
@@ -396,7 +452,7 @@ public:
 	{
 		assert(!full());
 		auto head = prev(m_head);
-		new(&m_vec[index(head)])ElemT(std::forward<Args>(args)...);
+		new(static_cast<void*>(m_vec + index(head)))ElemT(std::forward<Args>(args)...);
 		m_head = head;
 	}
 

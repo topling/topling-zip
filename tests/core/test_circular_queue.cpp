@@ -3,8 +3,10 @@
 
 #include <algorithm>
 #include <stdio.h>
+#include <string.h>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -309,13 +311,329 @@ void check_lifetime() {
     CHECK(Tracked::live == 0);
 }
 
+struct Owned {
+    static int live;
+    static int copies;
+    static int copies_before_throw;
+    static int moves_before_throw;
+    std::unique_ptr<int> value;
+
+    explicit Owned(int number) : value(new int(number)) { ++live; }
+    Owned(const Owned& other) {
+        if (copies_before_throw == 0) {
+            throw std::runtime_error("copy rejected");
+        }
+        if (copies_before_throw > 0) {
+            --copies_before_throw;
+        }
+        if (other.value) {
+            value.reset(new int(*other.value));
+        }
+        ++copies;
+        ++live;
+    }
+    Owned(Owned&& other) {
+        if (moves_before_throw == 0) {
+            throw std::runtime_error("move rejected");
+        }
+        if (moves_before_throw > 0) {
+            --moves_before_throw;
+        }
+        value = std::move(other.value);
+        ++live;
+    }
+    Owned& operator=(Owned&& other) {
+        value = std::move(other.value);
+        return *this;
+    }
+    ~Owned() { --live; }
+};
+int Owned::live = 0;
+int Owned::copies = 0;
+int Owned::copies_before_throw = -1;
+int Owned::moves_before_throw = -1;
+
+template<class Queue>
+void fill_owned(Queue& queue) {
+    queue.emplace_front(11);
+    queue.emplace_back(22);
+    queue.emplace_back(33);
+}
+
+template<class Queue>
+void check_copy_ownership() {
+    if constexpr (std::is_copy_constructible<Queue>::value &&
+                  std::is_copy_assignable<Queue>::value) {
+        CHECK(Owned::live == 0);
+        {
+            Queue source(8);
+            fill_owned(source);
+            const auto head = source.head_real_index();
+            const auto tail = source.tail_real_index();
+            const int copies = Owned::copies;
+            Queue copy(source);
+            CHECK(Owned::copies == copies + 3);
+            CHECK(copy.capacity() == 8);
+            CHECK(copy.size() == source.size());
+            CHECK(copy.head_real_index() == head);
+            CHECK(copy.tail_real_index() == tail);
+            for (ptrdiff_t i = 0; i < 3; ++i) {
+                CHECK(*copy[i].value == *source[i].value);
+                CHECK(copy[i].value.get() != source[i].value.get());
+            }
+            *source.front().value = 44;
+            CHECK(*copy.front().value == 11);
+            Queue assigned(8);
+            assigned.emplace_back(99);
+            assigned = source;
+            CHECK(Owned::live == 9);
+            CHECK(*assigned.front().value == 44);
+            CHECK(assigned.head_real_index() == head);
+            CHECK(assigned.tail_real_index() == tail);
+            Queue& self = assigned;
+            assigned = self;
+            assigned = std::move(self);
+            CHECK(assigned.size() == 3);
+            CHECK(*assigned.front().value == 44);
+            CHECK(source.size() == 3);
+            CHECK(source.head_real_index() == head);
+            CHECK(source.tail_real_index() == tail);
+        }
+        CHECK(Owned::live == 0);
+    } else {
+        CHECK(false && "copying live nontrivial elements must be supported");
+    }
+}
+
+template<class Queue>
+void check_move_ownership(bool transfers_storage) {
+    if constexpr (std::is_move_constructible<Queue>::value &&
+                  std::is_move_assignable<Queue>::value) {
+        CHECK(Owned::live == 0);
+        {
+            Queue source(8);
+            fill_owned(source);
+            const auto head = source.head_real_index();
+            const auto tail = source.tail_real_index();
+            int* first = source.front().value.get();
+            if (transfers_storage) {
+                Owned::moves_before_throw = 0; // Moving dynamic queues must not move elements.
+            }
+            Queue moved(std::move(source));
+            CHECK(source.empty());
+            CHECK(moved.size() == 3);
+            CHECK(moved.head_real_index() == head);
+            CHECK(moved.tail_real_index() == tail);
+            CHECK(moved.front().value.get() == first);
+            CHECK(Owned::live == 3);
+            Queue assigned(8);
+            assigned.emplace_back(99);
+            assigned = std::move(moved);
+            Owned::moves_before_throw = -1;
+            CHECK(moved.empty());
+            CHECK(assigned.size() == 3);
+            CHECK(assigned.front().value.get() == first);
+            CHECK(Owned::live == 3);
+            Queue& self = assigned;
+            assigned = std::move(self);
+            CHECK(assigned.size() == 3);
+            CHECK(assigned.front().value.get() == first);
+            if (transfers_storage) {
+                CHECK(source.capacity() == 0);
+                source.init(8);
+            }
+            source.emplace_front(55);
+            CHECK(*source.front().value == 55);
+        }
+        CHECK(Owned::live == 0);
+    } else {
+        CHECK(false && "moving live nontrivial elements must be supported");
+    }
+}
+
+void check_empty_ownership() {
+    using Queue = terark::circular_queue<int, true>;
+    Queue original;
+    Queue copied(original);
+    Queue moved(std::move(original));
+    CHECK(original.empty() && original.capacity() == 0);
+    CHECK(copied.empty() && copied.capacity() == 0);
+    CHECK(moved.empty() && moved.capacity() == 0);
+    Queue assigned(8);
+    assigned.emplace_back(1);
+    assigned = copied;
+    CHECK(assigned.empty() && assigned.capacity() == 0);
+    assigned = std::move(moved);
+    CHECK(assigned.empty() && assigned.capacity() == 0);
+    Queue& self = assigned;
+    assigned = self;
+    assigned = std::move(self);
+    Queue occupied(8);
+    occupied.emplace_back(7);
+    Queue destination(std::move(occupied));
+    Queue copied_from_moved(occupied);
+    CHECK(copied_from_moved.empty() && copied_from_moved.capacity() == 0);
+    occupied = copied_from_moved;
+    occupied.init(8);
+    occupied.emplace_back(9);
+    CHECK(occupied.front() == 9);
+    CHECK(destination.front() == 7);
+}
+
+struct DestructorRecord {
+    static int destroyed;
+    int value;
+    explicit DestructorRecord(int number) : value(number) {}
+    DestructorRecord(const DestructorRecord&) = default;
+    DestructorRecord& operator=(const DestructorRecord&) = default;
+    ~DestructorRecord() {
+        if (value == 42) {
+            ++destroyed;
+        }
+    }
+};
+int DestructorRecord::destroyed = 0;
+
+void check_fixed_overwrite_destruction() {
+    DestructorRecord::destroyed = 0;
+    {
+        terark::fixed_circular_queue<DestructorRecord, 4> empty;
+        terark::fixed_circular_queue<DestructorRecord, 4> occupied;
+        occupied.emplace_back(42);
+        occupied = empty;
+        CHECK(occupied.empty());
+    }
+    CHECK(DestructorRecord::destroyed == 1);
+}
+
+template<class Queue>
+void check_copy_exceptions(bool strong_assignment) {
+    if constexpr (std::is_copy_constructible<Queue>::value &&
+                  std::is_copy_assignable<Queue>::value) {
+        CHECK(Owned::live == 0);
+        {
+            Queue source(8);
+            fill_owned(source);
+            Owned::copies_before_throw = 1;
+            bool caught = false;
+            try {
+                Queue copy(source);
+            } catch (const std::runtime_error&) {
+                caught = true;
+            }
+            Owned::copies_before_throw = -1;
+            CHECK(caught);
+            CHECK(source.size() == 3);
+            CHECK(*source.front().value == 11);
+            CHECK(Owned::live == 3);
+            Queue assigned(8);
+            assigned.emplace_back(99);
+            Owned::copies_before_throw = 1;
+            caught = false;
+            try {
+                assigned = source;
+            } catch (const std::runtime_error&) {
+                caught = true;
+            }
+            Owned::copies_before_throw = -1;
+            CHECK(caught);
+            CHECK(source.size() == 3);
+            CHECK(*source.front().value == 11);
+            if (strong_assignment) {
+                CHECK(assigned.size() == 1);
+                CHECK(*assigned.front().value == 99);
+                CHECK(Owned::live == 4);
+                assigned.clear();
+            } else {
+                CHECK(assigned.empty());
+            }
+            CHECK(Owned::live == 3);
+            assigned.emplace_front(55);
+            CHECK(*assigned.front().value == 55);
+        }
+        CHECK(Owned::live == 0);
+    } else {
+        CHECK(false && "copy exceptions need supported element-wise copying");
+    }
+}
+
+template<class Queue>
+void check_fixed_move_exceptions() {
+    if constexpr (std::is_move_constructible<Queue>::value &&
+                  std::is_move_assignable<Queue>::value) {
+        CHECK(Owned::live == 0);
+        {
+            Queue source(8);
+            fill_owned(source);
+            Owned::moves_before_throw = 1;
+            bool caught = false;
+            try {
+                Queue moved(std::move(source));
+            } catch (const std::runtime_error&) {
+                caught = true;
+            }
+            Owned::moves_before_throw = -1;
+            CHECK(caught);
+            CHECK(source.size() == 3);
+            CHECK(Owned::live == 3);
+            Queue assigned(8);
+            assigned.emplace_back(99);
+            Owned::moves_before_throw = 1;
+            caught = false;
+            try {
+                assigned = std::move(source);
+            } catch (const std::runtime_error&) {
+                caught = true;
+            }
+            Owned::moves_before_throw = -1;
+            CHECK(caught);
+            CHECK(source.size() == 3);
+            CHECK(assigned.empty());
+            CHECK(Owned::live == 3);
+            assigned.emplace_front(55);
+        }
+        CHECK(Owned::live == 0);
+    } else {
+        CHECK(false && "move exceptions need supported element-wise moving");
+    }
+}
+
+template<class Queue>
+void check_move_only_ownership() {
+    if constexpr (std::is_move_constructible<Queue>::value &&
+                  std::is_move_assignable<Queue>::value) {
+        Queue source(8);
+        source.emplace_front(new int(11));
+        source.emplace_back(new int(22));
+        Queue moved(std::move(source));
+        CHECK(source.empty());
+        CHECK(*moved.front() == 11);
+        Queue assigned(8);
+        assigned.emplace_back(new int(99));
+        assigned = std::move(moved);
+        CHECK(moved.empty());
+        CHECK(assigned.size() == 2);
+        CHECK(*assigned.back() == 22);
+        Queue& self = assigned;
+        assigned = std::move(self);
+        CHECK(assigned.size() == 2);
+    } else {
+        CHECK(false && "move-only elements must be supported");
+    }
+}
+
+
 #endif
 
 int failures = 0;
 int cases = 0;
+const char* only_case = nullptr;
 
 template<class Function>
 void run(const char* name, Function function) {
+    if (only_case && strcmp(only_case, name) != 0) {
+        return;
+    }
     ++cases;
     try {
         function();
@@ -344,7 +662,11 @@ void run_queue(const char* name, size_t capacity, bool natural_wrap) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 2) {
+        return 2;
+    }
+    only_case = argc == 2 ? argv[1] : nullptr;
     run_queue<terark::circular_queue<int, true>>("dynamic true capacity 1", 1, true);
     run_queue<terark::circular_queue<int, true>>("dynamic true capacity 2", 2, true);
     run_queue<terark::circular_queue<int, true>>("dynamic true capacity 4", 4, true);
@@ -363,7 +685,35 @@ int main() {
 #ifndef CIRCULAR_QUEUE_LEGACY_BASELINE
     run("dynamic object lifetime", check_lifetime<terark::circular_queue<Tracked, true>>);
     run("fixed object lifetime", check_lifetime<terark::fixed_circular_queue<Tracked, 4>>);
+    run("dynamic copy and assignment", check_copy_ownership<terark::circular_queue<Owned, true>>);
+    run("dynamic false copy and assignment", check_copy_ownership<terark::circular_queue<Owned>>);
+    run("fixed copy and assignment", check_copy_ownership<terark::fixed_circular_queue<Owned, 8>>);
+    run("dynamic move and assignment", [] {
+        check_move_ownership<terark::circular_queue<Owned, true>>(true);
+    });
+    run("dynamic false move and assignment", [] {
+        check_move_ownership<terark::circular_queue<Owned>>(true);
+    });
+    run("fixed move and assignment", [] {
+        check_move_ownership<terark::fixed_circular_queue<Owned, 8>>(false);
+    });
+    run("dynamic empty ownership", check_empty_ownership);
+    run("fixed overwrite destruction", check_fixed_overwrite_destruction);
+    run("dynamic copy exceptions", [] {
+        check_copy_exceptions<terark::circular_queue<Owned, true>>(true);
+    });
+    run("fixed copy exceptions", [] {
+        check_copy_exceptions<terark::fixed_circular_queue<Owned, 8>>(false);
+    });
+    run("fixed move exceptions",
+        check_fixed_move_exceptions<terark::fixed_circular_queue<Owned, 8>>);
+    run("dynamic move-only ownership", [] {
+        check_move_only_ownership<terark::circular_queue<std::unique_ptr<int>, true>>();
+    });
+    run("fixed move-only ownership", [] {
+        check_move_only_ownership<terark::fixed_circular_queue<std::unique_ptr<int>, 8>>();
+    });
 #endif
     printf("%d cases, %d failures\n", cases, failures);
-    return failures != 0;
+    return cases == 0 ? 2 : failures != 0;
 }
