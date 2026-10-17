@@ -8,6 +8,7 @@
 #endif
 
 #include <stddef.h>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <terark/config.hpp>
@@ -174,6 +175,8 @@ private:
 	function<void(PipelineTask*)> m_destroyTask;
 	mutex* m_mutex;
 	mutex  m_mutexForInqueue;
+    class MixedInputMutex;
+    std::unique_ptr<MixedInputMutex> m_mixedInputMutex;
 	volatile size_t m_run; // size_t is CPU word, should be bool
 	bool m_is_mutex_owner;
 	bool m_keepSerial;

@@ -902,6 +902,13 @@ int PipelineProcessor::sysCpuCount() {
 #endif
 }
 
+class PipelineProcessor::MixedInputMutex {
+public:
+#if TOPLING_PIPELINE_WITH_FIBER
+    boost::fibers::mutex mutex;
+#endif
+};
+
 PipelineProcessor::PipelineProcessor()
   : m_destroyTask(&PipelineProcessor::defaultDestroyTask)
 {
@@ -1009,6 +1016,11 @@ void PipelineProcessor::start()
 	}
 // End check for double start
 
+#if TOPLING_PIPELINE_WITH_FIBER
+    if (EUType::mixed == m_EUType && !m_mixedInputMutex) {
+        m_mixedInputMutex.reset(new MixedInputMutex);
+    }
+#endif
 	m_run = true;
 
 	if (NULL == m_mutex)
@@ -1073,6 +1085,12 @@ void PipelineProcessor::enqueue(PipelineTask* task)
     if (EUType::fiber == m_EUType) {
         enqueue_impl(task);
     }
+#if TOPLING_PIPELINE_WITH_FIBER
+    else if (m_mixedInputMutex) {
+        std::lock_guard<boost::fibers::mutex> lock(m_mixedInputMutex->mutex);
+        enqueue_impl(task);
+    }
+#endif
     else {
     	PipelineLockGuard lock(m_mutexForInqueue);
         enqueue_impl(task);
@@ -1098,6 +1116,12 @@ void PipelineProcessor::enqueue(PipelineTask** tasks, size_t num) {
     if (EUType::fiber == m_EUType) {
         enqueue_impl(tasks, num);
     }
+#if TOPLING_PIPELINE_WITH_FIBER
+    else if (m_mixedInputMutex) {
+        std::lock_guard<boost::fibers::mutex> lock(m_mixedInputMutex->mutex);
+        enqueue_impl(tasks, num);
+    }
+#endif
     else {
         PipelineLockGuard lock(m_mutexForInqueue);
         enqueue_impl(tasks, num);
