@@ -9,14 +9,21 @@
 *********************************************************************/
 #pragma once
 
+#include <terark/stdtypes.hpp>
 #include <terark/util/throw.hpp>
+#include <assert.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <iterator>
+#include <type_traits>
+#include <utility>
 
 namespace terark {
 
 /**
  @brief 使用一个用户指定的 vector 类容器实现循环队列
 
-  - 循环队列的大小是固定的，其结构是一个环状数组，最少会浪费一个元素的存储空间
+  - 循环队列的大小是固定的，其结构是一个环状数组，所有槽位均可存储有效元素
 
   - 循环队列可以提供 serial/real_index 序列号，可用于元素的标识（如网络协议中的帧序号）
 
@@ -26,51 +33,50 @@ namespace terark {
 template<class ElemT, bool CapIsPower2 = false>
 class circular_queue
 {
-	// valid element count is (m_vec.size() - 1)
-	ElemT*    m_vec;
-	ptrdiff_t m_head; // point to next pop_front position
-	ptrdiff_t m_tail; // point to next push_back position
-	ptrdiff_t m_nlen;
+public:
+    using counter_type = uintptr_t;
 
-	ptrdiff_t prev(ptrdiff_t current) const noexcept
-	{
-		if (CapIsPower2) {
-			return (current-1) & (m_nlen-1);
-		}
-		ptrdiff_t i = current - 1;
-		return i >=0 ? i : i + m_nlen; // == (i + m_nlen) % m_nlen, but more fast
-	//	return (current + m_vec.size() - 1) % m_vec.size();
-	}
-	ptrdiff_t next(ptrdiff_t current) const noexcept
-	{
-		if (CapIsPower2) {
-			return (current+1) & (m_nlen-1);
-		}
-		ptrdiff_t i = current + 1;
-		return i < m_nlen ? i : i - m_nlen; // == i % m_nlen, but more fast
-	//	return (current + 1) % m_vec.size();
-	}
-	ptrdiff_t prev_n(ptrdiff_t current, ptrdiff_t n) const noexcept
-	{
-		assert(n < m_nlen);
-		if (CapIsPower2) {
-			return (current - n) & (m_nlen-1);
-		}
-		ptrdiff_t i = current - n;
-		return i >=0 ? i : i + m_nlen; // == i % c, but more fast
-//		return (current + m_vec.size() - n) % m_vec.size();
-	}
-	ptrdiff_t next_n(ptrdiff_t current, ptrdiff_t n) const noexcept
-	{
-		assert(n < m_nlen);
-		if (CapIsPower2) {
-		    return (current + n) & (m_nlen-1);
-		}
-		ptrdiff_t c = m_nlen;
-		ptrdiff_t i = current + n;
-		return i < c ? i : i - c; // == i % c, but more fast
-	//	return (current + n) % m_vec.size();
-	}
+private:
+    ElemT* m_vec;
+    counter_type m_head; // next pop_front sequence
+    counter_type m_tail; // next push_back sequence
+    counter_type m_nlen;
+
+    counter_type index(counter_type serial) const noexcept {
+        if (CapIsPower2) {
+            return serial & (m_nlen - 1);
+        }
+        return serial < m_nlen ? serial : serial - m_nlen;
+    }
+
+    counter_type distance(counter_type first, counter_type last) const noexcept {
+        counter_type count = last - first;
+        if (!CapIsPower2 && last < first) {
+            count += 2 * m_nlen;
+        }
+        return count;
+    }
+
+    counter_type next_n(counter_type current, counter_type n) const noexcept {
+        assert(n <= m_nlen);
+        if (CapIsPower2) {
+            return current + n;
+        }
+        // Wrap at 2N so non-power-of-two slots remain continuous at rollover.
+        counter_type until_wrap = 2 * m_nlen - current;
+        return n < until_wrap ? current + n : n - until_wrap;
+    }
+
+    counter_type prev_n(counter_type current, counter_type n) const noexcept {
+        assert(n <= m_nlen);
+        if (CapIsPower2) {
+            return current - n;
+        }
+        return current >= n ? current - n : 2 * m_nlen - (n - current);
+    }
+
+    counter_type next(counter_type current) const noexcept { return next_n(current, 1); }
+    counter_type prev(counter_type current) const noexcept { return prev_n(current, 1); }
 
 public:
 	typedef ElemT			value_type;
@@ -82,154 +88,132 @@ public:
 
 	typedef uintptr_t	size_type;
 
-	class const_iterator
-	{
-		friend class circular_queue;
-		const ElemT* p;
-		const circular_queue* queue;
-		const ElemT* base() const noexcept { return &queue->m_vec[0]; }
-		typedef const_iterator my_type;
+    template<bool IsConst>
+    class basic_iterator {
+        friend class circular_queue;
+        template<bool> friend class basic_iterator;
+        using queue_type = typename std::conditional<
+            IsConst, const circular_queue, circular_queue>::type;
+        queue_type* queue = nullptr;
+        counter_type serial = 0;
 
-	public:
-		my_type operator++()    const noexcept
-		{ p = base() + queue->next(p - base()); return *this; }
-		my_type operator++(int) const noexcept
-		{ my_type temp = ++(*this); return temp; }
+        basic_iterator(queue_type* q, counter_type s) noexcept : queue(q), serial(s) {}
 
-		my_type operator--()    const noexcept
-		{ p = base() + queue->prev(p - base()); return *this; }
-		my_type operator--(int) const noexcept
-		{ my_type temp = --(*this); return temp; }
+    public:
+        using iterator_category = std::random_access_iterator_tag;
+        using value_type = ElemT;
+        using difference_type = ptrdiff_t;
+        using pointer = typename std::conditional<IsConst, const ElemT*, ElemT*>::type;
+        using reference = typename std::conditional<IsConst, const ElemT&, ElemT&>::type;
 
-		my_type& operator+=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->next_n(p - base()); return *this; }
-		my_type& operator-=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->prev_n(p - base()); return *this; }
+        basic_iterator() noexcept = default;
 
-		my_type operator+(ptrdiff_t distance) noexcept
-		{ my_type temp = *this; temp += distance; return temp; }
-		my_type operator-(ptrdiff_t distance) noexcept
-		{ my_type temp = *this; temp -= distance; return temp; }
+        template<bool OtherConst, typename std::enable_if<IsConst && !OtherConst, int>::type = 0>
+        basic_iterator(const basic_iterator<OtherConst>& other) noexcept
+          : queue(other.queue), serial(other.serial) {}
 
-		bool operator==(const my_type& r) const noexcept { return p == r.p; }
-		bool operator!=(const my_type& r) const noexcept { return p != r.p; }
-		bool operator< (const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) <
-				queue->virtual_index(r.p - base());
-		}
-		bool operator> (const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) >
-				queue->virtual_index(r.p - base());
-		}
-		bool operator<=(const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) <=
-				queue->virtual_index(r.p - base());
-		}
-		bool operator>=(const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) >=
-				queue->virtual_index(r.p - base());
-		}
+        reference operator*() const noexcept {
+            assert(queue->distance(queue->m_head, serial) < queue->size());
+            return queue->m_vec[queue->index(serial)];
+        }
+        pointer operator->() const noexcept { return &operator*(); }
+        reference operator[](difference_type n) const noexcept { return *(*this + n); }
 
-		const ElemT& operator *() const noexcept { return *p; }
-		const ElemT* operator->() const noexcept { return  p; }
+        basic_iterator& operator+=(difference_type n) noexcept {
+            assert(n >= -queue->virtual_index(serial));
+            assert(n <= difference_type(queue->size()) - queue->virtual_index(serial));
+            if constexpr (CapIsPower2) {
+                serial += counter_type(n);
+            } else {
+                serial = n >= 0 ? queue->next_n(serial, counter_type(n))
+                                : queue->prev_n(serial, counter_type(-n));
+            }
+            return *this;
+        }
+        basic_iterator& operator-=(difference_type n) noexcept {
+            assert(n <= queue->virtual_index(serial));
+            assert(n >= queue->virtual_index(serial) - difference_type(queue->size()));
+            if constexpr (CapIsPower2) {
+                serial -= counter_type(n);
+            } else {
+                serial = n >= 0 ? queue->prev_n(serial, counter_type(n))
+                                : queue->next_n(serial, counter_type(-n));
+            }
+            return *this;
+        }
+        basic_iterator& operator++() noexcept { return *this += 1; }
+        basic_iterator& operator--() noexcept { return *this -= 1; }
+        basic_iterator operator++(int) noexcept {
+            basic_iterator old = *this;
+            ++*this;
+            return old;
+        }
+        basic_iterator operator--(int) noexcept {
+            basic_iterator old = *this;
+            --*this;
+            return old;
+        }
+        basic_iterator operator+(difference_type n) const noexcept {
+            basic_iterator result = *this;
+            result += n;
+            return result;
+        }
+        basic_iterator operator-(difference_type n) const noexcept {
+            basic_iterator result = *this;
+            result -= n;
+            return result;
+        }
+        template<bool OtherConst>
+        difference_type operator-(const basic_iterator<OtherConst>& other) const noexcept {
+            assert(queue == other.queue);
+            return queue->virtual_index(serial) - queue->virtual_index(other.serial);
+        }
+        template<bool OtherConst>
+        bool operator==(const basic_iterator<OtherConst>& other) const noexcept {
+            return queue == other.queue && serial == other.serial;
+        }
+        template<bool OtherConst>
+        bool operator!=(const basic_iterator<OtherConst>& other) const noexcept {
+            return !(*this == other);
+        }
+        template<bool OtherConst>
+        bool operator<(const basic_iterator<OtherConst>& other) const noexcept {
+            return *this - other < 0;
+        }
+        template<bool OtherConst>
+        bool operator>(const basic_iterator<OtherConst>& other) const noexcept {
+            return other < *this;
+        }
+        template<bool OtherConst>
+        bool operator<=(const basic_iterator<OtherConst>& other) const noexcept {
+            return !(other < *this);
+        }
+        template<bool OtherConst>
+        bool operator>=(const basic_iterator<OtherConst>& other) const noexcept {
+            return !(*this < other);
+        }
+        friend basic_iterator operator+(difference_type n, const basic_iterator& iter) noexcept {
+            return iter + n;
+        }
+    };
 
-		friend inline
-		my_type
-		operator+(ptrdiff_t n, const my_type& iter) noexcept { return iter + n; }
-	};
-
-	class iterator
-	{
-		friend class circular_queue;
-		ElemT* p;
-		circular_queue* queue;
-		ElemT* base() const noexcept { return &queue->m_vec[0]; }
-		typedef iterator my_type;
-
-	public:
-		my_type operator++()    const noexcept
-		{ p = base() + queue->next(p - base()); return *this; }
-		my_type operator++(int) const noexcept
-		{ my_type temp = ++(*this); return temp; }
-
-		my_type operator--()    const noexcept
-		{ p = base() + queue->prev(p - base()); return *this; }
-		my_type operator--(int) const noexcept
-		{ my_type temp = --(*this); return temp; }
-
-		my_type& operator+=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->next_n(p - base()); return *this; }
-		my_type& operator-=(ptrdiff_t distance) noexcept
-		{ p = base() + queue->prev_n(p - base()); return *this; }
-
-		my_type operator+(ptrdiff_t distance) noexcept
-		{ my_type temp = *this; temp += distance; return temp; }
-		my_type operator-(ptrdiff_t distance) noexcept
-		{ my_type temp = *this; temp -= distance; return temp; }
-
-		bool operator==(const my_type& r) const noexcept { return p == r.p; }
-		bool operator!=(const my_type& r) const noexcept { return p != r.p; }
-		bool operator< (const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) <
-				   queue->virtual_index(r.p - base());
-		}
-		bool operator> (const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) >
-				   queue->virtual_index(r.p - base());
-		}
-		bool operator<=(const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) <=
-				   queue->virtual_index(r.p - base());
-		}
-		bool operator>=(const my_type& r) const noexcept
-		{
-			return queue->virtual_index(p - base()) >=
-				   queue->virtual_index(r.p - base());
-		}
-
-		ElemT& operator *() const noexcept { return *p; }
-		ElemT* operator->() const noexcept { return  p; }
-
-		operator const const_iterator&() const noexcept
-		{ return *reinterpret_cast<const const_iterator*>(this); }
-
-		friend inline
-		iterator
-		operator+(ptrdiff_t n, const iterator& iter) noexcept { return iter + n; }
-	};
-	friend class const_iterator;
-	friend class       iterator;
+    using iterator = basic_iterator<false>;
+    using const_iterator = basic_iterator<true>;
 
 	/**
-	 @brief 构造最多能容纳 cap-1 个有效元素的循环队列
+	 @brief 构造最多能容纳 cap 个有效元素的循环队列
 	 */
-	explicit circular_queue(ptrdiff_t cap) : m_nlen(cap)
-	{
-		if (CapIsPower2) {
-			if ((cap & (cap - 1)) != 0 || 0 == cap) {
-				THROW_STD(logic_error, "invalid cap = %zd, must be power of 2", cap);
-			}
-		}
-		if (cap) {
-			m_vec = (ElemT*)malloc(sizeof(ElemT) * m_nlen);
-			if (NULL == m_vec) throw std::bad_alloc();
-		}
-		else {
-		    m_vec = NULL;
-		}
-		m_head = m_tail = 0;
-	}
-	circular_queue() {
-		m_vec = NULL;
-		m_nlen = m_head = m_tail = 0;
-	}
+    explicit circular_queue(ptrdiff_t cap) {
+        if (cap < 0 || (CapIsPower2 && (cap == 0 || (cap & (cap - 1)) != 0))) {
+            THROW_STD(logic_error, "invalid cap = %zd", cap);
+        }
+        m_nlen = counter_type(cap);
+        TERARK_VERIFY_LE(m_nlen, size_t(-1) / sizeof(ElemT));
+        m_vec = m_nlen ? static_cast<ElemT*>(malloc(sizeof(ElemT) * m_nlen)) : nullptr;
+        TERARK_VERIFY(m_nlen == 0 || m_vec != nullptr);
+        m_head = m_tail = 0;
+    }
+    circular_queue() noexcept : m_vec(nullptr), m_head(0), m_tail(0), m_nlen(0) {}
 
 	void init(ptrdiff_t cap) {
 		assert(0 == m_nlen);
@@ -268,7 +252,7 @@ public:
 	 - 前条件：无
 	 @return true 表示队列已满，false 表示未满
 	 */
-	bool full() const noexcept { return next(m_tail) == m_head; }
+	bool full() const noexcept { return size() == m_nlen; }
 
 	/**
 	 @brief 返回队列当前尺寸
@@ -276,12 +260,7 @@ public:
 	 - 前条件：无
 	 @return 队列中有效元素的个数，总小于等于 capacity
 	 */
-	size_type size() const noexcept {
-		if (CapIsPower2) {
-			return (m_tail - m_head) & (m_nlen - 1);
-		}
-		return m_head <= m_tail ? m_tail - m_head : m_tail + m_nlen - m_head;
-	}
+    size_type size() const noexcept { return distance(m_head, m_tail); }
 
 	/**
 	 @brief 返回队列容量
@@ -300,14 +279,14 @@ public:
 	void push_back(const ElemT& val)
 	{
 		assert(!full());
-		new(&m_vec[m_tail])ElemT(val);
+		new(&m_vec[index(m_tail)])ElemT(val);
 		m_tail = next(m_tail);
 	}
 
 	void push_back(ElemT&& val)
 	{
 		assert(!full());
-		new(&m_vec[m_tail])ElemT(std::move(val));
+		new(&m_vec[index(m_tail)])ElemT(std::move(val));
 		m_tail = next(m_tail);
 	}
 
@@ -315,7 +294,7 @@ public:
 	void emplace_back(Args&&... args)
 	{
 		assert(!full());
-		new(&m_vec[m_tail])ElemT(std::forward<Args>(args)...);
+		new(&m_vec[index(m_tail)])ElemT(std::forward<Args>(args)...);
 		m_tail = next(m_tail);
 	}
 
@@ -328,12 +307,12 @@ public:
 	const ElemT& front() const noexcept
 	{
 		assert(!empty());
-		return m_vec[m_head];
+		return m_vec[index(m_head)];
 	}
 	ElemT& front() noexcept
 	{
 		assert(!empty());
-		return m_vec[m_head];
+		return m_vec[index(m_head)];
 	}
 	//@}
 
@@ -346,8 +325,8 @@ public:
 	void pop_front(ElemT& val)
 	{
 		assert(!empty());
-		val = std::move(m_vec[m_head]);
-		m_vec[m_head].~ElemT();
+		val = std::move(m_vec[index(m_head)]);
+		m_vec[index(m_head)].~ElemT();
 		m_head = next(m_head);
 	}
 
@@ -360,7 +339,7 @@ public:
 	void pop_front()
 	{
 		assert(!empty());
-		m_vec[m_head].~ElemT();
+		m_vec[index(m_head)].~ElemT();
 		m_head = next(m_head);
 	}
 
@@ -370,12 +349,12 @@ public:
 	  pop all elements which real_index is earlier or equal than real_index
 	 - 前条件：队列不空，且参数 real_index 代表的元素必须在队列中
 	 */
-	void pop_lower(ptrdiff_t real_index)
+	void pop_lower(counter_type real_index)
 	{
 		assert(!empty());
 		// because poped elements can be equal with real_index
 		// poped elements count is (virtual_index(real_index) + 1)
-		ptrdiff_t count = virtual_index(real_index) + 1;
+		size_type count = size_type(virtual_index(real_index)) + 1;
 		assert(count <= size());
 		while (count-- > 0)
 		{
@@ -394,13 +373,13 @@ public:
 	 @brief 在队列头部加入新元素
 
 	 - 前条件：队列不满
-	 - 操作结果：队列中现存元素的 real_index 均增一，新元素 val 成为新的队头
+	 - 操作结果：现存元素的序号不变，新元素 val 成为新的队头
 	 */
 	void push_front(const ElemT& val)
 	{
 		assert(!full());
 		auto head = prev(m_head);
-		new(&m_vec[head])ElemT(val);
+		new(&m_vec[index(head)])ElemT(val);
 		m_head = head;
 	}
 
@@ -408,7 +387,7 @@ public:
 	{
 		assert(!full());
 		auto head = prev(m_head);
-		new(&m_vec[head])ElemT(std::move(val));
+		new(&m_vec[index(head)])ElemT(std::move(val));
 		m_head = head;
 	}
 
@@ -417,7 +396,7 @@ public:
 	{
 		assert(!full());
 		auto head = prev(m_head);
-		new(&m_vec[head])ElemT(std::forward<Args>(args)...);
+		new(&m_vec[index(head)])ElemT(std::forward<Args>(args)...);
 		m_head = head;
 	}
 
@@ -426,12 +405,12 @@ public:
 	ElemT& back() noexcept
 	{
 		assert(!empty());
-		return m_vec[prev(m_tail)];
+		return m_vec[index(prev(m_tail))];
 	}
 	const ElemT& back() const noexcept
 	{
 		assert(!empty());
-		return m_vec[prev(m_tail)];
+		return m_vec[index(prev(m_tail))];
 	}
 	//@}
 
@@ -444,8 +423,8 @@ public:
 	{
 		assert(!empty());
 		m_tail = prev(m_tail);
-		val = std::move(m_vec[m_tail]);
-		m_vec[m_tail].~ElemT();
+		val = std::move(m_vec[index(m_tail)]);
+		m_vec[index(m_tail)].~ElemT();
 	}
 
 	/**
@@ -457,7 +436,7 @@ public:
 	{
 		assert(!empty());
 		m_tail = prev(m_tail);
-		m_vec[m_tail].~ElemT();
+		m_vec[index(m_tail)].~ElemT();
 	}
 
 	/**
@@ -466,12 +445,12 @@ public:
 	  pop elements which real_index is later or equal than real_index
 	 - 前条件：队列不空，且参数 real_index 代表的元素必须在队列中
 	 */
-	void pop_upper(ptrdiff_t real_index)
+	void pop_upper(counter_type real_index)
 	{
 		assert(!empty());
 		// because poped elements can be equal with real_index
 		// if not include the equal one, count is (size() - virtual_index(real_index) - 1);
-		ptrdiff_t count = size() - virtual_index(real_index);
+		size_type count = size() - size_type(virtual_index(real_index));
 		assert(count <= size());
 		while (count-- > 0)
 		{
@@ -484,111 +463,39 @@ public:
 	 @name iterator 相关成员
 	 @{
 	 */
-	iterator begin() noexcept
-	{
-		iterator iter;
-		iter.queue = this;
-		iter.p = m_vec + m_head;
-		return iter;
-	}
-	const_iterator begin() const noexcept
-	{
-		iterator iter;
-		iter.queue = this;
-		iter.p = m_vec + m_head;
-		return iter;
-	}
-	iterator end() noexcept
-	{
-		iterator iter;
-		iter.queue = this;
-		iter.p = m_vec + m_tail;
-		return iter;
-	}
-	const_iterator end() const noexcept
-	{
-		iterator iter;
-		iter.queue = this;
-		iter.p = m_vec + m_tail;
-		return iter;
-	}
-	//@}
+    iterator begin() noexcept { return iterator(this, m_head); }
+    const_iterator begin() const noexcept { return const_iterator(this, m_head); }
+    iterator end() noexcept { return iterator(this, m_tail); }
+    const_iterator end() const noexcept { return const_iterator(this, m_tail); }
 
-	/**
-	 @brief 通过real_index取得元素相对于队头的偏移
-	 */
-	ptrdiff_t virtual_index(ptrdiff_t real_index) const noexcept
-	{
-		if (CapIsPower2) {
-			ptrdiff_t i = (real_index - m_head) & (m_nlen - 1);
-			assert(i <= (intptr_t)size());
-			return i;
-		}
-		ptrdiff_t i = real_index - m_head;
-		if (i < 0) {
-			i += m_nlen;
-		}
-		assert(i >= 0);
-		assert(i <= (intptr_t)size());
-		return i;
-	//	return (m_vec.size() + real_index - m_head) % m_vec.size();
-	}
+    // Real indices retain the wrap information; they are not physical slot indices.
+    ptrdiff_t virtual_index(counter_type serial) const noexcept {
+        counter_type offset = distance(m_head, serial);
+        assert(offset <= size());
+        return ptrdiff_t(offset);
+    }
 
-	/**
-	 @brief 通过virtual_index取得元素的序列号
-	        virtual_index can equal to size()
-	 */
-	ptrdiff_t real_index(ptrdiff_t virtual_index) const noexcept
-	{
-		assert(virtual_index >= 0);
-		assert(virtual_index <= (ptrdiff_t)size());
-		if (CapIsPower2) {
-			return (virtual_index + m_head) & (m_nlen - 1);
-		}
-		ptrdiff_t i = virtual_index + m_head;
-		return i < m_nlen ? i : i - m_nlen;
-	//	return (virtual_index + m_head) % m_vec.size();
-	}
+    counter_type real_index(ptrdiff_t offset) const noexcept {
+        assert(offset >= 0 && counter_type(offset) <= size());
+        return next_n(m_head, counter_type(offset));
+    }
 
-	/**
-	 @brief 队头的序列号
-	 */
-	ptrdiff_t head_real_index() const noexcept { return m_head; }
-	/**
-	 @brief 队尾的序列号
-	 */
-	ptrdiff_t tail_real_index() const noexcept { return m_tail; }
+    counter_type head_real_index() const noexcept { return m_head; }
+    counter_type tail_real_index() const noexcept { return m_tail; }
 
 	/**
 	 @brief 通过 virtual_index 取得元素
 	 @{
 	 */
-	ElemT& operator[](ptrdiff_t virtual_index)
-	{
-		assert(virtual_index >= 0);
-		assert(virtual_index < (ptrdiff_t)size());
-		ptrdiff_t c = m_nlen;
-		ptrdiff_t i = m_head + virtual_index;
-		if (CapIsPower2) {
-			return m_vec[i & (c-1)];
-		}
-		ptrdiff_t j = i < c ? i : i - c;
-		return m_vec[j];
-	//	return m_vec[(m_head + virtual_index) % m_vec.size()];
-	}
-	const ElemT& operator[](ptrdiff_t virtual_index) const
-	{
-		assert(virtual_index >= 0);
-		assert(virtual_index < (ptrdiff_t)size());
-		ptrdiff_t c = m_nlen;
-		ptrdiff_t i = m_head + virtual_index;
-		if (CapIsPower2) {
-			return m_vec[i & (c-1)];
-		}
-		ptrdiff_t j = i < c ? i : i - c;
-		return m_vec[j];
-	//	return m_vec[(m_head + virtual_index) % m_vec.size()];
-	}
+    ElemT& operator[](ptrdiff_t offset) {
+        assert(offset >= 0 && counter_type(offset) < size());
+        return m_vec[index(real_index(offset))];
+    }
+    const ElemT& operator[](ptrdiff_t offset) const {
+        assert(offset >= 0 && counter_type(offset) < size());
+        return m_vec[index(real_index(offset))];
+    }
+
 	//@}
 };
 

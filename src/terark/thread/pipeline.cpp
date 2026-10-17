@@ -90,7 +90,7 @@ class BlockQueue : public PipelineStage::queue_t {
     base_queue q;
 public:
 	BlockQueue(size_t size) : q(size) {
-		q.queue().init(size + 1);
+		q.queue().init(size);
 	}
 	void push_back(const PipelineQueueItem& x, FiberYield*) final {
 	    q.push_back(x);
@@ -149,7 +149,7 @@ class MixedQueue : public PipelineStage::queue_t {
     base_queue q;
 public:
 	MixedQueue(size_t size) : q(size) {
-		q.queue().init(size + 1);
+		q.queue().init(size);
 	}
 	void push_back(const PipelineQueueItem& x, FiberYield* fy) final {
 		if (q.peekFull()) {
