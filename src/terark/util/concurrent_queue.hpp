@@ -67,16 +67,15 @@ class concurrent_queue
 
 	template<class Queue>
 	static bool is_full(Queue& q, size_t max_size) {
-	    return is_full_aux(q, max_size,
-	      std::integral_constant<bool, has_member_function_full<Queue, bool>::value>());
+		return q.size() >= max_size || is_full_aux(q, 0);
 	}
 	template<class Queue>
-	static bool is_full_aux(Queue& q, size_t, std::true_type) {
-        return q.full();
+	static auto is_full_aux(Queue& q, int) -> decltype(bool(q.full())) {
+		return q.full();
 	}
 	template<class Queue>
-	static bool is_full_aux(Queue& q, size_t max_size, std::false_type) {
-        return q.size() >= max_size;
+	static bool is_full_aux(Queue&, long) {
+		return false;
 	}
 
 public:
@@ -133,7 +132,9 @@ public:
 	//! not locked...
 	size_type peekSize() const throw() { return m_queue.size();	}
 	bool peekEmpty() const throw() { return m_queue.empty(); }
-	bool peekFull()  const throw() { return is_full(m_queue, m_maxSize); }
+	bool peekFull() const throw() {
+		return is_full(const_cast<Container&>(m_queue), m_maxSize);
+	}
 	//@}
 
 	//@{
