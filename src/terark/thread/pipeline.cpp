@@ -197,6 +197,10 @@ public:
 };
 class ThreadExecUnit : public PipelineStage::ExecUnit {
     thread thr;
+protected:
+    ThreadExecUnit() = default;
+    template<class Func>
+    void start(Func&& f) { thr = thread(std::move(f)); }
 public:
     template<class Func>
     ThreadExecUnit(Func&& f) : thr(std::move(f)) {}
@@ -221,20 +225,20 @@ class MixedExecUnit : public ThreadExecUnit {
     FiberYield fy;
 public:
     template<class MakeFunc>
-    MixedExecUnit(int nfib, MakeFunc mkfn)
- : ThreadExecUnit([=]() {
-        fy.init_in_fiber_thread();
-        const int spawn_num = nfib-1;
-        valvec<boost::fibers::fiber> fibs(spawn_num, valvec_reserve());
-        for (int i = 0; i < spawn_num; ++i) {
-            fibs.unchecked_emplace_back(mkfn());
-        }
-        mkfn()(); // use main fiber as last worker
-        for (int i = 0; i < spawn_num; ++i) {
-            fibs[i].join();
-        }
-    }){
+    MixedExecUnit(int nfib, MakeFunc mkfn) {
         assert(nfib > 0);
+        start([=]() {
+            fy.init_in_fiber_thread();
+            const int spawn_num = nfib-1;
+            valvec<boost::fibers::fiber> fibs(spawn_num, valvec_reserve());
+            for (int i = 0; i < spawn_num; ++i) {
+                fibs.unchecked_emplace_back(mkfn());
+            }
+            mkfn()(); // use main fiber as last worker
+            for (int i = 0; i < spawn_num; ++i) {
+                fibs[i].join();
+            }
+        });
     }
     FiberYield* get_fiber_yield() final { return &fy; }
 };
