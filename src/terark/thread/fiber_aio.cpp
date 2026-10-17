@@ -17,6 +17,7 @@
 #endif
 
 #if !defined(_MSC_VER)
+#include "fiber_pool.hpp"
 #include "fiber_yield.hpp"
 #endif
 #include <terark/stdtypes.hpp>
@@ -402,9 +403,13 @@ public:
   }
 
   io_fiber_uring(boost::fibers::context** pp) : io_fiber_base(pp) {
-    int queue_depth = (int)getEnvLong("TOPLING_IO_URING_QUEUE_DEPTH", 64);
-    maximize(queue_depth, 1);
-    minimize(queue_depth, 1024);
+    // All SQ slots are usable; a full SQ is submitted and reaped before more I/O.
+    // The kernel allocates a CQ twice this size.
+    constexpr int max_queue_depth = FiberPool::MAX_QUEUE_LEN;
+    long requested = getEnvLong("TOPLING_IO_URING_QUEUE_DEPTH", max_queue_depth);
+    maximize(requested, 1L);
+    minimize(requested, long(max_queue_depth));
+    const int queue_depth = int(requested);
     int ret = io_uring_queue_init(queue_depth, &ring, 0);
     if (ret != 0) {
       errno = -ret; // for format string "%m"

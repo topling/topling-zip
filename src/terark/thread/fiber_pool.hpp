@@ -9,7 +9,8 @@ namespace terark {
 
 class TERARK_DLL_EXPORT FiberPool : public FiberYield {
 public:
-  static constexpr int MAX_QUEUE_LEN = 256;
+  static constexpr int MAX_QUEUE_LEN = 1024;
+  static constexpr int MAX_FIBER_CNT = MAX_QUEUE_LEN;
   static constexpr int DEFAULT_FIBER_CNT = 16;
   struct task_t {
     void (*func)(void* arg1, size_t arg2, size_t arg3);

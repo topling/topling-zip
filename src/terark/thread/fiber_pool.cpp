@@ -39,7 +39,7 @@ void FiberPool::update_fiber_count(int count) {
     return;
   }
   static const long stack_size = ParseSizeXiB(getenv("TOPLING_FIBER_STACK_SIZE"), 128*1024);
-  count = std::min<int>(count, +MAX_QUEUE_LEN);
+  count = std::min<int>(count, +MAX_FIBER_CNT);
   for (int i = m_fiber_cnt; i < count; ++i) {
     using namespace boost::fibers;
   //using stack_t = default_stack;
