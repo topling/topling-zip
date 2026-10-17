@@ -213,7 +213,8 @@ class OffsetSkipList {
 
     explicit OffsetSkipList(Comparator cmp, size_t mem_cap,
                             int max_height = 14,
-                            int branching_factor = 4)
+                            int branching_factor = 4,
+                            size_t chunk_size = 0)
         : m_max_height_limit(static_cast<uint16_t>(max_height)),
           m_branching(static_cast<uint16_t>(branching_factor)),
           m_scaled_inverse_branching(2147483648u / m_branching),
@@ -228,6 +229,12 @@ class OffsetSkipList {
         TERARK_VERIFY_GT(mem_cap, 0);
         InitDummy();
         InstallMempoolTls();
+        if (chunk_size) {
+            // Before the first allocation (InitHead below): a chunk's length
+            // and the start of the next one are rounded to the chunk size in
+            // effect when it is taken, and a chunk is never given back.
+            m_mem.set_chunk_size(chunk_size);
+        }
         m_mem.reserve(mem_cap);
         InitSplice();
         InitHead();
@@ -271,7 +278,7 @@ class OffsetSkipList {
     // File-backed mmap pool (CSPP Patricia file_path). Allocates head.
     OffsetSkipList(Comparator cmp, size_t mem_cap, fstring file_path,
                    const char* class_name, int max_height = 14,
-                   int branching_factor = 4)
+                   int branching_factor = 4, size_t chunk_size = 0)
         : m_max_height_limit(static_cast<uint16_t>(max_height)),
           m_branching(static_cast<uint16_t>(branching_factor)),
           m_scaled_inverse_branching(2147483648u / m_branching),
@@ -291,6 +298,11 @@ class OffsetSkipList {
         m_class_name = class_name;
         InitDummy();
         InstallMempoolTls();
+        if (chunk_size) {
+            // Same as the anonymous pool: before any chunk is taken, because
+            // InitHead below allocates from this pool.
+            m_mem.set_chunk_size(chunk_size);
+        }
         try {
             size_t sz = mem_cap;
             void* p = mmap_write(file_path, &sz, &m_mmap_fd);
