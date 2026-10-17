@@ -19,6 +19,8 @@
 //#include <boost/circular_buffer.hpp>
 #include <terark/util/atomic.hpp>
 #include <terark/util/concurrent_queue.hpp>
+#include <chrono>
+#include <mutex>
 #include <stdio.h>
 #include <iostream>
 
@@ -146,29 +148,50 @@ public:
 };
 
 class MixedQueue : public PipelineStage::queue_t {
-    base_queue q;
+    circular_queue<PipelineQueueItem> q;
+    mutable std::mutex m_mutex;
+    boost::fibers::condition_variable_any m_notEmpty;
+    boost::fibers::condition_variable_any m_notFull;
 public:
-	MixedQueue(size_t size) : q(size) {
-		q.queue().init(size);
-	}
-	void push_back(const PipelineQueueItem& x, FiberYield* fy) final {
-		if (q.try_push_back(x)) return;
-		fy->yield();
-		q.push_back(x);
-	}
-    bool push_back(const PipelineQueueItem& x, int timeout, FiberYield* fy) final {
-		if (q.try_push_back(x)) return true;
-		fy->yield();
-        return q.push_back(x, timeout);
-	}
-    bool pop_front(PipelineQueueItem& x, int timeout, FiberYield* fy) final {
-		if (q.try_pop_front(x)) return true;
-		fy->yield();
-        return q.pop_front(x, timeout);
+    MixedQueue(size_t size) : q(size) {}
+    void push_back(const PipelineQueueItem& x, FiberYield*) final {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_notFull.wait(lock, [&] { return !q.full(); });
+        q.push_back(x);
+        lock.unlock();
+        m_notEmpty.notify_one();
     }
-    bool empty() final { return q.empty(); }
-    size_t size() final { return q.size(); }
-    size_t peekSize() const final { return q.size(); }
+    bool push_back(const PipelineQueueItem& x, int timeout, FiberYield*) final {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (!m_notFull.wait_until(lock, deadline, [&] { return !q.full(); })) return false;
+        q.push_back(x);
+        lock.unlock();
+        m_notEmpty.notify_one();
+        return true;
+    }
+    bool pop_front(PipelineQueueItem& x, int timeout, FiberYield*) final {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (!m_notEmpty.wait_until(lock, deadline, [&] { return !q.empty(); })) return false;
+        x = q.front();
+        q.pop_front();
+        lock.unlock();
+        m_notFull.notify_one();
+        return true;
+    }
+    bool empty() final {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return q.empty();
+    }
+    size_t size() final {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return q.size();
+    }
+    size_t peekSize() const final {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return q.size();
+    }
 };
 
 static
