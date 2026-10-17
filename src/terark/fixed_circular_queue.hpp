@@ -368,9 +368,8 @@ public:
 	void pop_back(ElemT& val)
 	{
 		assert(!empty());
-		m_tail = prev(m_tail);
-		val = std::move(m_vec[slot(m_tail)]);
-		m_vec[slot(m_tail)].~ElemT();
+		val = std::move(back());
+		pop_back();
 	}
 	void pop_back()
 	{

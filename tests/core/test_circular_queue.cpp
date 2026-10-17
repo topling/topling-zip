@@ -316,6 +316,7 @@ struct Owned {
     static int copies;
     static int copies_before_throw;
     static int moves_before_throw;
+    static bool reject_assignment;
     std::unique_ptr<int> value;
 
     explicit Owned(int number) : value(new int(number)) { ++live; }
@@ -343,6 +344,9 @@ struct Owned {
         ++live;
     }
     Owned& operator=(Owned&& other) {
+        if (reject_assignment) {
+            throw std::runtime_error("assignment rejected");
+        }
         value = std::move(other.value);
         return *this;
     }
@@ -352,6 +356,7 @@ int Owned::live = 0;
 int Owned::copies = 0;
 int Owned::copies_before_throw = -1;
 int Owned::moves_before_throw = -1;
+bool Owned::reject_assignment = false;
 
 template<class Queue>
 void fill_owned(Queue& queue) {
@@ -598,6 +603,33 @@ void check_fixed_move_exceptions() {
     }
 }
 
+void check_pop_back_assignment_exception() {
+    CHECK(Owned::live == 0);
+    {
+        terark::circular_queue<Owned, true> queue(4);
+        queue.emplace_back(7);
+        Owned output(0);
+        const auto tail = queue.tail_real_index();
+        Owned::reject_assignment = true;
+        bool caught = false;
+        try {
+            queue.pop_back(output);
+        } catch (const std::runtime_error&) {
+            caught = true;
+        }
+        Owned::reject_assignment = false;
+        CHECK(caught);
+        CHECK(queue.size() == 1);
+        CHECK(queue.tail_real_index() == tail);
+        CHECK(*queue.back().value == 7);
+        CHECK(Owned::live == 2);
+        queue.pop_back(output);
+        CHECK(*output.value == 7);
+        CHECK(queue.empty());
+    }
+    CHECK(Owned::live == 0);
+}
+
 template<class Queue>
 void check_move_only_ownership() {
     if constexpr (std::is_move_constructible<Queue>::value &&
@@ -707,6 +739,7 @@ int main(int argc, char** argv) {
     });
     run("fixed move exceptions",
         check_fixed_move_exceptions<terark::fixed_circular_queue<Owned, 8>>);
+    run("dynamic pop_back assignment exception", check_pop_back_assignment_exception);
     run("dynamic move-only ownership", [] {
         check_move_only_ownership<terark::circular_queue<std::unique_ptr<int>, true>>();
     });
