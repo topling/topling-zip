@@ -211,9 +211,14 @@ class OffsetSkipList {
     static constexpr uint8_t kFlagGc = 1;
     static constexpr uint8_t kFlagReadonly = 2;
 
+    // Anonymous pool. Its first bytes are its own header, as they are in the
+    // file path constructor: OSL has no rule that the initial state must be at
+    // offset 0, so every pool carries a header, and dumping the pool dumps
+    // header and data together, which is exactly a file mmap pool's file.
     explicit OffsetSkipList(Comparator cmp, size_t mem_cap,
                             int max_height = 14,
                             int branching_factor = 4,
+                            const char* class_name = nullptr,
                             size_t chunk_size = 0)
         : m_max_height_limit(static_cast<uint16_t>(max_height)),
           m_branching(static_cast<uint16_t>(branching_factor)),
@@ -237,7 +242,12 @@ class OffsetSkipList {
         }
         m_mem.reserve(mem_cap);
         InitSplice();
+        InitPoolHeader(class_name ? class_name : "");
+        InstallMemUsedHook();
         InitHead();
+        auto* h = header();
+        h->head_loc = m_head_loc;
+        h->mem_used = m_mem.size();
     }
 
     // Wrap existing mempool bytes (SST mmap). Does not allocate a head.
@@ -295,7 +305,6 @@ class OffsetSkipList {
         TERARK_VERIFY_GT(mem_cap, 0);
         TERARK_VERIFY(!file_path.empty());
         TERARK_VERIFY(class_name != nullptr && class_name[0] != '\0');
-        m_class_name = class_name;
         InitDummy();
         InstallMempoolTls();
         if (chunk_size) {
@@ -311,20 +320,10 @@ class OffsetSkipList {
             m_mem.risk_set_data(static_cast<byte_t*>(p), 0);
             m_mem.risk_set_capacity(sz);
             InitSplice();
-            m_mem.m_on_chunk_alloc = [this](size_t new_n) {
-              if (auto* h = mmap_header()) {
-                atomic_maximize(h->mem_used, uint64_t(new_n));
-              }
-            };
-            size_t pos = tls_alloc(kOSLMmapHeaderSize, tls_get());
-            TERARK_VERIFY_EQ(pos, 0);
-            auto* h = mmap_header();
-            memset(h, 0, sizeof(*h));
-            InitOSLMmapHeaderIdentity(h, m_class_name);
-            h->k_max_height = static_cast<uint8_t>(m_max_height_limit);
-            h->k_branching = static_cast<uint8_t>(m_branching);
-            h->max_height = 1;
+            InitPoolHeader(class_name);
+            InstallMemUsedHook();
             InitHead();
+            auto* h = header();
             h->head_loc = m_head_loc;
             h->mem_used = m_mem.size();
         } catch (...) {
@@ -1053,16 +1052,16 @@ class OffsetSkipList {
       m_mmap_fpath = std::move(path);
       m_mmap_size = mmap_size;
     }
-    OSL_MmapHeader* mmap_header() {
-      return is_mmap() && m_mem.data() != nullptr
-                 ? reinterpret_cast<OSL_MmapHeader*>(
-                       const_cast<byte_t*>(m_mem.data()))
-                 : nullptr;
+    // The header at this pool's first bytes. Every pool has one: the
+    // constructors that allocate a pool stamp it before any node is allocated
+    // (see InitPoolHeader), and a constructor that wraps bytes uses the header
+    // those bytes were written with. Writable only for a pool this object owns.
+    OSL_MmapHeader* header() {
+      return reinterpret_cast<OSL_MmapHeader*>(
+          const_cast<byte_t*>(m_mem.data()));
     }
-    const OSL_MmapHeader* mmap_header() const {
-      return is_mmap() && m_mem.data() != nullptr
-                 ? reinterpret_cast<const OSL_MmapHeader*>(m_mem.data())
-                 : nullptr;
+    const OSL_MmapHeader* header() const {
+      return reinterpret_cast<const OSL_MmapHeader*>(m_mem.data());
     }
     bool is_mmap() const { return m_mmap_fd >= 0; }
     bool is_readonly() const { return m_flag & kFlagReadonly; }
@@ -1479,9 +1478,7 @@ class OffsetSkipList {
         while (height > max_height) {
             if (m_max_height.compare_exchange_weak(max_height, height)) {
                 max_height = height;
-                if (auto* h = mmap_header()) {
-                  h->max_height = static_cast<uint8_t>(height);
-                }
+                header()->max_height = static_cast<uint8_t>(height);
                 break;
             }
         }
@@ -1798,6 +1795,32 @@ class OffsetSkipList {
 
     void InitHead() {
         m_head_loc = NewHead();
+    }
+
+    // Stamp this pool with its own header, at the pool's first bytes and
+    // before any node is allocated. What the ADT owns here is kept current:
+    // head_loc and max_height as the list grows, mem_used by the chunk hook.
+    // What the owner keeps, the WAL slots and the range deletion head, is the
+    // owner's to write.
+    void InitPoolHeader(const char* class_name) {
+        m_class_name = class_name;
+        size_t pos = tls_alloc(kOSLMmapHeaderSize, tls_get());
+        TERARK_VERIFY_EQ(pos, 0);
+        auto* h = header();
+        memset(h, 0, sizeof(*h));
+        InitOSLMmapHeaderIdentity(h, class_name);
+        h->k_max_height = static_cast<uint8_t>(m_max_height_limit);
+        h->k_branching = static_cast<uint8_t>(m_branching);
+        h->max_height = 1;
+    }
+
+    // Track the pool's high water mark in the header from the first chunk on:
+    // the header is only meaningful inside the pool's used bytes, so mem_used
+    // must be current before anything dumps those bytes.
+    void InstallMemUsedHook() {
+        m_mem.m_on_chunk_alloc = [this](size_t new_n) {
+            atomic_maximize(header()->mem_used, uint64_t(new_n));
+        };
     }
 
     void InitDummy() {
