@@ -8,22 +8,23 @@ class AutoGrowCircularQueue {
     //static_assert(std::is_trivially_destructible<T>::value, "T must be trivially destructible");
     T*          m_vec;
     size_t      m_cap;
+    // Unsigned counters wrap naturally; mask only when indexing storage.
     size_t      m_head;
     size_t      m_tail;
     size_t check_cap(size_t cap) {
-        if ((cap & (cap-1)) != 0 || 0 == cap) {
-            TERARK_DIE("invalid cap = %zd, must be power of 2", cap);
+        if ((cap & (cap-1)) != 0 || 0 == cap || cap > size_t(-1) / sizeof(T)) {
+            TERARK_DIE("invalid cap = %zd, must be a power of 2 that fits allocation", cap);
         }
         return cap;
     }
 public:
     ~AutoGrowCircularQueue() {
-        if (m_head < m_tail) {
-            STDEXT_destroy_range(m_vec + m_head, m_vec + m_tail);
-        }
-        else if (m_tail < m_head) {
-            STDEXT_destroy_range(m_vec + m_head, m_vec + m_cap);
-            STDEXT_destroy_range(m_vec, m_vec + m_tail);
+        size_t count = size();
+        if (count) {
+            size_t head = m_head & (m_cap - 1);
+            size_t first = std::min(count, m_cap - head);
+            STDEXT_destroy_range(m_vec + head, m_vec + head + first);
+            STDEXT_destroy_range(m_vec, m_vec + count - first);
         }
         free(m_vec);
     }
@@ -73,79 +74,53 @@ public:
         std::swap(m_tail , y.m_tail );
     }
     const T& front() const {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
-        return m_vec[m_head];
+        assert(!empty());
+        return m_vec[m_head & (m_cap - 1)];
     }
     T& front() {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
-        return m_vec[m_head];
+        assert(!empty());
+        return m_vec[m_head & (m_cap - 1)];
     }
     void pop_front() {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
+        assert(!empty());
         if (!std::is_trivially_destructible<T>::value) {
-            m_vec[m_head].~T();
+            m_vec[m_head & (m_cap - 1)].~T();
         }
-        m_head = (m_head + 1) & (m_cap - 1);
+        ++m_head;
     }
     bool pop_front_then_check_empty() {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
-        if (!std::is_trivially_destructible<T>::value) {
-            m_vec[m_head].~T();
-        }
-        m_head = (m_head + 1) & (m_cap - 1);
-        return m_head == m_tail;
+        pop_front();
+        return empty();
     }
     T pop_front_val() {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
-        T x(std::move(m_vec[m_head]));
+        assert(!empty());
+        size_t head = m_head & (m_cap - 1);
+        T x(std::move(m_vec[head]));
         if (!std::is_trivially_destructible<T>::value) {
-            m_vec[m_head].~T();
+            m_vec[head].~T();
         }
-        m_head = (m_head + 1) & (m_cap - 1);
+        ++m_head;
         return x;
     }
     // caller ensure @param output has enough space
     void pop_all(T* output) {
-        T*     base = m_vec;
-        size_t head = m_head;
-        size_t tail = m_tail;
-        if (head < tail) {
-            memcpy(output, base + head, sizeof(T)*(tail - head));
-        }
-        else {
-            size_t len1 = m_cap - head;
-            size_t len2 = tail;
-            memcpy(output, base + head, sizeof(T)*len1);
-            memcpy(output + len1, base, sizeof(T)*len2);
-        }
-        m_head = m_tail = 0;
+        pop_n(output, size());
     }
     // caller ensure @param output has enough space
     void pop_n(T* output, size_t n) {
         n = std::min(n, this->size());
-        T*     base = m_vec;
-        size_t head = m_head;
-        size_t tail = m_tail;
-        if (head < tail) {
-            memcpy(output, base + head, sizeof(T)*n);
-        }
-        else {
-            size_t len1 = std::min(m_cap - head, n);
-            memcpy(output, base + head, sizeof(T)*len1);
-            if (n > len1) {
-                size_t len2 = n - len1;
-                memcpy(output + len1, base, sizeof(T)*len2);
-            }
-        }
-        m_head = (head + n) & (m_cap - 1);
+        if (0 == n) return;
+        size_t head = m_head & (m_cap - 1);
+        size_t first = std::min(m_cap - head, n);
+        memcpy(output, m_vec + head, sizeof(T) * first);
+        if (n > first) memcpy(output + first, m_vec, sizeof(T) * (n - first));
+        m_head += n;
     }
     void push_back(const T& x) {
-        size_t head = m_head;
         size_t tail = m_tail;
-        size_t cap1 = m_cap - 1;
-        if (terark_likely(((head - tail) & cap1) != 1)) {
-            new(&m_vec[tail]) T (x);
-            m_tail = (tail + 1) & cap1;
+        if (terark_likely(tail - m_head < m_cap)) {
+            new(&m_vec[tail & (m_cap - 1)]) T (x);
+            m_tail = tail + 1;
         }
         else { // queue is full
             push_back_slow_path(x);
@@ -153,71 +128,62 @@ public:
     }
     template<class... Args>
     void emplace_back(Args&&... args) {
-        size_t head = m_head;
         size_t tail = m_tail;
-        size_t cap1 = m_cap - 1;
-        if (terark_likely(((head - tail) & cap1) != 1)) {
-            new(&m_vec[tail]) T (std::forward<Args>(args)...);
-            m_tail = (tail + 1) & cap1;
+        if (terark_likely(tail - m_head < m_cap)) {
+            new(&m_vec[tail & (m_cap - 1)]) T (std::forward<Args>(args)...);
+            m_tail = tail + 1;
         }
         else { // queue is full
             emplace_back_slow_path(std::forward<Args>(args)...);
         }
     }
     const T& back() const {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
+        assert(!empty());
         return m_vec[(m_tail - 1) & (m_cap - 1)];
     }
     T& back() {
-        assert(((m_tail - m_head) & (m_cap - 1)) > 0);
+        assert(!empty());
         return m_vec[(m_tail - 1) & (m_cap - 1)];
     }
     size_t capacity() const { return m_cap; }
-    size_t remain()const{ return (m_head - m_tail) & (m_cap - 1); }
-    size_t size() const { return (m_tail - m_head) & (m_cap - 1); }
+    size_t remain() const { return m_cap - size(); }
+    size_t size() const { return m_tail - m_head; }
     bool  empty() const { return m_head == m_tail; }
-    bool  needs_expand() const { return size() == m_cap - 1; }
+    bool  needs_expand() const { return size() == m_cap; }
 private:
     terark_no_inline
     void push_back_slow_path(const T& x) {
         double_cap();
-        new(&m_vec[m_tail]) T (x);
-        m_tail = (m_tail + 1) & (m_cap - 1);
+        new(&m_vec[m_tail & (m_cap - 1)]) T (x);
+        ++m_tail;
     }
     template<class... Args>
     terark_no_inline
     void emplace_back_slow_path(Args&&... args) {
         double_cap();
-        new(&m_vec[m_tail]) T (std::forward<Args>(args)...);
-        m_tail = (m_tail + 1) & (m_cap - 1);
+        new(&m_vec[m_tail & (m_cap - 1)]) T (std::forward<Args>(args)...);
+        ++m_tail;
     }
     terark_no_inline
     void double_cap() {
         size_t cap = m_cap;
-        m_vec = (T*)realloc(m_vec, sizeof(T) * cap * 2);
+        TERARK_VERIFY_LE(cap, size_t(-1) / 2);
+        size_t new_cap = check_cap(cap * 2);
+        m_vec = (T*)realloc(m_vec, sizeof(T) * new_cap);
         TERARK_VERIFY(nullptr != m_vec);
         T*     base = m_vec;
-        size_t head = m_head;
+        size_t head = m_head & (cap - 1);
         if (head > cap / 2) {
             memcpy(base + cap + head, base + head, sizeof(T)*(cap - head));
             m_head = cap + head;
+            m_tail = m_head + cap;
         }
         else {
-            size_t tail = m_tail;
-            if (head > 1) {
-                assert(tail == head - 1);
-                memcpy(base + cap, base, sizeof(T)*(tail));
-                m_tail = cap + tail;
-            } else if (1 == head) {
-                assert(0 == tail);
-                m_tail = cap;
-            } else {
-                // do nothing
-                assert(head == 0);
-                assert(tail == cap - 1);
-            }
+            memcpy(base + cap, base, sizeof(T) * head);
+            m_head = head;
+            m_tail = cap + head;
         }
-        m_cap = cap * 2;
+        m_cap = new_cap;
     }
 };
 
@@ -283,7 +249,7 @@ public:
     size_t size() const { return m_size; }
     bool  empty() const { return m_size == 0; }
     // these two functions are wrong:
-    //size_t capacity() const { return (m_cap_col - 1) * m_queue.capacity(); }
+    //size_t capacity() const { return m_cap_col * m_queue.capacity(); }
     //bool  needs_expand() const { return size() == capacity(); }
 };
 

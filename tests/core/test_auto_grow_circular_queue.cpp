@@ -44,8 +44,10 @@ public:
             m_free_seqno++;
             TERARK_VERIFY_EQ(m_mem_map.count(mem), 1);
             m_mem_map.erase(mem);
+            free(mem);
         }
     }
+    size_t allocated_blocks() const { return m_mem_map.size(); }
     void debug_malloc_check_memleak() {
         if (m_mem_map.empty()) {
             fprintf(stderr, "No memory leaks\n");
@@ -85,8 +87,177 @@ template<int> struct Elem { // for check memory leak
 };
 template<int tag> size_t Elem<tag>::g_cnt;
 
+template<class Queue> void check_full_capacity(Queue& q) {
+    for (int i = 0; i < 8; i++) {
+        q.push_back(i);
+        TERARK_VERIFY_EQ(q.capacity(), 8);
+        TERARK_VERIFY_EQ(q.remain(), 7 - i);
+    }
+    TERARK_VERIFY(q.needs_expand());
+    q.push_back(8);
+    TERARK_VERIFY_EQ(q.capacity(), 16);
+    for (int i = 0; i < 9; i++) {
+        TERARK_VERIFY_EQ(q.front(), i);
+        q.pop_front();
+    }
+    TERARK_VERIFY_EQ(q.remain(), q.capacity());
+}
+
+void test_full_capacity() {
+    terark::AutoGrowCircularQueue<int> q(8);
+    terark::AutoGrowCircularQueueMatrix<int> matrix(2, 4);
+    check_full_capacity(q);
+    check_full_capacity(matrix);
+}
+
+void test_2d_full_chunks() {
+    size_t blocks = g_leak_check.allocated_blocks();
+    terark::AutoGrowCircularQueue2d<int> q(2, 4);
+    for (int i = 0; i < 4; i++) q.push_back(i);
+    TERARK_VERIFY_EQ(g_leak_check.allocated_blocks(), blocks + 2);
+    for (int i = 4; i < 8; i++) q.push_back(i);
+    TERARK_VERIFY_EQ(g_leak_check.allocated_blocks(), blocks + 3);
+    for (int i = 0; i < 8; i++) {
+        TERARK_VERIFY_EQ(q.front(), i);
+        q.pop_front();
+    }
+    TERARK_VERIFY(q.empty());
+    terark::AutoGrowCircularQueue2d<int> single(1, 1);
+    for (int i = 0; i < 16; i++) single.push_back(i);
+    for (int i = 0; i < 16; i++) {
+        TERARK_VERIFY_EQ(single.front(), i);
+        single.pop_front();
+    }
+}
+
+void test_batch_pop() {
+    for (size_t offset = 0; offset < 8; offset++) {
+        for (size_t count = 0; count <= 8; count++) {
+            for (size_t n = 0; n <= 9; n++) {
+                terark::AutoGrowCircularQueue<int> q(8);
+                for (size_t i = 0; i < offset; i++) {
+                    q.push_back(-1);
+                    q.pop_front();
+                }
+                for (size_t i = 0; i < count; i++) q.push_back(int(i));
+                int output[10];
+                std::fill_n(output, 10, -1);
+                q.pop_n(output, n);
+                size_t popped = std::min(n, count);
+                for (size_t i = 0; i < popped; i++) TERARK_VERIFY_EQ(output[i], int(i));
+                TERARK_VERIFY_EQ(output[popped], -1);
+                TERARK_VERIFY_EQ(q.size(), count - popped);
+                std::fill_n(output, 10, -1);
+                q.pop_all(output);
+                for (size_t i = popped; i < count; i++) {
+                    TERARK_VERIFY_EQ(output[i - popped], int(i));
+                }
+                TERARK_VERIFY_EQ(output[count - popped], -1);
+                TERARK_VERIFY(q.empty());
+                q.pop_all(output);
+                TERARK_VERIFY_EQ(output[count - popped], -1);
+                q.push_back(42);
+                TERARK_VERIFY_EQ(q.pop_front_val(), 42);
+            }
+        }
+    }
+}
+
+template<class Queue> void check_random_operations(Queue& q) {
+    std::deque<char> expected;
+    uint64_t random = 0x123456789abcdef0;
+    for (size_t i = 0; i < 100000; i++) {
+        random ^= random << 13;
+        random ^= random >> 7;
+        random ^= random << 17;
+        if (expected.empty() || (random & 3) != 0) {
+            char value = char((random >> 8) & 127);
+            q.emplace_back(value);
+            expected.push_back(value);
+        } else {
+            TERARK_VERIFY_EQ(q.front(), expected.front());
+            q.pop_front();
+            expected.pop_front();
+        }
+        TERARK_VERIFY_EQ(q.size(), expected.size());
+        if (!expected.empty()) {
+            const Queue& cq = q;
+            TERARK_VERIFY_EQ(cq.front(), expected.front());
+            TERARK_VERIFY_EQ(q.back(), expected.back());
+        }
+    }
+    while (!expected.empty()) {
+        TERARK_VERIFY_EQ(q.front(), expected.front());
+        q.pop_front();
+        expected.pop_front();
+    }
+}
+
+void test_wrapped_growth_and_lifetime() {
+    for (size_t offset = 0; offset < 16; offset++) {
+        for (size_t count = 0; count <= 17; count++) {
+            terark::AutoGrowCircularQueue<Elem<4>> q(8);
+            terark::AutoGrowCircularQueueMatrix<Elem<5>> matrix(2, 4);
+            for (size_t i = 0; i < offset; i++) {
+                q.emplace_back(-1);
+                q.pop_front();
+                matrix.emplace_back(-1);
+                matrix.pop_front();
+            }
+            for (size_t i = 0; i < count; i++) {
+                q.emplace_back(char(i));
+                matrix.emplace_back(char(i));
+                TERARK_VERIFY_EQ(Elem<4>::g_cnt, q.size());
+                TERARK_VERIFY_EQ(Elem<5>::g_cnt, matrix.size());
+            }
+            if (count > 8) {
+                for (size_t i = 0; i < count; i++) {
+                    TERARK_VERIFY_EQ(q.front(), char(i));
+                    TERARK_VERIFY_EQ(matrix.front(), char(i));
+                    q.pop_front();
+                    matrix.pop_front();
+                }
+            }
+        }
+        TERARK_VERIFY_EQ(Elem<4>::g_cnt, 0);
+        TERARK_VERIFY_EQ(Elem<5>::g_cnt, 0);
+    }
+    {
+        terark::AutoGrowCircularQueue<Elem<4>> q(1);
+        terark::AutoGrowCircularQueue2d<Elem<5>> q2d(2, 2);
+        terark::AutoGrowCircularQueueMatrix<Elem<6>> matrix(2, 2);
+        check_random_operations(q);
+        check_random_operations(q2d);
+        check_random_operations(matrix);
+    }
+    TERARK_VERIFY_EQ(Elem<4>::g_cnt, 0);
+    TERARK_VERIFY_EQ(Elem<5>::g_cnt, 0);
+    TERARK_VERIFY_EQ(Elem<6>::g_cnt, 0);
+}
+
 int main(int argc, char** argv)
 {
+    if (argc > 1 && strcmp(argv[1], "full") == 0) {
+        test_full_capacity();
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "2d") == 0) {
+        test_2d_full_chunks();
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "matrix") == 0) {
+        terark::AutoGrowCircularQueueMatrix<int> matrix(2, 4);
+        check_full_capacity(matrix);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "batch") == 0) {
+        test_batch_pop();
+        return 0;
+    }
+    test_full_capacity();
+    test_2d_full_chunks();
+    test_batch_pop();
+    test_wrapped_growth_and_lifetime();
     terark::AutoGrowCircularQueue<Elem<1> > q1(2);
     terark::AutoGrowCircularQueue2d<Elem<2> > q2(2, 4);
     terark::AutoGrowCircularQueueMatrix<Elem<3> > q3(2, 4);
