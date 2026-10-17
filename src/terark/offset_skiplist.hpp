@@ -356,6 +356,20 @@ class OffsetSkipList {
 
 
     link_t head_loc() const { return m_head_loc; }
+    // A second list in this same mempool: its own head, no keys, all the rest
+    // (height counters, mempool, GC) shared with the main list. The caller owns
+    // the loc: it persists it and passes it to InsertAt / IteratorTpl. A head
+    // is never nil, so 0 can mean "no such head" on disk.
+    link_t NewHead() {
+        TERARK_ASSERT_EQ(is_readonly(), false);
+        Node* h = AllocateNode(0, m_max_height_limit, tls_get());
+        TERARK_VERIFY_F(h != nullptr, "OffsetSkipList head alloc failed, cap=%zd",
+                        m_mem.capacity());
+        for (int i = 0; i < m_max_height_limit; ++i) {
+            h->SetNextLoc(i, nil);
+        }
+        return LocOf(base(), h);
+    }
     const char* KeyOf(link_t loc) const {
         TERARK_ASSERT_NE(loc, nil);
         TERARK_ASSERT_NE(loc, m_head_loc);
@@ -721,12 +735,12 @@ class OffsetSkipList {
     // Concurrent callers use InsertConcurrently. Caller passes the TLS
     // already obtained for alloc; this does not get_tls again.
     char* Insert(char* key, MemTls* tc) {
-        return Insert<false>(key, &m_seq_splice, false, tc);
+        return Insert<false>(key, &m_seq_splice, false, tc, m_head_loc);
     }
 
     char* InsertWithHint(char* key, MemTls* tc) {
         TERARK_ASSERT_NE(tc, nullptr);
-        return Insert<false>(key, tc->get_splice(), true, tc);
+        return Insert<false>(key, tc->get_splice(), true, tc, m_head_loc);
     }
 
     // Reset height. Splice stays on TLS until ~LazyFreeListTLS.
@@ -744,12 +758,25 @@ class OffsetSkipList {
         Splice splice;
         splice.prev = prev;
         splice.next = next;
-        return Insert<true>(key, &splice, false, tc);
+        return Insert<true>(key, &splice, false, tc, m_head_loc);
     }
 
     char* InsertWithHintConcurrently(char* key, MemTls* tc) {
         TERARK_ASSERT_NE(tc, nullptr);
-        return Insert<true>(key, tc->get_splice(), true, tc);
+        return Insert<true>(key, tc->get_splice(), true, tc, m_head_loc);
+    }
+
+    // Insert into a head from NewHead(): never the hint path, and with a local
+    // splice, so the cached splice of the main list is never reused across
+    // heads (m_seq_splice and the TLS splice belong to m_head_loc).
+    char* InsertAt(link_t head, char* key, MemTls* tc) {
+        TERARK_ASSERT_NE(head, m_head_loc);
+        link_t prev[kMaxPossibleHeight + 1];
+        link_t next[kMaxPossibleHeight + 1];
+        Splice splice;
+        splice.prev = prev;
+        splice.next = next;
+        return Insert<true>(key, &splice, false, tc, head);
     }
 
   private:
@@ -765,7 +792,7 @@ class OffsetSkipList {
 
     template<bool UseCAS>
     char* Insert(char* key, Splice* splice,
-                 bool allow_partial_splice_fix, MemTls* tc) {
+                 bool allow_partial_splice_fix, MemTls* tc, link_t head) {
         TERARK_ASSERT_EQ(is_readonly(), false);
         TERARK_ASSERT_NE(tc, nullptr);
         tc->assert_current_thread();
@@ -777,9 +804,9 @@ class OffsetSkipList {
         TERARK_ASSERT_LE(max_height, kMaxPossibleHeight);
         int recompute_height =
             PrepareSplice(key_decoded, splice, allow_partial_splice_fix,
-                          max_height);
+                          max_height, head);
         char* exist = LinkFromSplice<UseCAS>(
-            x, key_decoded, height, splice, recompute_height);
+            x, key_decoded, height, splice, recompute_height, head);
         if (exist == nullptr) {
             AccountNewNode(tc);
         }
@@ -798,16 +825,16 @@ class OffsetSkipList {
     std::pair<link_t, int> FindGreaterOrEqual(const char*) const = delete;
 
     // nullptr: absent. Non-null: that node's key (equal).
-    const char* Get(const DecodedKey& key) const {
-        auto found = FindGreaterOrEqual(key);
+    const char* Get(const DecodedKey& key, link_t head = nil) const {
+        auto found = FindGreaterOrEqual(key, head);
         if (found.first != nil && found.second == 0) {
             return KeyOf(found.first);
         }
         return nullptr;
     }
 
-    bool Contains(const DecodedKey& key) const {
-        return Get(key) != nullptr;
+    bool Contains(const DecodedKey& key, link_t head = nil) const {
+        return Get(key, head) != nullptr;
     }
     uint64_t EstimateCount(const DecodedKey& key_decoded) const {
         uint64_t count = 0;
@@ -840,9 +867,11 @@ class OffsetSkipList {
 
     // second is this hop's compare, or +1 when next_loc is nil / last_bigger
     // (already known greater; not the raw Comparator result).
-    std::pair<link_t, int> FindGreaterOrEqual(const DecodedKey& key_decoded) const {
+    std::pair<link_t, int> FindGreaterOrEqual(const DecodedKey& key_decoded,
+                                              link_t head = nil) const {
         byte_t* b = base();
-        link_t xloc = m_head_loc;
+        const link_t h = HeadOr(head);
+        link_t xloc = h;
         Node* x = NodeAt(b, xloc);
         int level = GetMaxHeight() - 1;
         link_t last_bigger = nil;
@@ -851,7 +880,7 @@ class OffsetSkipList {
             if (next_loc != nil && next_loc != last_bigger) {
                 Node* next = NodeAt(b, next_loc);
                 PrefetchLoc(b, next->NextLoc(level));
-                if (xloc != m_head_loc) {
+                if (xloc != h) {
                     TERARK_ASSERT_LT(m_compare(x->Key(), next->Key()), 0);
                     TERARK_ASSERT_LT(m_compare(x->Key(), key_decoded), 0);
                 }
@@ -863,7 +892,7 @@ class OffsetSkipList {
                     x = next;
                     continue;
                 }
-            } else if (xloc != m_head_loc) {
+            } else if (xloc != h) {
                 TERARK_ASSERT_LT(m_compare(x->Key(), key_decoded), 0);
             }
             if (level == 0) {
@@ -1107,7 +1136,8 @@ class OffsetSkipList {
         IteratorTpl(const IteratorTpl&) = delete;
         IteratorTpl& operator=(const IteratorTpl&) = delete;
 
-        explicit IteratorTpl(const OffsetSkipList* list) {
+        // head == nil: the list's own head. Else a head from NewHead().
+        explicit IteratorTpl(const OffsetSkipList* list, link_t head = nil) {
             TERARK_ASSERT_NE(list, nullptr);
             if constexpr (NoPin) {
                 TERARK_VERIFY(!list->need_pin());
@@ -1115,6 +1145,7 @@ class OffsetSkipList {
             } else {
                 this->acquire(const_cast<OffsetSkipList*>(list));
             }
+            m_head = list->HeadOr(head);
         }
         ~IteratorTpl() {
             if constexpr (NeedToken) {
@@ -1144,8 +1175,8 @@ class OffsetSkipList {
         void Prev() {
             TERARK_ASSERT_NE(m_loc, nil);
             m_loc = this->skiplist()->FindLessThan(
-                this->skiplist()->DecodeKey(this->skiplist()->KeyOf(m_loc)));
-            if (m_loc == this->skiplist()->m_head_loc) {
+                this->skiplist()->DecodeKey(this->skiplist()->KeyOf(m_loc)), m_head);
+            if (m_loc == m_head) {
                 m_loc = nil;
             }
             if constexpr (NeedToken) {
@@ -1160,7 +1191,7 @@ class OffsetSkipList {
             if constexpr (NeedToken) {
                 this->UpdateToken();
             }
-            m_loc = this->skiplist()->FindGreaterOrEqual(target).first;
+            m_loc = this->skiplist()->FindGreaterOrEqual(target, m_head).first;
         }
 
         void SeekForPrev(const DecodedKey& target) {
@@ -1168,7 +1199,7 @@ class OffsetSkipList {
                 this->UpdateToken();
             }
             OffsetSkipList* sl = this->skiplist();
-            link_t pred = sl->FindLessThan(target);
+            link_t pred = sl->FindLessThan(target, m_head);
             link_t succ = NodeAt(sl->base(), pred)->NextLoc(0);
             // FindLessThan's pred can be stale: a node may already sit in
             // (pred, target]. Testing succ == target missed those and fell
@@ -1184,7 +1215,7 @@ class OffsetSkipList {
                     }
                     m_loc = n;
                 }
-            } else if (pred != sl->m_head_loc) {
+            } else if (pred != m_head) {
                 m_loc = pred;
             } else {
                 m_loc = nil;
@@ -1195,23 +1226,22 @@ class OffsetSkipList {
             if constexpr (NeedToken) {
                 this->UpdateToken();
             }
-            m_loc = this->skiplist()->FindRandomEntry();
+            m_loc = this->skiplist()->FindRandomEntry(m_head);
         }
 
         void SeekToFirst() {
             if constexpr (NeedToken) {
                 this->UpdateToken();
             }
-            m_loc = NodeAt(this->skiplist()->base(), this->skiplist()->m_head_loc)
-                        ->NextLoc(0);
+            m_loc = NodeAt(this->skiplist()->base(), m_head)->NextLoc(0);
         }
 
         void SeekToLast() {
             if constexpr (NeedToken) {
                 this->UpdateToken();
             }
-            m_loc = this->skiplist()->FindLast();
-            if (m_loc == this->skiplist()->m_head_loc) {
+            m_loc = this->skiplist()->FindLast(m_head);
+            if (m_loc == m_head) {
                 m_loc = nil;
             }
         }
@@ -1230,6 +1260,7 @@ class OffsetSkipList {
 
       private:
         link_t m_loc = nil;
+        link_t m_head = nil;
     };
     using Iterator = IteratorTpl<false>;
     using NoPinIterator = IteratorTpl<true>;
@@ -1248,6 +1279,9 @@ class OffsetSkipList {
     }
 
     byte_t* base() const { return const_cast<byte_t*>(m_mem.data()); }
+
+    // head == nil: the list's own head. Else a head from NewHead().
+    link_t HeadOr(link_t head) const { return head == nil ? m_head_loc : head; }
 
     int GetMaxHeight() const {
         return m_max_height.load(std::memory_order_relaxed);
@@ -1304,9 +1338,10 @@ class OffsetSkipList {
         return m_compare(NodeAt(b, loc)->Key(), key) < 0;
     }
 
-    link_t FindLessThan(const DecodedKey& key_decoded) const {
+    link_t FindLessThan(const DecodedKey& key_decoded, link_t head = nil) const {
         byte_t* b = base();
-        link_t xloc = m_head_loc;
+        const link_t h = HeadOr(head);
+        link_t xloc = h;
         Node* x = NodeAt(b, xloc);
         int level = GetMaxHeight() - 1;
         link_t last_not_after = nil;
@@ -1315,7 +1350,7 @@ class OffsetSkipList {
             if (next_loc != nil && next_loc != last_not_after) {
                 Node* next = NodeAt(b, next_loc);
                 PrefetchLoc(b, next->NextLoc(level));
-                if (xloc != m_head_loc) {
+                if (xloc != h) {
                     TERARK_ASSERT_LT(m_compare(x->Key(), next->Key()), 0);
                     TERARK_ASSERT_LT(m_compare(x->Key(), key_decoded), 0);
                 }
@@ -1324,7 +1359,7 @@ class OffsetSkipList {
                     x = next;
                     continue;
                 }
-            } else if (xloc != m_head_loc) {
+            } else if (xloc != h) {
                 TERARK_ASSERT_LT(m_compare(x->Key(), key_decoded), 0);
             }
             if (level == 0) {
@@ -1335,9 +1370,9 @@ class OffsetSkipList {
         }
     }
 
-    link_t FindLast() const {
+    link_t FindLast(link_t head = nil) const {
         byte_t* b = base();
-        link_t xloc = m_head_loc;
+        link_t xloc = HeadOr(head);
         Node* x = NodeAt(b, xloc);
         int level = GetMaxHeight() - 1;
         while (true) {
@@ -1354,9 +1389,10 @@ class OffsetSkipList {
         }
     }
 
-    link_t FindRandomEntry() const {
+    link_t FindRandomEntry(link_t head = nil) const {
         byte_t* b = base();
-        link_t xloc = m_head_loc;
+        const link_t h = HeadOr(head);
+        link_t xloc = h;
         link_t limit_loc = nil;
         std::vector<link_t> lvl_nodes;
         int level = GetMaxHeight() - 1;
@@ -1374,23 +1410,24 @@ class OffsetSkipList {
             }
             level--;
         }
-        return xloc == m_head_loc ? NodeAt(b, m_head_loc)->NextLoc(0) : xloc;
+        return xloc == h ? NodeAt(b, h)->NextLoc(0) : xloc;
     }
 
 
     template<bool prefetch_before, bool trust_after = false>
     void FindSpliceForLevel(const DecodedKey& key, link_t before_loc,
                             link_t after_loc, int level, link_t* out_prev,
-                            link_t* out_next) {
+                            link_t* out_next, link_t head = nil) {
         byte_t* b = base();
+        const link_t h = HeadOr(head);
         if constexpr (trust_after) {
             if (before_loc == nil) {
-                before_loc = m_head_loc;
+                before_loc = h;
                 after_loc = nil;
             }
         } else if (before_loc == nil ||
-                   (before_loc != m_head_loc && !KeyIsAfterLoc(key, before_loc, b))) {
-            before_loc = m_head_loc;
+                   (before_loc != h && !KeyIsAfterLoc(key, before_loc, b))) {
+            before_loc = h;
             after_loc = nil;
         }
         Node* before = NodeAt(b, before_loc);
@@ -1402,7 +1439,7 @@ class OffsetSkipList {
                 if (prefetch_before && level > 0) {
                     PrefetchLoc(b, next->NextLoc(level - 1));
                 }
-                if (before_loc != m_head_loc) {
+                if (before_loc != h) {
                     TERARK_ASSERT_LT(m_compare(before->Key(), next->Key()), 0);
                     TERARK_ASSERT_LT(m_compare(before->Key(), key), 0);
                 }
@@ -1415,7 +1452,7 @@ class OffsetSkipList {
                 before_loc = next_loc;
                 before = next;
             } else {
-                if (before_loc != m_head_loc) {
+                if (before_loc != h) {
                     TERARK_ASSERT_LT(m_compare(before->Key(), key), 0);
                 }
                 *out_prev = before_loc;
@@ -1426,13 +1463,14 @@ class OffsetSkipList {
     }
 
     void RecomputeSpliceLevels(const DecodedKey& key, Splice* splice,
-                               int recompute_level) {
+                               int recompute_level, link_t head = nil) {
         TERARK_ASSERT_GT(recompute_level, 0);
         TERARK_ASSERT_LE(recompute_level, splice->height);
         for (int i = recompute_level - 1; i >= 0; --i) {
             FindSpliceForLevel<true, true>(key, splice->prev[i + 1],
                                            splice->next[i + 1], i,
-                                           &splice->prev[i], &splice->next[i]);
+                                           &splice->prev[i], &splice->next[i],
+                                           head);
         }
     }
 
@@ -1451,11 +1489,13 @@ class OffsetSkipList {
     }
 
     int PrepareSplice(const DecodedKey& key, Splice* splice,
-                      bool allow_partial_splice_fix, int max_height) {
+                      bool allow_partial_splice_fix, int max_height,
+                      link_t head) {
         byte_t* b = base();
+        const link_t h = HeadOr(head);
         int recompute_height = 0;
         if (splice->height < max_height) {
-            splice->prev[max_height] = m_head_loc;
+            splice->prev[max_height] = h;
             splice->next[max_height] = nil;
             splice->height = max_height;
             recompute_height = max_height;
@@ -1466,7 +1506,7 @@ class OffsetSkipList {
                 if (prev->NextLoc(recompute_height) !=
                     splice->next[recompute_height]) {
                     ++recompute_height;
-                } else if (prev_loc != m_head_loc &&
+                } else if (prev_loc != h &&
                            m_compare(prev->Key(), key) >= 0) {
                     if (allow_partial_splice_fix) {
                         link_t bad = prev_loc;
@@ -1492,7 +1532,7 @@ class OffsetSkipList {
         }
         TERARK_ASSERT_LE(recompute_height, max_height);
         if (recompute_height > 0) {
-            RecomputeSpliceLevels(key, splice, recompute_height);
+            RecomputeSpliceLevels(key, splice, recompute_height, head);
         }
         return recompute_height;
     }
@@ -1502,8 +1542,10 @@ class OffsetSkipList {
     // compare for dups, no per-level order rescan from head).
     template<bool UseCAS, bool RepairStale = false>
     char* LinkFromSplice(Node* x, const DecodedKey& key, int height,
-                         Splice* splice, [[maybe_unused]] int recompute_height) {
+                         Splice* splice, [[maybe_unused]] int recompute_height,
+                         link_t head = nil) {
         byte_t* b = base();
+        const link_t h = HeadOr(head);
         const link_t xloc = LocOf(b, x);
         bool splice_is_valid = true;
         auto fail_dup = [&](link_t found) -> char* {
@@ -1516,7 +1558,7 @@ class OffsetSkipList {
                                 m_compare(NodeAt(b, next_loc)->Key(), key) == 0)) {
                 return fail_dup(next_loc);
             }
-            if (terark_unlikely(prev_loc != m_head_loc &&
+            if (terark_unlikely(prev_loc != h &&
                                 m_compare(prev->Key(), key) == 0)) {
                 return fail_dup(prev_loc);
             }
@@ -1527,10 +1569,10 @@ class OffsetSkipList {
                 return false;
             } else if ((next_loc != nil &&
                         m_compare(NodeAt(b, next_loc)->Key(), key) < 0) ||
-                       (prev_loc != m_head_loc &&
+                       (prev_loc != h &&
                         m_compare(NodeAt(b, prev_loc)->Key(), key) > 0)) {
-                FindSpliceForLevel<false>(key, m_head_loc, nil, i, &splice->prev[i],
-                                          &splice->next[i]);
+                FindSpliceForLevel<false>(key, h, nil, i, &splice->prev[i],
+                                          &splice->next[i], head);
                 return true;
             } else {
                 return false;
@@ -1557,7 +1599,7 @@ class OffsetSkipList {
                         TERARK_ASSERT_GT(m_compare(NodeAt(b, next_loc)->Key(), key),
                                          0);
                     }
-                    if (prev_loc != m_head_loc) {
+                    if (prev_loc != h) {
                         TERARK_ASSERT_LT(m_compare(prev->Key(), key), 0);
                     }
                     x->NoBarrier_SetNextLoc(i, next_loc);
@@ -1565,7 +1607,7 @@ class OffsetSkipList {
                         break;
                     }
                     FindSpliceForLevel<false>(key, prev_loc, nil, i, &splice->prev[i],
-                                              &splice->next[i]);
+                                              &splice->next[i], head);
                     if (i > 0) {
                         splice_is_valid = false;
                     }
@@ -1577,7 +1619,7 @@ class OffsetSkipList {
                 Node* prev = NodeAt(b, prev_loc);
                 if (i >= recompute_height && prev->NextLoc(i) != splice->next[i]) {
                     FindSpliceForLevel<false>(key, prev_loc, nil, i, &splice->prev[i],
-                                              &splice->next[i]);
+                                              &splice->next[i], head);
                     prev_loc = splice->prev[i];
                     prev = NodeAt(b, prev_loc);
                 }
@@ -1600,7 +1642,7 @@ class OffsetSkipList {
                 if (next_loc != nil) {
                     TERARK_ASSERT_GT(m_compare(NodeAt(b, next_loc)->Key(), key), 0);
                 }
-                if (prev_loc != m_head_loc) {
+                if (prev_loc != h) {
                     TERARK_ASSERT_LT(m_compare(prev->Key(), key), 0);
                 }
                 TERARK_ASSERT_EQ(prev->NextLoc(i), next_loc);
@@ -1755,13 +1797,7 @@ class OffsetSkipList {
     }
 
     void InitHead() {
-        Node* h = AllocateNode(0, m_max_height_limit, tls_get());
-        TERARK_VERIFY_F(h != nullptr, "OffsetSkipList head alloc failed, cap=%zd",
-                        m_mem.capacity());
-        m_head_loc = LocOf(base(), h);
-        for (int i = 0; i < m_max_height_limit; ++i) {
-            h->SetNextLoc(i, nil);
-        }
+        m_head_loc = NewHead();
     }
 
     void InitDummy() {
