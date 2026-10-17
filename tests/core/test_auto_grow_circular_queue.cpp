@@ -235,8 +235,90 @@ void test_wrapped_growth_and_lifetime() {
     TERARK_VERIFY_EQ(Elem<6>::g_cnt, 0);
 }
 
+struct AliasItem {
+    static size_t live;
+    int value;
+    int other;
+    int* owned;
+    explicit AliasItem(int v) : value(v), other(v + 1000), owned(new int(v)) { ++live; }
+    AliasItem(const AliasItem& y)
+      : value(y.value), other(y.other), owned(y.owned ? new int(*y.owned) : nullptr) { ++live; }
+    AliasItem(AliasItem&& y) noexcept
+      : value(y.value), other(y.other), owned(y.owned) { y.owned = nullptr; ++live; }
+    AliasItem(int& changed, const int& read, int increment)
+      : value(changed + read), other(read), owned(new int(value)) {
+        changed += increment;
+        ++live;
+    }
+    ~AliasItem() { delete owned; --live; }
+};
+size_t AliasItem::live = 0;
+
+template<class Queue> void check_alias_growth(Queue& q, size_t offset, size_t source, int mode) {
+    for (size_t i = 0; i < offset; ++i) {
+        q.emplace_back(-1);
+        q.pop_front();
+    }
+    AliasItem* items[8];
+    for (size_t i = 0; i < 8; ++i) {
+        q.emplace_back(int(100 + i));
+        items[i] = &q.back();
+    }
+    TERARK_VERIFY_EQ(q.capacity(), 8);
+    AliasItem& item = *items[source];
+    int appended = item.value;
+    switch (mode) {
+    case 0: q.push_back(item); break;
+    case 1: q.emplace_back(item); break;
+    case 2:
+        appended = item.value + item.other;
+        q.emplace_back(item.value, item.other, 17);
+        break;
+    case 3: q.emplace_back(std::move(item)); break;
+    default: TERARK_DIE("invalid alias mode");
+    }
+    TERARK_VERIFY_EQ(q.capacity(), 16);
+    TERARK_VERIFY_EQ(AliasItem::live, 9);
+    for (size_t i = 0; i < 8; ++i) {
+        int expected = int(100 + i) + (mode == 2 && source == i ? 17 : 0);
+        TERARK_VERIFY_F(q.front().value == expected,
+                        "offset=%zd source=%zd mode=%d i=%zd value=%d expected=%d",
+                        offset, source, mode, i, q.front().value, expected);
+        TERARK_VERIFY_EQ(q.front().owned != nullptr, mode != 3 || source != i);
+        q.pop_front();
+    }
+    TERARK_VERIFY_EQ(q.front().value, appended);
+    TERARK_VERIFY_EQ(*q.front().owned, appended);
+    q.pop_front();
+    TERARK_VERIFY_EQ(AliasItem::live, 0);
+}
+
+void test_alias_growth(bool matrix) {
+    for (size_t offset = 0; offset < 8; ++offset) {
+        for (size_t source = 0; source < 8; ++source) {
+            for (int mode = 0; mode < 4; ++mode) {
+                if (matrix) {
+                    terark::AutoGrowCircularQueueMatrix<AliasItem> q(2, 4);
+                    check_alias_growth(q, offset, source, mode);
+                } else {
+                    terark::AutoGrowCircularQueue<AliasItem> q(8);
+                    check_alias_growth(q, offset, source, mode);
+                }
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
+    if (argc > 1 && strcmp(argv[1], "alias") == 0) {
+        test_alias_growth(false);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "matrix-alias") == 0) {
+        test_alias_growth(true);
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "full") == 0) {
         test_full_capacity();
         return 0;
@@ -258,6 +340,8 @@ int main(int argc, char** argv)
     test_2d_full_chunks();
     test_batch_pop();
     test_wrapped_growth_and_lifetime();
+    test_alias_growth(false);
+    test_alias_growth(true);
     terark::AutoGrowCircularQueue<Elem<1> > q1(2);
     terark::AutoGrowCircularQueue2d<Elem<2> > q2(2, 4);
     terark::AutoGrowCircularQueueMatrix<Elem<3> > q3(2, 4);

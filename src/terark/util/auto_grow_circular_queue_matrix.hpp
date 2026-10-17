@@ -148,8 +148,22 @@ private:
     }
     template<class... Args>
     terark_no_inline void emplace_back_slow_path(Args&&... args) {
+        // A mutating argument must change the source before its row is split.
+        alignas(T) unsigned char storage[sizeof(T)];
+        T* value = new(storage) T (std::forward<Args>(args)...);
         double_cap();
-        emplace_back_fast_path(std::forward<Args>(args)...);
+        size_t tail = m_tail;
+        size_t tail_row = (tail & (m_capa - 1)) >> m_cols_shift;
+        size_t tail_col = tail & (m_cols - 1);
+        T*& row = m_mtrx[tail_row];
+        if (terark_unlikely(nullptr == row)) {
+            row = (T*)malloc(sizeof(T) * m_cols);
+            TERARK_VERIFY_EZ(tail_col);
+            TERARK_VERIFY(nullptr != row);
+        }
+        // Raw relocation transfers the temporary's lifetime; do not destroy it.
+        memcpy(&row[tail_col], value, sizeof(T));
+        m_tail = tail + 1;
     }
     terark_no_inline void double_cap() {
         //fprintf(stderr, "%22s: rows %zd, cols %zd, head %zd, tail %zd, head_row %zd, head_col %zd\n", __func__, m_rows, m_cols, m_head, m_tail, m_head >> m_cols_shift, m_head & (m_cols - 1));

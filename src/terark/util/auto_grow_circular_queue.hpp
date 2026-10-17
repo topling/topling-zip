@@ -153,15 +153,17 @@ public:
 private:
     terark_no_inline
     void push_back_slow_path(const T& x) {
-        double_cap();
-        new(&m_vec[m_tail & (m_cap - 1)]) T (x);
-        ++m_tail;
+        emplace_back_slow_path(x);
     }
     template<class... Args>
     terark_no_inline
     void emplace_back_slow_path(Args&&... args) {
+        // Arguments may refer to elements or their members in the old storage.
+        alignas(T) unsigned char storage[sizeof(T)];
+        T* value = new(storage) T (std::forward<Args>(args)...);
         double_cap();
-        new(&m_vec[m_tail & (m_cap - 1)]) T (std::forward<Args>(args)...);
+        // Raw relocation transfers the temporary's lifetime; do not destroy it.
+        memcpy(&m_vec[m_tail & (m_cap - 1)], value, sizeof(T));
         ++m_tail;
     }
     terark_no_inline
