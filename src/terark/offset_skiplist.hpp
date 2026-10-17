@@ -730,16 +730,28 @@ class OffsetSkipList {
     }
 
 
+    struct NoNewKeyHook {
+        void operator()() const {}
+    };
+
     // Sequential only: shared m_seq_splice (InlineSkipList::seq_splice_).
     // Concurrent callers use InsertConcurrently. Caller passes the TLS
     // already obtained for alloc; this does not get_tls again.
-    char* Insert(char* key, MemTls* tc) {
-        return Insert<false>(key, &m_seq_splice, false, tc, m_head_loc);
+    // on_new_key, if given, runs once after the key is known to be absent and
+    // before the level-0 link, so it can still write the node's payload: the
+    // walk is not repeated for the caller's first value.
+    template<class OnNewKey = NoNewKeyHook>
+    char* Insert(char* key, MemTls* tc, OnNewKey&& on_new_key = OnNewKey()) {
+        return Insert<false>(key, &m_seq_splice, false, tc, m_head_loc,
+                             std::forward<OnNewKey>(on_new_key));
     }
 
-    char* InsertWithHint(char* key, MemTls* tc) {
+    template<class OnNewKey = NoNewKeyHook>
+    char* InsertWithHint(char* key, MemTls* tc,
+                         OnNewKey&& on_new_key = OnNewKey()) {
         TERARK_ASSERT_NE(tc, nullptr);
-        return Insert<false>(key, tc->get_splice(), true, tc, m_head_loc);
+        return Insert<false>(key, tc->get_splice(), true, tc, m_head_loc,
+                             std::forward<OnNewKey>(on_new_key));
     }
 
     // Reset height. Splice stays on TLS until ~LazyFreeListTLS.
@@ -751,31 +763,40 @@ class OffsetSkipList {
         splice->height = 0;
     }
 
-    char* InsertConcurrently(char* key, MemTls* tc) {
+    template<class OnNewKey = NoNewKeyHook>
+    char* InsertConcurrently(char* key, MemTls* tc,
+                             OnNewKey&& on_new_key = OnNewKey()) {
         link_t prev[kMaxPossibleHeight + 1];
         link_t next[kMaxPossibleHeight + 1];
         Splice splice;
         splice.prev = prev;
         splice.next = next;
-        return Insert<true>(key, &splice, false, tc, m_head_loc);
+        return Insert<true>(key, &splice, false, tc, m_head_loc,
+                            std::forward<OnNewKey>(on_new_key));
     }
 
-    char* InsertWithHintConcurrently(char* key, MemTls* tc) {
+    template<class OnNewKey = NoNewKeyHook>
+    char* InsertWithHintConcurrently(char* key, MemTls* tc,
+                                     OnNewKey&& on_new_key = OnNewKey()) {
         TERARK_ASSERT_NE(tc, nullptr);
-        return Insert<true>(key, tc->get_splice(), true, tc, m_head_loc);
+        return Insert<true>(key, tc->get_splice(), true, tc, m_head_loc,
+                            std::forward<OnNewKey>(on_new_key));
     }
 
     // Insert into a head from NewHead(): never the hint path, and with a local
     // splice, so the cached splice of the main list is never reused across
     // heads (m_seq_splice and the TLS splice belong to m_head_loc).
-    char* InsertAt(link_t head, char* key, MemTls* tc) {
+    template<class OnNewKey = NoNewKeyHook>
+    char* InsertAt(link_t head, char* key, MemTls* tc,
+                   OnNewKey&& on_new_key = OnNewKey()) {
         TERARK_ASSERT_NE(head, m_head_loc);
         link_t prev[kMaxPossibleHeight + 1];
         link_t next[kMaxPossibleHeight + 1];
         Splice splice;
         splice.prev = prev;
         splice.next = next;
-        return Insert<true>(key, &splice, false, tc, head);
+        return Insert<true>(key, &splice, false, tc, head,
+                            std::forward<OnNewKey>(on_new_key));
     }
 
   private:
@@ -789,9 +810,10 @@ class OffsetSkipList {
         }
     }
 
-    template<bool UseCAS>
+    template<bool UseCAS, class OnNewKey>
     char* Insert(char* key, Splice* splice,
-                 bool allow_partial_splice_fix, MemTls* tc, link_t head) {
+                 bool allow_partial_splice_fix, MemTls* tc, link_t head,
+                 OnNewKey&& on_new_key) {
         TERARK_ASSERT_EQ(is_readonly(), false);
         TERARK_ASSERT_NE(tc, nullptr);
         tc->assert_current_thread();
@@ -805,7 +827,8 @@ class OffsetSkipList {
             PrepareSplice(key_decoded, splice, allow_partial_splice_fix,
                           max_height, head);
         char* exist = LinkFromSplice<UseCAS>(
-            x, key_decoded, height, splice, recompute_height, head);
+            x, key_decoded, height, splice, recompute_height, head,
+            std::forward<OnNewKey>(on_new_key));
         if (exist == nullptr) {
             AccountNewNode(tc);
         }
@@ -1537,14 +1560,25 @@ class OffsetSkipList {
     // RepairStale: TEST_InsertSkipPrepare only. Production Insert always
     // PrepareSplice first; then this matches InlineSkipList (level-0
     // compare for dups, no per-level order rescan from head).
-    template<bool UseCAS, bool RepairStale = false>
+    template<bool UseCAS, bool RepairStale = false,
+             class OnNewKey = NoNewKeyHook>
     char* LinkFromSplice(Node* x, const DecodedKey& key, int height,
                          Splice* splice, [[maybe_unused]] int recompute_height,
-                         link_t head = nil) {
+                         link_t head = nil,
+                         OnNewKey&& on_new_key = OnNewKey()) {
         byte_t* b = base();
         const link_t h = HeadOr(head);
         const link_t xloc = LocOf(b, x);
         bool splice_is_valid = true;
+        bool hook_called = false;
+        // The payload must be in place before level 0 publishes the node, and
+        // a failed CAS walks the splice again: write it once.
+        auto run_hook = [&] {
+            if (!hook_called) {
+                hook_called = true;
+                on_new_key();
+            }
+        };
         auto fail_dup = [&](link_t found) -> char* {
             x->StashHeight(height);
             return const_cast<char*>(KeyOf(found));
@@ -1592,6 +1626,9 @@ class OffsetSkipList {
                         }
                         continue;
                     }
+                    if (i == 0) {
+                        run_hook();
+                    }
                     if (next_loc != nil) {
                         TERARK_ASSERT_GT(m_compare(NodeAt(b, next_loc)->Key(), key),
                                          0);
@@ -1635,6 +1672,9 @@ class OffsetSkipList {
                             return d;
                         }
                     }
+                }
+                if (i == 0) {
+                    run_hook();
                 }
                 if (next_loc != nil) {
                     TERARK_ASSERT_GT(m_compare(NodeAt(b, next_loc)->Key(), key), 0);
