@@ -12,9 +12,11 @@
 #include <terark/stdtypes.hpp>
 #include <terark/util/throw.hpp>
 #include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <iterator>
+#include <new>
 #include <type_traits>
 #include <utility>
 
@@ -83,13 +85,23 @@ private:
         if (capacity == 0) {
             return nullptr;
         }
-        ElemT* memory = static_cast<ElemT*>(::malloc(sizeof(ElemT) * capacity));
+        void* memory;
+        if constexpr (alignof(ElemT) > alignof(max_align_t)) {
+            memory = ::operator new(sizeof(ElemT) * capacity,
+                std::align_val_t(alignof(ElemT)), std::nothrow);
+        } else {
+            memory = ::malloc(sizeof(ElemT) * capacity);
+        }
         TERARK_VERIFY(memory != nullptr);
-        return memory;
+        return static_cast<ElemT*>(memory);
     }
 
     static void deallocate(ElemT* memory) noexcept {
-        ::free(memory);
+        if constexpr (alignof(ElemT) > alignof(max_align_t)) {
+            ::operator delete(memory, std::align_val_t(alignof(ElemT)));
+        } else {
+            ::free(memory);
+        }
     }
 
 public:

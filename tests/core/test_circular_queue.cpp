@@ -654,6 +654,30 @@ void check_move_only_ownership() {
     }
 }
 
+struct alignas(4096) AlignedElement {
+    int value;
+    explicit AlignedElement(int number) : value(number) {}
+};
+
+void check_over_aligned_storage() {
+    using Queue = terark::circular_queue<AlignedElement, true>;
+    Queue source(4);
+    source.emplace_front(11);
+    source.emplace_back(22);
+    Queue copy(source);
+    Queue moved(std::move(source));
+    for (ptrdiff_t i = 0; i < 2; ++i) {
+        CHECK(uintptr_t(&copy[i]) % alignof(AlignedElement) == 0);
+        CHECK(uintptr_t(&moved[i]) % alignof(AlignedElement) == 0);
+        CHECK(copy[i].value == moved[i].value);
+    }
+    Queue assigned(4);
+    assigned.emplace_back(99);
+    assigned = copy;
+    CHECK(uintptr_t(&assigned.front()) % alignof(AlignedElement) == 0);
+    assigned = std::move(moved);
+    CHECK(uintptr_t(&assigned.front()) % alignof(AlignedElement) == 0);
+}
 
 #endif
 
@@ -746,6 +770,7 @@ int main(int argc, char** argv) {
     run("fixed move-only ownership", [] {
         check_move_only_ownership<terark::fixed_circular_queue<std::unique_ptr<int>, 8>>();
     });
+    run("dynamic over-aligned storage", check_over_aligned_storage);
 #endif
     printf("%d cases, %d failures\n", cases, failures);
     return cases == 0 ? 2 : failures != 0;
