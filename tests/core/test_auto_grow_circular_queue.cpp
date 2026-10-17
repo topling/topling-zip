@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <deque>
 #include <map>
+#include <stdexcept>
 
 // pre include headers in auto_grow_circular_queue.hpp &
 //                        auto_grow_circular_queue_matrix.hpp
@@ -309,6 +310,43 @@ void test_alias_growth(bool matrix) {
     }
 }
 
+struct ThrowingItem {
+    static bool fail;
+    int value;
+    explicit ThrowingItem(int v) : value(v) {
+        if (fail) throw std::runtime_error("requested construction failure");
+    }
+    ThrowingItem(const ThrowingItem& y) : value(y.value) {
+        if (fail) throw std::runtime_error("requested copy failure");
+    }
+};
+bool ThrowingItem::fail = false;
+
+void test_2d_constructor_exception(bool copy) {
+    terark::AutoGrowCircularQueue2d<ThrowingItem> q(2, 4);
+    for (int i = 0; i < 8; ++i) q.emplace_back(i);
+    ThrowingItem item(99);
+    ThrowingItem::fail = true;
+    try {
+        if (copy) q.push_back(item);
+        else q.emplace_back(99);
+        TERARK_DIE("construction did not throw");
+    } catch (const std::runtime_error&) {
+        ThrowingItem::fail = false;
+    }
+    TERARK_VERIFY_EQ(q.size(), 8);
+    TERARK_VERIFY_EQ(q.front().value, 0);
+    TERARK_VERIFY_EQ(q.back().value, 7);
+    q.emplace_back(8);
+    for (int i = 0; i < 9; ++i) {
+        TERARK_VERIFY_EQ(q.front().value, i);
+        q.pop_front();
+    }
+    TERARK_VERIFY(q.empty());
+    q.emplace_back(42);
+    TERARK_VERIFY_EQ(q.front().value, 42);
+}
+
 int main(int argc, char** argv)
 {
     if (argc > 1 && strcmp(argv[1], "alias") == 0) {
@@ -317,6 +355,14 @@ int main(int argc, char** argv)
     }
     if (argc > 1 && strcmp(argv[1], "matrix-alias") == 0) {
         test_alias_growth(true);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "2d-throw") == 0) {
+        test_2d_constructor_exception(false);
+        return 0;
+    }
+    if (argc > 1 && strcmp(argv[1], "2d-throw-copy") == 0) {
+        test_2d_constructor_exception(true);
         return 0;
     }
     if (argc > 1 && strcmp(argv[1], "full") == 0) {
@@ -342,6 +388,8 @@ int main(int argc, char** argv)
     test_wrapped_growth_and_lifetime();
     test_alias_growth(false);
     test_alias_growth(true);
+    test_2d_constructor_exception(false);
+    test_2d_constructor_exception(true);
     terark::AutoGrowCircularQueue<Elem<1> > q1(2);
     terark::AutoGrowCircularQueue2d<Elem<2> > q2(2, 4);
     terark::AutoGrowCircularQueueMatrix<Elem<3> > q3(2, 4);

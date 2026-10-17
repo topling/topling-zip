@@ -234,18 +234,17 @@ public:
         m_size--;
     }
     void push_back(const T& x) {
-        if (terark_unlikely(m_queue.empty() || m_queue.back().needs_expand())) {
-            m_queue.emplace_back(m_cap_col);
-        }
-        m_queue.back().push_back(x);
-        m_size++;
+        emplace_back(x);
     }
     template<class... Args>
     void emplace_back(Args&&... args) {
         if (terark_unlikely(m_queue.empty() || m_queue.back().needs_expand())) {
-            m_queue.emplace_back(m_cap_col);
+            AutoGrowCircularQueue<T> chunk(m_cap_col);
+            chunk.emplace_back(std::forward<Args>(args)...);
+            m_queue.emplace_back(std::move(chunk));
+        } else {
+            m_queue.back().emplace_back(std::forward<Args>(args)...);
         }
-        m_queue.back().emplace_back(std::forward<Args>(args)...);
         m_size++;
     }
     size_t size() const { return m_size; }
