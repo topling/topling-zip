@@ -22,6 +22,25 @@ struct NonConstFullQueue : std::deque<int> {
     bool full() { return size() == 3; }
 };
 
+struct NonConstSizeQueue : std::deque<int> {
+    size_type size() { return std::deque<int>::size(); }
+};
+
+void test_nonconst_size() {
+    terark::util::concurrent_queue<NonConstSizeQueue> queue(2);
+    CHECK(queue.size() == 0);
+    CHECK(queue.try_push_back(10));
+    CHECK(queue.size() == 1);
+    CHECK(queue.try_push_back(20));
+    CHECK(queue.size() == 2);
+    CHECK(queue.full());
+    CHECK(!queue.try_push_back(30));
+    CHECK(queue.pop_front() == 10);
+    CHECK(queue.size() == 1);
+    CHECK(queue.pop_front() == 20);
+    CHECK(queue.size() == 0);
+}
+
 void test_capacity_limits() {
     using Ring = terark::circular_queue<int, false>;
     terark::util::concurrent_queue<Ring> physical_limit;
@@ -181,6 +200,20 @@ void test_batch_pop(BatchKind kind, bool throwing) {
     CHECK(output[0].value == 10 && output[1].value == 20);
 }
 
+#ifndef CONCURRENT_QUEUE_LEGACY_BASELINE
+void test_try_pop() {
+    terark::util::concurrent_queue<std::deque<int>> queue(2);
+    int result = 99;
+    CHECK(!queue.try_pop_front(result));
+    CHECK(result == 99);
+    queue.push_back(10);
+    CHECK(queue.try_pop_front(result));
+    CHECK(result == 10);
+    CHECK(!queue.try_pop_front(result));
+    const auto& constant = queue;
+    CHECK(constant.size() == 0);
+}
+#endif
 
 } // namespace
 
@@ -196,6 +229,7 @@ int main() {
         }
     };
     run("capacity limits", test_capacity_limits);
+    run("non-const size container", test_nonconst_size);
     for (BatchKind kind : {blocking, timed, nowait}) {
         for (bool throwing : {false, true}) {
             std::string name = std::to_string(int(kind)) + (throwing ? " throwing" : " normal");
@@ -203,6 +237,9 @@ int main() {
             run("batch pop " + name, [&] { test_batch_pop(kind, throwing); });
         }
     }
+#ifndef CONCURRENT_QUEUE_LEGACY_BASELINE
+    run("try pop", test_try_pop);
+#endif
     printf("%d failures\n", failures);
     return failures ? 1 : 0;
 }

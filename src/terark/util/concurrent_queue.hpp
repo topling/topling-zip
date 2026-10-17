@@ -60,7 +60,7 @@ class concurrent_queue
 #endif
 
 	Container m_queue;
-	MyMutex   m_mtx;
+	mutable MyMutex m_mtx;
 	MyCond    m_popCond;
 	MyCond    m_pushCond;
 	size_t m_maxSize;
@@ -101,6 +101,11 @@ public:
 
 	//! locked get size...
 	size_type size()
+	{
+		LockGuard lock(m_mtx);
+		return m_queue.size();
+	}
+	size_type size() const
 	{
 		LockGuard lock(m_mtx);
 		return m_queue.size();
@@ -307,6 +312,15 @@ public:
 		result = m_queue.front();
 		m_queue.pop_front(); // require this method
 		m_pushCond.notify_one();
+	}
+	bool try_pop_front(value_type& result)
+	{
+		UniqueLock lock(m_mtx);
+		if (m_queue.empty()) return false;
+		result = m_queue.front();
+		m_queue.pop_front();
+		m_pushCond.notify_one();
+		return true;
 	}
 	void pop_front_by_swap(value_type& result) {
 		UniqueLock lock(m_mtx);

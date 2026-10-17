@@ -103,7 +103,7 @@ public:
     }
     bool empty() final {return q.empty(); }
     size_t size() final { return q.size(); }
-    size_t peekSize() const final { return q.peekSize(); }
+    size_t peekSize() const final { return q.size(); }
 };
 
 #if TOPLING_PIPELINE_WITH_FIBER
@@ -152,26 +152,23 @@ public:
 		q.queue().init(size);
 	}
 	void push_back(const PipelineQueueItem& x, FiberYield* fy) final {
-		if (q.peekFull()) {
-			fy->yield();
-		}
-	    q.push_back(x);
+		if (q.try_push_back(x)) return;
+		fy->yield();
+		q.push_back(x);
 	}
     bool push_back(const PipelineQueueItem& x, int timeout, FiberYield* fy) final {
-		if (q.peekFull()) {
-			fy->yield();
-		}
+		if (q.try_push_back(x)) return true;
+		fy->yield();
         return q.push_back(x, timeout);
 	}
     bool pop_front(PipelineQueueItem& x, int timeout, FiberYield* fy) final {
-		if (q.peekEmpty()) {
-			fy->yield();
-		}
+		if (q.try_pop_front(x)) return true;
+		fy->yield();
         return q.pop_front(x, timeout);
     }
-    bool empty() final { return q.peekEmpty(); }
-    size_t size() final { return q.peekSize(); }
-    size_t peekSize() const final { return q.peekSize(); }
+    bool empty() final { return q.empty(); }
+    size_t size() final { return q.size(); }
+    size_t peekSize() const final { return q.size(); }
 };
 
 static
