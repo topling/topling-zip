@@ -22,7 +22,7 @@ public:
     DaCacheFixedStrVec();
     virtual ~DaCacheFixedStrVec();
 
-    bool has_cache() const { return nullptr != m_da_data; }
+    bool has_cache() const { return m_da_size != 0; }
     size_t da_size() const { return m_da_size; }
     size_t da_free() const { return m_da_free; }
     void build_cache(size_t stop_range_len = 512);

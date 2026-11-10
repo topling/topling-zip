@@ -428,7 +428,7 @@ void DaCacheFixedStrVec::load_mmap(const byte_t* mem, size_t len) {
     this->clear();
     m_strpool_mem_type = MemType::User;
     m_strpool.risk_set_data((byte_t*)(h + 1));
-    m_strpool.risk_set_size(h->fixlen * h->strnum);
+    m_strpool.risk_set_size(size_t(h->fixlen) * h->strnum);
     m_strpool.risk_set_capacity(len - sizeof(h));
     m_fixlen = h->fixlen;
     m_size = h->strnum;
